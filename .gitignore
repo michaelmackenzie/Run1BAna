@@ -1,0 +1,32 @@
+*~
+*pycache*
+#*
+.#*
+*\#
+#ignore images by default
+*.png
+*.jpg
+*.svg
+*.pdf
+*.gif
+*.pyc
+*.so
+*.d
+*.pcm
+*.zip
+#Ignore data files
+*.root
+*.hist
+*.tree
+*/datacards
+notes.org
+#Ignore TMVA outputs
+studies/*/*_output
+studies/*/outputs
+#Ignore temporary files
+*.log
+*.out
+*.tmp
+*.save
+*.diff
+*.swap

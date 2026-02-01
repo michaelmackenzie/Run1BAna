@@ -1,0 +1,45 @@
+#------------------------------------------------------------------------------
+# runs ana module
+#------------------------------------------------------------------------------
+
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardServices.fcl"
+
+process_name : Ana
+source : { module_type : RootInput }
+services : @local::Services.Reco
+
+physics : {
+  analyzers: {
+    HitOriginAna : {
+      module_type           : HitOriginAna
+      simCollection         : "compressDigiMCs"
+      strawDigiMCCollection : "compressDigiMCs"
+      debugLevel            : 0
+    }
+    Run1BAna : {
+      module_type : Run1BAna
+      simCollection         : "compressRecoMCs"
+      strawDigiMCCollection : "compressRecoMCs"
+      caloClusterCollection : "CaloClusterMaker"
+      triggerProcess        : "Reconstruct"
+      PBI                   : "PBISim"
+      debugLevel            : 0
+    }
+    CaloExample : {
+      module_type : CaloExample
+      vdCollection          : "compressRecoMCs:virtualdetector"
+      caloHitCollection     : "CaloHitMaker"
+      caloClusterCollection : "CaloClusterMaker"
+      caloHitTruth          : "compressRecoMCs"
+      caloClusterTruth      : "compressRecoMCs"
+    }
+  }
+  EndPath  : [
+    Run1BAna
+  ]
+  trigger_paths : [ ]
+  end_paths : [ EndPath ]
+}
+
+services.TFileService.fileName     : "nts.owner.ana.Run1B.sequencer.root"

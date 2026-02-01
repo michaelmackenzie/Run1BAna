@@ -1,0 +1,39 @@
+#include "ConvAna/datasets/common/reco_stn.fcl"
+
+source.inputCommands : [
+  "keep *_*_*_*", 
+  "drop mu2e::TriggerInfo_*_*_*",
+  "drop mu2e::HelixSeeds_*_*_*",
+  "drop mu2e::KalSeeds_*_*_*",
+  "drop mu2e::TimeClusters_*_*_*",
+  "keep mu2e::Calo*_*_*_*",
+  "keep mu2e::Crv*_*_*_*",
+  "keep mu2e::StrawDigis_*_*_*",
+  "keep mu2e::SimParticlemv_*_*_*",
+  "keep mu2e::SimParticles_*_*_*",
+  "keep *Sim*_*_*_*",
+  "keep mu2e::StrawGasSteps_*_*_*",
+  "keep mu2e::StrawDigiMCs_*_*_*"
+]
+
+physics.analyzers.HitOriginAna : {
+    module_type           : HitOriginAna
+    simCollection         : "compressDigiMCs"
+    strawDigiMCCollection : "compressDigiMCs"
+    debugLevel            : 0
+}
+
+# Only run this analyzer, no ntupling
+physics.e1 : [ HitOriginAna ]
+physics.end_paths : [ e1 ]
+
+# Only run one reco path and relevant trigger paths
+physics.RecoDe : [
+  @sequence::Reconstruction.CaloReco,
+  @sequence::Reconstruction.TrkHitReco,
+  @sequence::Reconstruction.DeReco
+]
+# physics.trigger_paths : [ RecoDe ]
+physics.trigger_paths : [ ]
+
+services.TFileService.fileName : "nts.user.hit_ana.ConvAna.001210_00000000.root"

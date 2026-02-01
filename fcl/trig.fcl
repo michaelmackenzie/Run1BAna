@@ -1,0 +1,97 @@
+#------------------------------------------------------------------------------
+# runs the trigger reco 
+#------------------------------------------------------------------------------
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardServices.fcl"
+
+# Trigger info, replacing the changes made in includes above
+#include "mu2e-trig-config/core/trigProducers.fcl"
+#include "mu2e-trig-config/core/trigFilters.fcl"
+#include "mu2e-trig-config/core/trigRecoSequences.fcl"
+BEGIN_PROLOG
+# override the trigger digitization sequence (must be before trigSequences)
+TrigRecoSequences.artFragmentsGen : []
+END_PROLOG
+#include "mu2e-trig-config/core/trigSequences.fcl"
+
+#include "mu2e-trig-config/gen/trig_noFieldMenuPSConfig_OnSpill.fcl"
+#include "mu2e-trig-config/gen/trig_noFieldMenu_OnSpill.fcl"
+
+process_name : Trigger
+source : { module_type : RootInput }
+services : @local::Services.Reco
+services.scheduler.wantSummary: true
+
+physics : {
+  @table::TrigSequences
+  producers : {
+    @table::TrigProducers.producers
+  }
+  filters : {
+    @table::TrigFilters.filters
+    @table::Trig_noFieldMenuPSConfig
+    # Triggerable calo events
+    TriggerableCalo : {
+      module_type : CaloShowerSimFilter
+      MinParticleEnergy : 75.0
+      MinTotalEnergy    : 1e6
+      CaloShowerSimCollection : "compressDigiMCs"
+      particleTypes : [11, -11, 13, -13, 211, -211, 22]
+    }
+  }
+  analyzers: {
+    HitOriginAna : {
+      module_type           : HitOriginAna
+      simCollection         : "compressDigiMCs"
+      strawDigiMCCollection : "compressDigiMCs"
+      debugLevel            : 0
+    }
+    Run1BAna : {
+      module_type : Run1BAna
+      simCollection         : "compressDigiMCs"
+      strawDigiMCCollection : "compressDigiMCs"
+      caloClusterCollection : "CaloClusterMaker"
+      triggerProcess        : "Trigger"
+      debugLevel            : 0
+    }
+    CaloExample : {
+      module_type : CaloExample
+      vdCollection          : "compressRecoMCs:virtualdetector"
+      caloHitCollection     : "CaloHitMaker"
+      caloClusterCollection : "CaloClusterMaker"
+      caloHitTruth          : "compressRecoMCs"
+      caloClusterTruth      : "compressRecoMCs"
+    }
+  }
+  TriggerableCalo : [ TriggerableCalo ]
+  RecoPath : [  ]
+  EndPath  : [
+    TriggerableOutput, TriggeredOutput,
+    HitOriginAna,
+    Run1BAna
+  ]
+}
+
+outputs : {
+  TriggeredOutput : {
+    module_type  : RootOutput
+    SelectEvents : [ @sequence::Trig_noFieldMenu.trigger_list ]
+  }
+  TriggerableOutput : {
+    module_type  : RootOutput
+    SelectEvents : [ TriggerableCalo ]
+  }
+}
+#include "mu2e-trig-config/core/trigDigiInputsEpilog.fcl"
+#include "Production/JobConfig/reco/drop_trigger.fcl"
+physics.end_paths : [ EndPath ]
+physics.trigger_paths : [ RecoPath, "25:TriggerableCalo", @sequence::Trig_noFieldMenu.trigger_paths ]
+
+services.DbService.purpose: "Sim_best"
+services.DbService.version: "v1_1"
+services.DbService.verbose : 2
+
+
+outputs.TriggeredOutput.fileName   : "mcs.owner.Triggered.Run1B.sequencer.art"
+outputs.TriggerableOutput.fileName : "mcs.owner.Triggerable.Run1B.sequencer.art"
+services.TFileService.fileName     : "nts.owner.reco_trig.Run1B.sequencer.root"

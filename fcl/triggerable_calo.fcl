@@ -1,0 +1,26 @@
+# Split an art file based on the trigger results into MC triggerable and triggered streams
+
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardServices.fcl"
+
+process_name : SplitTriggerResults
+
+source : {
+  module_type : RootInput
+  fileNames   : @nil
+}
+
+physics : {
+  EndPath       : [ TriggerableOutput ]
+  trigger_paths : [ ]
+  end_paths     : [ EndPath ]
+}
+
+outputs : {
+  TriggerableOutput : {
+    module_type     : RootOutput
+    SelectEvents  : [ "Digitize:TriggerableCaloPath" ]
+    outputCommands  :   [ "keep *_*_*_*" ]
+    fileName        : "dig.user.Triggerable.ConvAna.%6r_%8s.art"
+  }
+}
