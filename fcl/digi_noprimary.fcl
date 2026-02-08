@@ -1,0 +1,3 @@
+#include "Run1BAna/fcl/digi.fcl"
+outputs.Output.SelectEvents : [ ]
+outputs.Output.fileName   : "dig.user.NoPrimary.Run1BAna.sequencer.art"

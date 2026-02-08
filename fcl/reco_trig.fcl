@@ -1,5 +1,5 @@
 #------------------------------------------------------------------------------
-# runs the trigger + Offline reco 
+# runs the trigger + Offline reco
 #------------------------------------------------------------------------------
 #include "Production/JobConfig/recoMC/prolog.fcl"
 
@@ -21,7 +21,7 @@ Reconstruction.OnSpillPath : [
   @sequence::Reconstruction.CaloReco,
   @sequence::Reconstruction.TrkHitReco,
   @sequence::Reconstruction.CrvReco,
-  @sequence::Reconstruction.OnSpillTrk,
+  # @sequence::Reconstruction.OnSpillTrk,
   @sequence::Reconstruction.LineReco,
   KLFilter,
   @sequence::Reconstruction.MCReco
@@ -29,7 +29,11 @@ Reconstruction.OnSpillPath : [
 END_PROLOG
 
 process_name : Reconstruct
-source : { module_type : RootInput }
+source : { module_type : RootInput
+  inputCommands : [ "keep *",
+    "drop *_Trig*KSFMC_*_*"
+  ]
+}
 services : @local::Services.Reco
 services.scheduler.wantSummary: true
 
@@ -63,9 +67,14 @@ physics : {
     Run1BAna : {
       module_type : Run1BAna
       simCollection         : "compressDigiMCs"
+      primaryParticle       : "compressDigiMCs"
       strawDigiMCCollection : "compressDigiMCs"
+      CaloHitCollection     : "CaloHitMaker"
+      ComboHitCollection    : "makeSH"
+      LineCollection        : "KKLine"
       caloClusterCollection : "CaloClusterMaker"
       triggerProcess        : "Reconstruct"
+      PBI                   : "PBISim"
       debugLevel            : 0
     }
     CaloExample : {
@@ -89,13 +98,11 @@ physics : {
 outputs : {
   Output : {
     @table::Reconstruction.Output
-    SelectEvents : [ "RecoPath" ]
-    fileName   : "mcs.owner.Reco.noFieldMenu.sequencer.art"
+    SelectEvents : [ ] # [ "RecoPath" ]
   }
   TriggeredOutput : {
     module_type  : RootOutput
     SelectEvents : [ @sequence::Trig_noFieldMenu.trigger_list ]
-    fileName     : "mcs.owner.Triggered.noFieldMenu.sequencer.art"
   }
   TriggerableOutput : {
     module_type  : RootOutput
@@ -111,8 +118,7 @@ physics.analyzers.LHCompressionCheck.SelectEvents : [ "RecoPath" ]
 physics.end_paths : [ EndPath ]
 physics.trigger_paths : [ RecoPath, "25:TriggerableCalo", @sequence::Trig_noFieldMenu.trigger_paths ]
 
-# physics.producers.SelectReco.CrvDigiCollection : ""
-# physics.producers.SelectReco.CrvCoincidenceClusterCollections : []
+physics.producers.SelectReco.SaveAllUnusedDigiMCs : true
 
 services.DbService.purpose: "Sim_best"
 services.DbService.version: "v1_1"
@@ -126,7 +132,10 @@ outputs.TriggeredOutput.outputCommands   : [ @sequence::outputs.Output.outputCom
 outputs.TriggerableOutput.outputCommands : [ @sequence::outputs.Output.outputCommands ]
 
 
-outputs.Output.fileName            : "mcs.owner.Reco.Run1B.sequencer.art"
-outputs.TriggeredOutput.fileName   : "mcs.owner.Triggered.Run1B.sequencer.art"
-outputs.TriggerableOutput.fileName : "mcs.owner.Triggerable.Run1B.sequencer.art"
+outputs.Output.fileName            : "mcs.owner.reco_trig.Reco.Run1B.art"
+outputs.TriggeredOutput.fileName   : "mcs.owner.reco_trig.Triggered.Run1B.art"
+outputs.TriggerableOutput.fileName : "mcs.owner.reco_trig.Triggerable.Run1B.art"
 services.TFileService.fileName     : "nts.owner.reco_trig.Run1B.sequencer.root"
+
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v01.txt"

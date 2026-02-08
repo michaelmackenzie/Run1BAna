@@ -21,6 +21,6 @@ outputs : {
     module_type     : RootOutput
     SelectEvents  : [ "Digitize:TriggerableCaloPath" ]
     outputCommands  :   [ "keep *_*_*_*" ]
-    fileName        : "dig.user.Triggerable.ConvAna.%6r_%8s.art"
+    fileName        : "dig.owner.Triggerable.Run1B.%6r_%8s.art"
   }
 }

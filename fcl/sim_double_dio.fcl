@@ -1,0 +1,96 @@
+# Simulate double DIO events
+
+#include "Production/JobConfig/primary/TargetStopParticle.fcl"
+
+outputs.PrimaryOutput.fileName: "dts.owner.DoubleDIO.version.sequencer.art"
+services.TFileService.fileName: "nts.owner.DoubleDIO.version.sequencer.root"
+
+physics.producers.generate : {
+  module_type            : DoubleDIOGenerator
+  inputSimParticles      : "TargetStopResampler"
+  stoppingTargetMaterial : "Al"
+  StopTimeScale          : 50.
+  StopRadius             : 100.
+  StopX0                 : -3904.
+  StopY0                 : 0.
+  SameStop               : true
+  doHistograms           : true
+  dioTool :
+  {
+    tool_type     : DIOGenerator
+    czmin         :   0.99
+    czmax         :   1.00
+    spectrum : {
+      pdgId            :  11
+      spectrumVariable : "totalEnergy"
+      spectrumShape    : "tabulated"
+      spectrumFileName : "Offline/EventGenerator/data/heeck_finer_binning_2016_szafron.tbl"
+      ehi              : 104.97
+      elow             : 1.0
+    }
+  }
+  verbosity    : 0
+}
+
+physics.filters.GenFilter : {
+  module_type             : DoubleGenFilter
+  StageParticleCollection : "generate"
+  SimParticleCollection   : "NOTUSED"
+  maxDeltaT               : 1.e10
+  maxDeltaRCalo           : 1.e12
+  minTotalEnergy          : 80.
+  diagLevel               : 0
+  doHistograms            : true
+}
+
+physics.filters.DevGenFilter : {
+  module_type             : DoubleGenFilter
+  StageParticleCollection : "generate"
+  SimParticleCollection   : "NOTUSED"
+  maxDeltaT               : 500.
+  maxDeltaRCalo           : 200.
+  minTotalEnergy          : 80.
+  diagLevel               : 0
+  doHistograms            : true
+}
+
+physics.PrimaryPath   : [TargetStopResampler, @sequence::Common.generateSequence, DevGenFilter, @sequence::Common.g4Sequence, @sequence::Primary.PrimarySequence ]
+physics.GenPath       : [TargetStopResampler, @sequence::Common.generateSequence, DevGenFilter ]
+physics.trigger_paths : [ PrimaryPath, GenPath ]
+# physics.DevPrimaryPath : [TargetStopResampler, @sequence::Common.generateSequence, DevGenFilter, @sequence::Common.g4Sequence, @sequence::Primary.PrimarySequence ]
+# physics.trigger_paths : [ PrimaryPath, DevPrimaryPath ]
+
+physics.analyzers.CaloEffAna : {
+  module_type              : CaloEffAna
+  primary                  : "FindMCPrimary"
+  CaloClusterCollection    : "CaloClusterMaker"
+  CaloShowerStepCollection : "CaloShowerStepMaker"
+  debugLevel               : 0
+}
+
+physics.AnaPath   : [ CaloEffAna ]
+physics.end_paths : [ @sequence::physics.end_paths, AnaPath ]
+
+physics.producers.FindMCPrimary.PrimaryProcess      : "mu2eMuonDecayAtRest"
+
+physics.filters.PrimaryFilter.StrawGasSteps         : []
+physics.filters.PrimaryFilter.MinimumSumCaloStepE   : 70. # Rely on the total, not the step
+physics.filters.PrimaryFilter.MinimumPartMom        :  0.
+physics.filters.PrimaryFilter.MaximumSumCaloStepE   : 1.e10
+physics.filters.PrimaryFilter.ORRequirements        : true
+physics.filters.PrimaryFilter.DiagLevel             : 0
+physics.filters.PrimaryFilter.MinimumSumCaloE       : 50. # Only look at E > 50 MeV in the calo
+# outputs.PrimaryOutput.SelectEvents                  : [ "GenPath" ] # ignore primary filter in selecting events
+
+source.firstRun: 1440 #TODO
+physics.filters.TargetStopResampler.fileNames : [
+  "/pnfs/mu2e/tape/phy-sim/sim/mu2e/MuminusStopsCat/Run1Baa/art/1b/be/sim.mu2e.MuminusStopsCat.Run1Baa.001440_00000000.art"
+]
+# physics.filters.TargetStopResampler.fileNames : [
+#   "/pnfs/mu2e/tape/phy-sim/sim/mu2e/MuminusStopsCat/Run1Baa/art/1b/be/sim.mu2e.MuminusStopsCat.Run1Baa.001440_00000000.art",
+#   "/pnfs/mu2e/tape/phy-sim/sim/mu2e/MuminusStopsCat/Run1Baa/art/01/d5/sim.mu2e.MuminusStopsCat.Run1Baa.001440_00000001.art"
+# ]
+physics.filters.TargetStopResampler.mu2e.MaxEventsToSkip: 0
+
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v01.txt"

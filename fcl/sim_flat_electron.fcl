@@ -1,0 +1,35 @@
+# Simulate flat electron events
+
+#include "Production/JobConfig/primary/FlateMinus.fcl"
+
+physics.producers.generate : {
+  module_type            : FlatGeneratorFromStoppedMuon
+  inputSimParticles      : "TargetStopResampler"
+  stoppingTargetMaterial : "Al"
+  pdgId                  : 11
+  startMom               : 1.
+  endMom                 : 110
+  verbosity              : 0
+}
+
+outputs.PrimaryOutput.fileName: "dts.owner.FlateMinus.version.sequencer.art"
+services.TFileService.fileName: "nts.owner.FlateMinus.version.sequencer.root"
+
+physics.filters.PrimaryFilter.StrawGasSteps         : []
+physics.filters.PrimaryFilter.MinimumSumCaloStepE   : 0.1
+physics.filters.PrimaryFilter.MinimumPartMom        :  0.
+physics.filters.PrimaryFilter.MaximumSumCaloStepE   : 1.e10
+physics.filters.PrimaryFilter.ORRequirements        : true
+physics.filters.PrimaryFilter.DiagLevel             : 0
+physics.filters.PrimaryFilter.MinimumSumCaloE       : 0.1
+
+source.firstRun: 1440 #TODO
+physics.filters.TargetStopResampler.fileNames : [
+  "/pnfs/mu2e/tape/phy-sim/sim/mu2e/MuminusStopsCat/Run1Baa/art/1b/be/sim.mu2e.MuminusStopsCat.Run1Baa.001440_00000000.art",
+  "/pnfs/mu2e/tape/phy-sim/sim/mu2e/MuminusStopsCat/Run1Baa/art/01/d5/sim.mu2e.MuminusStopsCat.Run1Baa.001440_00000001.art"
+]
+physics.filters.TargetStopResampler.mu2e.MaxEventsToSkip: 0
+
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v01.txt"
+

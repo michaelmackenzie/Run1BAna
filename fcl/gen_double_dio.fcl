@@ -1,0 +1,29 @@
+#include "Run1BAna/fcl/sim_double_dio.fcl"
+
+
+physics.filters.GenFilter : {
+  module_type             : DoubleGenFilter
+  StageParticleCollection : "generate"
+  maxDeltaT               : 1.e10
+  maxDeltaRCalo           : 1.e12
+  minTotalEnergy          : 80.
+  diagLevel               : 0
+  doHistograms            : true
+}
+
+physics.filters.DevGenFilter : {
+  module_type             : DoubleGenFilter
+  StageParticleCollection : "generate"
+  maxDeltaT               : 500.
+  maxDeltaRCalo           : 200.
+  minTotalEnergy          : 80.
+  diagLevel               : 0
+  doHistograms            : true
+}
+
+physics.PrimaryPath   : [TargetStopResampler, @sequence::Common.generateSequence, GenFilter, DevGenFilter ]
+physics.AnaPath       : [ CaloEffAna ]
+physics.trigger_paths : [ PrimaryPath ]
+physics.end_paths     : [ AnaPath ]
+
+services.TFileService.fileName: "nts.owner.gen-DoubleDIO.version.sequencer.root"

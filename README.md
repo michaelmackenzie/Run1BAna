@@ -26,6 +26,9 @@ source Stntuple/scripts/build_config
 mkdir -p /exp/mu2e/data/users/${USER}/builds/$DIR
 ln -s /exp/mu2e/data/users/${USER}/builds/$DIR build
 
+# Copy the rootlogon file, if desired
+cp Run1BAna/scripts/rootlogon.C ./
+
 muse setup
 
 # on mu2ebuild02

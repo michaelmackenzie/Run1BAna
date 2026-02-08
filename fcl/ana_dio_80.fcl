@@ -1,0 +1,4 @@
+# Remove E > 90 from the DIO 80 MeV sample
+#include "Run1BAna/fcl/ana.fcl"
+
+physics.analyzers.Run1BAna.maxGenEnergy : 90.

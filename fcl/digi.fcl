@@ -1,0 +1,13 @@
+# Process on-spill digitization
+#include "Production/JobConfig/digitize/OnSpill.fcl"
+
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v01.txt"
+
+services.DbService.purpose: Sim_best
+services.DbService.version: v1_1
+services.DbService.verbose : 2
+
+outputs.Output.fileName   : "dig.user.dataset.Run1BAna.sequencer.art"
+
+#include "Production/JobConfig/digitize/OnSpill_run1b_epilog.fcl"

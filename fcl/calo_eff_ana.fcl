@@ -1,0 +1,35 @@
+#------------------------------------------------------------------------------
+# runs CaloEffAna module
+#------------------------------------------------------------------------------
+
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardServices.fcl"
+
+process_name : Ana
+source : {
+  module_type : RootInput
+  inputCommands: [ "keep *"
+    # , "drop mu2e::HelixSeed*_*_*_*"
+    # , "drop mu2e::TimeCluster*_*_*_*"
+  ]
+}
+services : @local::Services.Reco
+
+physics : {
+  analyzers: {
+    CaloEffAna : {
+      module_type              : CaloEffAna
+      primary                  : "FindMCPrimary"
+      CaloClusterCollection    : "CaloClusterMaker"
+      CaloShowerStepCollection : "compressDetStepMCs"
+      debugLevel               : 0
+    }
+  }
+  EndPath  : [
+    CaloEffAna
+  ]
+  trigger_paths : [ ]
+  end_paths : [ EndPath ]
+}
+
+services.TFileService.fileName     : "nts.owner.calo_eff_ana.Run1B.sequencer.root"

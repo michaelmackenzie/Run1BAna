@@ -1,0 +1,9 @@
+#include "Run1BAna/fcl/reco_trig.fcl"
+
+outputs.Output.fileName            : "mcs.owner.reco_trig.Reco.Run1A.art"
+outputs.TriggeredOutput.fileName   : "mcs.owner.reco_trig.Triggered.Run1A.art"
+outputs.TriggerableOutput.fileName : "mcs.owner.reco_trig.Triggerable.Run1A.art"
+services.TFileService.fileName     : "nts.owner.reco_trig.Run1A.sequencer.root"
+
+services.GeometryService.bFieldFile : "Offline/Mu2eG4/geom/bfgeom_no_tsu_ps_v01.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_common.txt"
