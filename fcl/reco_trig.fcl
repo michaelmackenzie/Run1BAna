@@ -23,7 +23,7 @@ Reconstruction.OnSpillPath : [
   @sequence::Reconstruction.CrvReco,
   # @sequence::Reconstruction.OnSpillTrk,
   @sequence::Reconstruction.LineReco,
-  KLFilter,
+  # KLFilter,
   @sequence::Reconstruction.MCReco
 ]
 END_PROLOG
@@ -66,16 +66,18 @@ physics : {
     }
     Run1BAna : {
       module_type : Run1BAna
-      simCollection         : "compressDigiMCs"
-      primaryParticle       : "compressDigiMCs"
-      strawDigiMCCollection : "compressDigiMCs"
-      CaloHitCollection     : "CaloHitMaker"
-      ComboHitCollection    : "makeSH"
-      LineCollection        : "KKLine"
-      caloClusterCollection : "CaloClusterMaker"
-      triggerProcess        : "Reconstruct"
-      PBI                   : "PBISim"
-      debugLevel            : 0
+      simCollection           : "compressDigiMCs"
+      primaryParticle         : "compressDigiMCs"
+      strawDigiMCCollection   : "compressDigiMCs"
+      CaloHitCollection       : "CaloHitMaker"
+      ComboHitCollection      : "makeSH"
+      LineCollection          : "KKLine"
+      caloClusterCollection   : "CaloClusterMaker"
+      caloClusterMCCollection : "CaloClusterTruthMatch"
+      caloShowerSimCollection : "compressDigiMCs"
+      triggerProcess          : "Reconstruct"
+      PBI                     : "PBISim"
+      debugLevel              : 0
     }
     CaloExample : {
       module_type : CaloExample
@@ -119,6 +121,8 @@ physics.end_paths : [ EndPath ]
 physics.trigger_paths : [ RecoPath, "25:TriggerableCalo", @sequence::Trig_noFieldMenu.trigger_paths ]
 
 physics.producers.SelectReco.SaveAllUnusedDigiMCs : true
+# physics.producers.KLFilter : { module_type : NullProducer }
+# physics.filters.KLFilter : @erase
 
 services.DbService.purpose: "Sim_best"
 services.DbService.version: "v1_1"

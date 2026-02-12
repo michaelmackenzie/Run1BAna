@@ -12,7 +12,8 @@ DatasetInfo_t get_dataset_info(TString name) {
   // Initialize the datasets if not already
   if(datasets_.size() == 0) {
     const double rate_dio((1.-muon_capture_fraction_)*nmuons_per_pot_), rate_dio_50(rate_dio*dio_frac_50_),
-      rate_dio_80(rate_dio*dio_frac_80_), rate_dio_90(rate_dio*dio_frac_90_), rate_dio_95(rate_dio*dio_frac_95_);
+      rate_dio_80(rate_dio*dio_frac_80_), rate_dio_90(rate_dio*dio_frac_90_), rate_dio_95(rate_dio*dio_frac_95_),
+      rate_dio_0_60(rate_dio*dio_frac_0_60_), rate_dio_60_80(rate_dio*dio_frac_60_80_), rate_dio_80_90(rate_dio*dio_frac_80_90_);
     const double rate_rpc(pion_stop_rate_*pion_survive_frac_*rpc_br_), rate_rpc_int(rate_rpc*rpc_int_br_),
       rate_rmc(nmuons_per_pot_*muon_capture_fraction_*br_rmc_/rmc_frac_57_), rate_rmc_conv(rate_rmc*rmc_conv_),
       rate_rmc_int(rate_rmc*rmc_int_br_); // FIXME: rmc_int_br in convolution sometimes
@@ -22,15 +23,22 @@ DatasetInfo_t get_dataset_info(TString name) {
     const double rate_pileup(1.);
     const double rate_sig(muon_capture_fraction_*nmuons_per_pot_);
     // Retrieve N(gen) using scripts/samCountGenEvents.sh and N(events) using scripts/samCountEvents.sh
-    //                                  N(gen)      N(digi) emin emax    rate          stn dataset           art dataset
+    //                                  N(gen)   N(dig/mcs) emin emax    rate          stn dataset           art dataset
 
-    datasets_["dio_50"]  = DatasetInfo_t(  1e6 ,   9172, 50., 105., rate_dio_50   , "dio50b1s5r0100", "nts.mu2e.DIOtail50MixLowTriggerable-KL.Run1Bab2_best_v1_2.root");
-    datasets_["dio_80"]  = DatasetInfo_t(  1e7 , 223629, 80., 105., rate_dio_80   , "dio80b1s5r0100", "nts.mu2e.DIOtail80MixLowTriggerable-KL.Run1Bab2_best_v1_2.root");
-    datasets_["dio_90"]  = DatasetInfo_t( 9.3e6, 225190, 90., 105., rate_dio_90   , "dio90b1s5r0100", "nts.mu2e.DIOtail90MixLowTriggerable-KL.Run1Bab2_best_v1_2.root");
-    datasets_["pileup"]  = DatasetInfo_t(  1e6 , 204443,  0.,   1., rate_pileup   , "mnbs0b1s5r0100", "nts.mu2e.NoPrimaryMixLowTriggerable-KL.Run1Bab2_best_v1_2.root");
-    // datasets_["mumem"]   = DatasetInfo_t( 9.3e6, 225190, 90., 105., rate_sig      , "dio90b1s5r0100", "nts.mu2e.DIOtail90MixLowTriggerable-KL.Run1Bab2_best_v1_2.root");
-    // datasets_["mumem"]   = DatasetInfo_t( 1e7 , 223629, 80., 105., rate_sig      , "dio80b1s5r0100", "nts.mu2e.DIOtail80MixLowTriggerable-KL.Run1Bab2_best_v1_2.root");
-    datasets_["mumem"]   = DatasetInfo_t( 1e6 ,  22717, 0.,   1., rate_sig       , "cele0b1s5r0100", "nts.mu2e.CeEndpointMixLowTriggerable-KL.Run1Bab2_best_v1_2.root");
+    // // v01
+    // datasets_["dio_50"]  = DatasetInfo_t(  1e6 ,   9172, 50., 105., rate_dio_50   , "dio50b1s5r0100", "nts.mu2e.DIOtail50MixLowTriggerable-KL.Run1Bab2_best_v1_2.root");
+    // datasets_["dio_80"]  = DatasetInfo_t(  1e7 , 223629, 80., 105., rate_dio_80   , "dio80b1s5r0100", "nts.mu2e.DIOtail80MixLowTriggerable-KL.Run1Bab2_best_v1_2.root");
+    // datasets_["dio_90"]  = DatasetInfo_t( 9.3e6, 225190, 90., 105., rate_dio_90   , "dio90b1s5r0100", "nts.mu2e.DIOtail90MixLowTriggerable-KL.Run1Bab2_best_v1_2.root");
+    // datasets_["pileup"]  = DatasetInfo_t(  1e6 , 204443,  0.,   1., rate_pileup   , "mnbs0b1s5r0100", "nts.mu2e.NoPrimaryMixLowTriggerable-KL.Run1Bab2_best_v1_2.root");
+    // datasets_["mumem"]   = DatasetInfo_t(  1e6 ,  22717,  0.,   1., rate_sig      , "cele0b1s5r0100", "nts.mu2e.CeEndpointMixLowTriggerable-KL.Run1Bab2_best_v1_2.root");
+
+    // v02
+    datasets_["dio_0_60"]   = DatasetInfo_t(  1e9 ,  314181,  0.,  60., rate_dio_0_60 , "dio06b1s5r0100", "nts.mu2e.DIOtail0_60MixLowTriggerable-KL.Run1Bab3_best_v1_2.root");
+    datasets_["dio_60_80"]  = DatasetInfo_t(  1e9 , 1569066, 60.,  80., rate_dio_60_80, "dio68b1s5r0100", "nts.mu2e.DIOtail60_80MixLowTriggerable-KL.Run1Bab3_best_v1_2.root");
+    datasets_["dio_80_90"]  = DatasetInfo_t(  1e9 , 2571077, 80.,  90., rate_dio_80_90, "dio89b1s5r0100", "nts.mu2e.DIOtail80_90MixLowTriggerable-KL.Run1Bab3_best_v1_2.root");
+    datasets_["dio_90_inf"] = DatasetInfo_t( 4.7e8, 2891499, 90., 105., rate_dio_90   , "dio9ib1s5r0100", "nts.mu2e.DIOtail90_infMixLowTriggerable-KL.Run1Bab3_best_v1_2.root");
+    datasets_["pileup"]     = DatasetInfo_t(  1e6 ,  204443,  0.,   1., rate_pileup   , "mnbs0b1s5r0100", "nts.mu2e.NoPrimaryMixLowTriggerable-KL.Run1Bab3_best_v1_2.root");
+    datasets_["mumem"]      = DatasetInfo_t( 3.9e8, 3189865,  0.,   1., rate_sig      , "cele0b1s5r0100", "nts.mu2e.CeEndpointMixLowTriggerable-KL.Run1Bab3_best_v1_2.root");
 
   }
   if(datasets_.count(name) != 0) return datasets_[name];

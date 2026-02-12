@@ -1,0 +1,12 @@
+# Run the Sntuple display
+
+#include "Run1BAna/fcl/display_prolog.fcl"
+#include "Run1BAna/fcl/reco_trig.fcl"
+process_name : Display
+
+physics.analyzers.MuHitDisplay : @local::Display.MuHitDisplay
+
+physics.e1 : [ MuHitDisplay ]
+
+physics.trigger_paths : [RecoPath]
+physics.end_paths : [e1]

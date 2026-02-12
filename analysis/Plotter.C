@@ -51,7 +51,7 @@ public:
   double max_ratio_ = 1.5                ;
   bool ad_hoc_sys_  = true               ; // ad-hoc systematic band
   TString dir_path_ = "Run1BAna"         ; // directory path in the ROOT file
-  vector<TString> bkgs_ = {"dio_90", "dio_80"}; // backgrounds included in the plotting
+  vector<TString> bkgs_ = {"dio_90_inf", "dio_80_90", "dio_60_80"}; // backgrounds included in the plotting
 
   //-------------------------------------------------------------------------------------------------------
   Plotter() {}

@@ -1,0 +1,73 @@
+#include "Stntuple/fcl/stntuple_prologs.fcl"
+
+BEGIN_PROLOG
+Display.MuHitDisplay: { module_type:MuHitDisplay                 # class name;
+    THistModule: { @table::StntupleTHistModule
+        TModule: { @table::StntupleTHistModule.TModule
+            interactiveMode  : 1                          ## 1:stop  after each event 2: stop at end-of-job;
+        }
+    }
+
+    crvRecoPulsesCollTag         : "CrvRecoPulses"
+    showCRVOnly                  : false
+    showTracks                   : true
+
+    genpCollTag                  : "generate"
+    comboHitCollTag              : "makePH"                          ## "FlagBkgHits" ## (was "makePH") flagged comboHits
+    helixSeedCollTag             : "MHDe"                            # helices
+    strawHitCollTag              : "makeSH"
+    sdCollTag                    : "compressDigiMCs"                 # standard MC choice
+    swCollTag                    : "compressDigiMCs"                 # standard MC choice
+    sdmcCollTag                  : "compressDigiMCs"                 #  was "makeSD"
+    spmcCollTag                  : "compressDigiMCs:virtualdetector" # was g4run
+    simpCollTag                  : "compressDigiMCs"                 # was g4run
+
+    caloHitCollTag               : "CaloHitMaker"
+    caloClusterCollTag           : "CaloClusterMaker"
+
+    phiClusterCollTag            : "TZClusterFinder"                 ## "PhiClusterFinder"
+    timeClusterCollTag           : "TZClusterFinder"
+    # trackCollTag                 : "KKDe"                           ## need to recover : "KFFDeMHDar"
+    kffCollTag                   : "KKDe"                       ## "KSFDeMHDar"
+    ksfCollTag                   : "KKDe"
+    ctsCollTag                   : ""
+
+    # trkExtrapol                  : "TrackCaloIntersection"
+    # trkCalMatch                  : "TrackCaloMatching"
+
+    # pidCollTag                   : "ParticleID"
+    primaryParticleTag           : "compressDigiMCs"                 # this is new, to be passed to InitSimpBlock
+    vdHitsCollTag                : "compressDigiMCs:virtualdetector" # this is new, to be passed to InitSimpBlock
+
+    # goodHitMask                  : ["EnergySelection","RadiusSelection","TimeSelection"]
+    # goodHitMask                  : ["EnergySelection", "RadiusSelection"]
+    # badHitMask                   : ["Background"]
+
+    minSimpMomentum              : 30.      ## MeV
+    maxSimpMomentum              : 1.e12    ## MeV
+    # timeWindow                   : 100000.
+    #------------------------------------------------------------------------------
+    # configuration of the underlying visualization manager
+    #------------------------------------------------------------------------------
+    visManager: {
+        defaultView        : "xy"     # view open by default
+        displayStrawDigiMC : 1
+        displayStrawHitsXY : 1
+        debugLevel         : 0
+        evdPanelDebugLevel : 0        ## 
+        stnViewDebugLevel  : 1        ## 
+        ewLength           : 1800     # with some margin
+        tMin               : 0.
+        tMax               : 2000.    # for extracted position, needs to be overriden
+        minEDep            : 0.       # for straw/combo hits
+        maxEDep            : 1.       # 1 MeV (very large number)
+        visibleStations    : [                                 # 18 in total
+                              1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                              1, 1, 1, 1, 1, 1, 1, 1
+                             ]
+    }
+    geoManager: {
+	bField             : 1.0      # in Tesla
+    }
+}
+END_PROLOG

@@ -105,19 +105,22 @@ void double_dio_mc(const double mean_muons_per_event = 20000., const double nmuo
 
   // Get rate information
   const double r_dio           = 0.39; // DIO rate per stop
-  const double distance        = 4500.; // assuming 4.5 m from disk 0
-  const double geom_overlap    = M_PI*pow(50.,2)/(4.*M_PI*pow(distance, 2)); // within a 50 mm radius area at 4.5 m away
-  const double geom_acceptance =  (M_PI*(pow(675.,2) - pow(325.,2))) / (4.*M_PI*pow(distance, 2)); // rough area of disk in acceptance
-  const double time_overlap    = 25. / 1000.; // roughly probability of two DIOs being coincident
-  const double p_overlap       = geom_overlap*time_overlap*r_dio*(mean_muons_per_event-1.); // P(overlap) given an accepted DIO (assuming N(muons) << 1/p_accept)
+  const double dz_to_calo      = 4500.; // assuming 4.5 m from disk 0
+  const double geom_overlap    = pow(34.,2)/(4.*M_PI*pow(dz_to_calo, 2)); // within a 34x34 mm area at 4.5 m away
+  const double geom_acceptance =  (M_PI*(pow(675.,2) - pow(325.,2))) / (4.*M_PI*pow(dz_to_calo, 2)); // rough area of disk in acceptance
+  const double time_overlap    = 0.0372; // roughly probability of two DIOs being coincident from dio_time_overlap.C
+  const double acc_overlap     = geom_overlap*time_overlap; // P(overlap) given an accepted DIO (assuming N(muons) << 1/p_accept)
+  const double p_overlap       = acc_overlap*r_dio*(mean_muons_per_event-1.); // P(overlap) given an accepted DIO (assuming N(muons) << 1/p_accept)
   h_dio->Scale(geom_acceptance*(1. - p_overlap));
   h_dio_double->Scale(geom_acceptance*p_overlap);
 
   // Print out the rate info
-  cout << "P(acceptance)    = " << geom_acceptance << endl
-       << "P(overlap space) = " << geom_overlap << endl
-       << "P(overlap time)  = " << time_overlap << endl
-       << "P(overlap)       = " << time_overlap*geom_overlap << endl;
+  cout << "-----------------------------------------------------------------\n"
+       << "P(acceptance)      = " << geom_acceptance << endl
+       << "P(overlap space)   = " << geom_overlap << endl
+       << "P(overlap time)    = " << time_overlap << endl
+       << "P(overlap)         = " << acc_overlap << endl
+       << "P(any DIO overlap) = " << p_overlap << endl;
 
   // Convolve the histograms
   TH1* h_dio_reco        = convolve(h_dio);
@@ -125,10 +128,12 @@ void double_dio_mc(const double mean_muons_per_event = 20000., const double nmuo
   h_dio_double_reco->SetLineColor(kOrange);
 
   // Print out the integrals
-  cout << "DIO             = " << h_dio            ->Integral()*h_dio            ->GetBinWidth(1) << endl
-       << "DIO reco        = " << h_dio_reco       ->Integral()*h_dio_reco       ->GetBinWidth(1) << endl
-       << "Double DIO      = " << h_dio_double     ->Integral()*h_dio_double     ->GetBinWidth(1) << endl
-       << "Double DIO reco = " << h_dio_double_reco->Integral()*h_dio_double_reco->GetBinWidth(1) << endl;
+  cout << "-----------------------------------------------------------------\n"
+       << "DIO                = " << h_dio            ->Integral()*h_dio            ->GetBinWidth(1) << endl
+       << "DIO reco           = " << h_dio_reco       ->Integral()*h_dio_reco       ->GetBinWidth(1) << endl
+       << "Double DIO         = " << h_dio_double     ->Integral()*h_dio_double     ->GetBinWidth(1) << endl
+       << "Double DIO reco    = " << h_dio_double_reco->Integral()*h_dio_double_reco->GetBinWidth(1) << endl
+       << "-----------------------------------------------------------------\n";
 
   // Scale the contributions to the given normalization
   h_dio            ->Scale(nmuons*r_dio);

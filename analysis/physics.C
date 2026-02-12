@@ -66,9 +66,13 @@ double rmc_int_br_            = 0.0069   ; //using BR(internal RPC) / BR(RPC) on
 double rmc_conv_              = 380711./1.e8; // fraction of RMC photons that convert
 double pbar_stops_per_pot_    = 4.7e-18  ; //N(pbar at ST) / POT
 double dio_frac_50_           = 8.766e-02; //DIO spectrum fraction above 50 MeV
+double dio_frac_60_           = 2.735e-04; //DIO spectrum fraction above 60 MeV
 double dio_frac_80_           = 5.671e-08; //DIO spectrum fraction above 80 MeV
-double dio_frac_90_           = 6.847e-10; //DIO spectrum fraction above 90 MeV
+double dio_frac_90_           = 7.262e-10; //DIO spectrum fraction above 90 MeV
 double dio_frac_95_           = 3.637e-11; //DIO spectrum fraction above 95 MeV
+double dio_frac_0_60_         = 0.999728 ; //DIO spectrum fraction  0 - 60
+double dio_frac_60_80_        = 2.734e-04; //DIO spectrum fraction 60 - 80
+double dio_frac_80_90_        = 5.950e-08; //DIO spectrum fraction 80 - 90
 
 void init_physics(TString tag) {
   livetime_       = livetime_week_        ;

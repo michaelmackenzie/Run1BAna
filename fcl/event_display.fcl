@@ -1,0 +1,36 @@
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardProducers.fcl"
+#include "Offline/fcl/standardServices.fcl"
+#include "EventDisplay/fcl/prolog.fcl"
+
+services : @local::Services.Reco
+
+process_name : Run1BDisplay
+
+source : { module_type : RootInput }
+
+physics :
+{
+  analyzers : { @table::REveDis.analyzers}
+  producers : { @table::REveDis.producers }
+  filters : { @table::REveDis.filters }
+}
+
+# print statements
+physics.analyzers.Mu2eEventDisplay.diagLevel : 10
+
+# the path
+physics.EndPath  : [ @sequence::REveDis.seqBase]
+physics.REvePath : @local::REvePath
+physics.trigger_paths :  ["REvePath" ]
+physics.analyzers.Mu2eEventDisplay.SelectEvents : ["REvePath" ]
+
+
+source.inputCommands: ["keep *",
+    "drop mu2e::CaloClusters_CaloClusterFast_*_*"
+    ]
+
+# useless file name
+services.TFileService.fileName: "nts.display.root"
+physics.analyzers.Mu2eEventDisplay.gdmlname :"Offline/gen/gdml/mu2e_common.gdml"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_common.txt"

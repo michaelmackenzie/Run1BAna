@@ -42,6 +42,9 @@ int make_plots(const bool mumem = true,
                vector<int> sets = {0, 10},
                TString dataset = "", TString tag = "") {
   plotter_ = new Plotter();
+  plotter_->bkgs_ = {"dio_90_inf", "dio_80_90", "dio_60_80"}; // backgrounds included in the plotting
+  // plotter_->bkgs_ = {"dio_90_inf", "dio_80_90"}; // backgrounds included in the plotting
+
   TString figdir = (mumem) ? "figures/plots/mumem" : "figures/plots/mumep";
   if(dataset != "") figdir += "_" + dataset;
   if(tag != "") figdir += "_" + tag;
@@ -54,7 +57,6 @@ int make_plots(const bool mumem = true,
 
   // return 0;
 
-  int status(0);
   const bool mds = dataset.Contains("mds");
   const double e_min(70.), e_max(110.);
   TCanvas* c;
@@ -64,15 +66,23 @@ int make_plots(const bool mumem = true,
   for(int set : sets) {
     if(set < 0) continue;
     for(int logy = 0; logy < 2; ++logy) {
-      c = plotter_->print_stack(plot_t("energy"         , "cls", set, 2, e_min, e_max, 1., -1., logy, false, "Cluster energy", "MeV")); if(!c) ++status; //else Empty_Canvas(c);
-      c = plotter_->print_stack(plot_t("time"           , "cls", set, 1,   0., 2000. , 1., -1., logy, false, "Cluster time", "ns")); if(!c) ++status; //else Empty_Canvas(c);
-      c = plotter_->print_stack(plot_t("radius"         , "cls", set, 1, 300.,  700. , 1., -1., logy, false, "Cluster radius", "mm")); if(!c) ++status; //else Empty_Canvas(c);
-      c = plotter_->print_stack(plot_t("ncr"            , "cls", set, 0,   0.,   10. , 1., -1., logy, false, "N(crystals)", "")); if(!c) ++status; //else Empty_Canvas(c);
-      c = plotter_->print_stack(plot_t("disk"           , "cls", set, 0,   1.,   -1. , 1., -1., logy, false, "Cluster disk", "")); if(!c) ++status; //else Empty_Canvas(c);
-      c = plotter_->print_stack(plot_t("line_dt"        , "cls", set, 1, -50.,   50. , 1., -1., logy, false, "T(cluster) - T(line)", "ns")); if(!c) ++status; //else Empty_Canvas(c);
-      c = plotter_->print_stack(plot_t("line_dr"        , "cls", set, 1,   0.,  500. , 1., -1., logy, false, "|cluster(x,y) - line(x,y)|", "mm")); if(!c) ++status; //else Empty_Canvas(c);
-      c = plotter_->print_stack(plot_t("energy_start"   , "sim", set, 1,  50.,  110. , 1., -1., logy, false, "Cluster energy", "MeV")); if(!c) ++status; //else Empty_Canvas(c);
+      c = plotter_->print_stack(plot_t("energy"                 , "cls", set, 2, e_min, e_max, 1., -1., logy, false, "Cluster energy", "MeV"));
+      c = plotter_->print_stack(plot_t("time"                   , "cls", set, 1,   0., 2000. , 1., -1., logy, false, "Cluster time", "ns"));
+      c = plotter_->print_stack(plot_t("radius"                 , "cls", set, 1, 300.,  700. , 1., -1., logy, false, "Cluster radius", "mm"));
+      c = plotter_->print_stack(plot_t("ncr"                    , "cls", set, 0,   0.,   10. , 1., -1., logy, false, "N(crystals)", ""));
+      c = plotter_->print_stack(plot_t("disk"                   , "cls", set, 0,   1.,   -1. , 1., -1., logy, false, "Cluster disk", ""));
+      c = plotter_->print_stack(plot_t("line_dt"                , "cls", set, 1, -50.,   50. , 1., -1., logy, false, "T(cluster) - T(line)", "ns"));
+      c = plotter_->print_stack(plot_t("line_dr"                , "cls", set, 1,   0.,  500. , 1., -1., logy, false, "|cluster(x,y) - line(x,y)|", "mm"));
+      c = plotter_->print_stack(plot_t("nmatched_lines"         , "cls", set, 1,   0.,    5. , 1., -1., logy, false, "N(matched lines)", ""));
+      c = plotter_->print_stack(plot_t("energy_per_crystal"     , "cls", set, 0,   0.,  100. , 1., -1., logy, false, "E / N(crystals)", "MeV"));
+      c = plotter_->print_stack(plot_t("frac_first_crystal"     , "cls", set, 0,   0.,    1. , 1., -1., logy, false, "E_{1} / E", ""));
+      c = plotter_->print_stack(plot_t("frac_first_two_crystals", "cls", set, 0,   0.,    1. , 1., -1., logy, false, "(E_{1} + E_{2}) / E", ""));
+      c = plotter_->print_stack(plot_t("energy_start"           , "sim", set, 1,  50.,  110. , 1., -1., logy, false, "Cluster energy", "MeV"));
+      c = plotter_->print_stack(plot_t("nclusters"              , "evt", set, 0,   0.,   10. , 1., -1., logy, false, "N(clusters)", ""));
+      c = plotter_->print_stack(plot_t("ngood_clusters"         , "evt", set, 0,   0.,   10. , 1., -1., logy, false, "N(clusters | ID)", ""));
+      c = plotter_->print_stack(plot_t("n_lines"                , "evt", set, 0,   0.,   10. , 1., -1., logy, false, "N(lines)", ""));
+      c = plotter_->print_stack(plot_t("ngood_lines"            , "evt", set, 0,   0.,   10. , 1., -1., logy, false, "N(lines | ID)", ""));
     }
   }
-  return status;
+  return 0;
 }

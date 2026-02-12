@@ -24,17 +24,19 @@ physics : {
       debugLevel            : 0
     }
     Run1BAna : {
-      module_type           : Run1BAna
-      simCollection         : "compressRecoMCs"
-      primaryParticle       : "compressRecoMCs"
-      strawDigiMCCollection : "compressRecoMCs"
-      CaloHitCollection     : "CaloHitMaker"
-      ComboHitCollection    : "makeSH"
-      LineCollection        : "KKLine"
-      caloClusterCollection : "CaloClusterMaker"
-      triggerProcess        : "Reconstruct"
-      PBI                   : "PBISim"
-      debugLevel            : 0
+      module_type             : Run1BAna
+      simCollection           : "compressRecoMCs"
+      primaryParticle         : "compressRecoMCs"
+      strawDigiMCCollection   : "compressRecoMCs"
+      CaloHitCollection       : "CaloHitMaker"
+      ComboHitCollection      : "makeSH"
+      LineCollection          : "KKLine"
+      caloClusterCollection   : "CaloClusterMaker"
+      caloClusterMCCollection : "compressRecoMCs"
+      caloShowerSimCollection : "compressRecoMCs"
+      triggerProcess          : "Reconstruct"
+      PBI                     : "PBISim"
+      debugLevel              : 0
     }
     CaloExample : {
       module_type           : CaloExample
