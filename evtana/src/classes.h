@@ -1,0 +1,6 @@
+#include "Run1BAna/evtana/inc/Norm_t.hh"
+#include "Run1BAna/evtana/inc/Track_t.hh"
+#include "Run1BAna/evtana/inc/SimParticle_t.hh"
+#include "Run1BAna/evtana/inc/Run1BEvtAna.hh"
+#include "Run1BAna/evtana/inc/RMCAna.hh"
+#include "Run1BAna/evtana/inc/ConvAna.hh"
