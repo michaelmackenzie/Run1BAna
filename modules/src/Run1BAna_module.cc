@@ -561,6 +561,7 @@ namespace mu2e
       bookHistograms(5, "cluster_id");
       bookHistograms(6, "time_30MeV_clusters");
       bookHistograms(7, "time_50MeV_clusters");
+      bookHistograms(8, "10_sim_hits");
 
       bookHistograms(10, "max_70MeV");
       bookHistograms(11, "max_70MeV_line");
@@ -1766,6 +1767,9 @@ namespace mu2e
       if(std::fabs(dt) < 50.) fillHistograms(hist_[11]);
       else                    fillHistograms(hist_[12]);
     }
+
+    // at least 10 sim hits
+    if(sim_par_.nhits >= 10) fillHistograms(hist_[8]);
 
     // "best" cluster in the event, passing the cluster ID
     if(best_cluster) {

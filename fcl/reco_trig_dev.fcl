@@ -5,6 +5,17 @@ outputs.TriggeredOutput.fileName   : "mcs.owner.reco_trig_dev.Triggered.Run1B.ar
 outputs.TriggerableOutput.fileName : "mcs.owner.reco_trig_dev.Triggerable.Run1B.art"
 services.TFileService.fileName     : "nts.owner.reco_trig_dev.Run1B.sequencer.root"
 
+#--------------------------------------------------------------
+# Default algo
+#--------------------------------------------------------------
+
+physics.producers.KKLine.ModuleSettings.PrintLevel : 0
+physics.producers.KKLine.ModuleSettings.SaveAllFits : false
+
+#--------------------------------------------------------------
+# TZ cluster finder
+#--------------------------------------------------------------
+
 physics.producers.TZLineFinder : {
   @table::physics.producers.LineFinder
   TimeClusterCollection : "TZClusterFinder"
@@ -17,6 +28,10 @@ physics.producers.TZKKLine : {
     PrintLevel : 0
   }
 }
+
+#--------------------------------------------------------------
+# TPhi cluster finder
+#--------------------------------------------------------------
 
 physics.producers.TPhiClusterFinder : {
   @table::TrkPatRec.TimeAndPhiClusterFinder
@@ -38,8 +53,40 @@ physics.producers.TPhiKKLine : {
     PrintLevel : 0
   }
 }
-physics.producers.KKLine.ModuleSettings.PrintLevel : 0
-physics.producers.KKLine.ModuleSettings.SaveAllFits : false
+
+#--------------------------------------------------------------
+# CalTimePeak
+#--------------------------------------------------------------
+
+physics.producers.CalTimeClusterFinder : {
+  module_type                : CalLineTimePeakFinder
+  DiagLevel                  : 1
+  ComboHitCollectionLabel    : "makeSH"
+  CaloClusterCollectionLabel : "CaloClusterMaker"
+  MinTimeClusterHits         : 8
+  MinCaloClusterEnergy       : 50.
+  MaxEDepAvg                 : 10.
+  HitTimeSigmaThresh         : 5.
+  HitXYDistThresh            : 5.
+  StoppingTargetRadius       : 200.
+  FitDirection               : "downstream"
+}
+physics.producers.CalTimeLineFinder : {
+  @table::physics.producers.LineFinder
+  TimeClusterCollection : "CalTimeClusterFinder"
+}
+physics.producers.CalTimeKKLine : {
+  @table::physics.producers.KKLine
+  ModuleSettings : {
+    @table::physics.producers.KKLine.ModuleSettings
+    CosmicTrackSeedCollections : ["CalTimeLineFinder"]
+    PrintLevel : 0
+  }
+}
+
+#--------------------------------------------------------------
+# CalLineFinder
+#--------------------------------------------------------------
 
 physics.producers.DevLineFinder : {
   module_type                : CalLineFinder
@@ -71,6 +118,7 @@ physics.producers.DevKKLine : {
 physics.RecoTZ : [ @sequence::Reconstruction.PreTrk,
   TPhiClusterFinder, TPhiLineFinder, TPhiKKLine,
   TZClusterFinder, TZLineFinder, TZKKLine,
+  CalTimeClusterFinder, CalTimeLineFinder, CalTimeKKLine,
   DevLineFinder, DevKKLine ]
 physics.trigger_paths : [ @sequence::physics.trigger_paths, RecoTZ ]
 
@@ -82,6 +130,10 @@ physics.trigger_paths : [ @sequence::physics.trigger_paths, RecoTZ ]
 # physics.analyzers.Run1BAna.cosmicSeedCollection  : "TPhiLineFinder"
 # physics.analyzers.Run1BAna.LineCollection        : "TPhiKKLine"
 
-physics.analyzers.Run1BAna.timeClusterCollection: "TZClusterFinder"
-physics.analyzers.Run1BAna.cosmicSeedCollection : "DevLineFinder"
-physics.analyzers.Run1BAna.LineCollection        : "DevKKLine"
+physics.analyzers.Run1BAna.timeClusterCollection : "CalTimeClusterFinder"
+physics.analyzers.Run1BAna.cosmicSeedCollection  : "CalTimeLineFinder"
+physics.analyzers.Run1BAna.LineCollection        : "CalTimeKKLine"
+
+# physics.analyzers.Run1BAna.timeClusterCollection: "TZClusterFinder"
+# physics.analyzers.Run1BAna.cosmicSeedCollection : "DevLineFinder"
+# physics.analyzers.Run1BAna.LineCollection        : "DevKKLine"

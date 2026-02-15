@@ -20,6 +20,7 @@
 #include "Offline/CalorimeterGeom/inc/Calorimeter.hh"
 #include "Offline/CalorimeterGeom/inc/DiskCalorimeter.hh"
 #include "Offline/TrackerGeom/inc/Tracker.hh"
+#include "Offline/StoppingTargetGeom/inc/StoppingTarget.hh"
 #include "Offline/TrkReco/inc/TrkFaceData.hh"
 
 #include "Offline/DataProducts/inc/Helicity.hh"
@@ -148,6 +149,7 @@ namespace mu2e {
 
     const Tracker*                        tracker_     ;            // tracker geometry
     const Calorimeter*                    calorimeter_ ;            // calorimeter geometry
+    const StoppingTarget*                 stopping_target_ ;        // stopping target geometry
     CLHEP::Hep3Vector                     target_pos_;              // position of the target center for seeding
     double                                calo_d0_offset_;          // z offset of the calorimeter disk 0 from the tracker system
     double                                calo_d1_offset_;          // z offset of the calorimeter disk 1 from the tracker system
@@ -213,15 +215,27 @@ namespace mu2e {
     mu2e::GeomHandle<mu2e::Calorimeter> ch;
     calorimeter_ = ch.get();
 
+    mu2e::GeomHandle<mu2e::StoppingTarget> sth;
+    stopping_target_ = sth.get();
+
     // get the offset between the calo disks and the tracker system
     calo_d0_offset_ = calorimeter_->geomUtil().mu2eToTracker(calorimeter_->geomUtil().diskToMu2e(0, CLHEP::Hep3Vector(0., 0., 0.))).z();
     calo_d1_offset_ = calorimeter_->geomUtil().mu2eToTracker(calorimeter_->geomUtil().diskToMu2e(1, CLHEP::Hep3Vector(0., 0., 0.))).z();
+
+    // get the target position in the tracker system
+    target_pos_ = calorimeter_->geomUtil().mu2eToTracker(stopping_target_->centerInMu2e());
+
+    if(diag_level_ > 0) {
+      printf("[CalLineFinder::%s] Calorimeter disk 0 offset = %.1f, disk 1 offset = %.1f, target position = (%.1f, %.1f, %.1f)\n",
+             __func__, calo_d0_offset_, calo_d1_offset_, target_pos_.x(), target_pos_.y(), target_pos_.z());
+    }
   }
 
   //-----------------------------------------------------------------------------
   // find the input data objects
   //-----------------------------------------------------------------------------
   bool CalLineFinder::findData(const art::Event& evt) {
+    hits_used_in_lines_.clear();
 
     evt.getByLabel(hit_tag_, combo_hit_col_handle_);
     if(!combo_hit_col_handle_.isValid()) {
