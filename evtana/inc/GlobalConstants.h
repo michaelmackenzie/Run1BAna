@@ -2,8 +2,8 @@
 // Run1BEvtAna Constants
 // Michael MacKenzie (2025)
 
-#ifndef MU2EEVTANA_GLOBALCONSTANTS_H
-#define MU2EEVTANA_GLOBALCONSTANTS_H
+#ifndef RUN1BEVTANA_GLOBALCONSTANTS_H
+#define RUN1BEVTANA_GLOBALCONSTANTS_H
 
 // ROOT includes
 #include "Rtypes.h"

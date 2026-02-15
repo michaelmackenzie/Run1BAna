@@ -72,6 +72,8 @@ physics : {
       CaloHitCollection       : "CaloHitMaker"
       ComboHitCollection      : "makeSH"
       LineCollection          : "KKLine"
+      cosmicSeedCollection    : "LineFinder"
+      timeClusterCollection   : "SimpleTimeCluster"
       caloClusterCollection   : "CaloClusterMaker"
       caloClusterMCCollection : "CaloClusterTruthMatch"
       caloShowerSimCollection : "compressDigiMCs"
@@ -124,13 +126,18 @@ physics.producers.SelectReco.SaveAllUnusedDigiMCs : true
 # physics.producers.KLFilter : { module_type : NullProducer }
 # physics.filters.KLFilter : @erase
 
+physics.producers.KKLine.ModuleSettings.FitParticle : 11
+physics.producers.KKLine.ModuleSettings.SeedMomentum : 105
+
 services.DbService.purpose: "Sim_best"
 services.DbService.version: "v1_1"
 services.DbService.verbose : 2
 
 outputs.Output.outputCommands : [ @sequence::outputs.Output.outputCommands,
   "keep mu2e::KalSeeds_*_*_*",
-  "keep mu2e::HelixSeeds_*_*_*"
+  "keep mu2e::HelixSeed*_*_*_*",
+  "keep mu2e::CosmicTrackSeed*_*_*_*",
+  "keep mu2e::TimeCluster*_*_*_*"
 ]
 outputs.TriggeredOutput.outputCommands   : [ @sequence::outputs.Output.outputCommands ]
 outputs.TriggerableOutput.outputCommands : [ @sequence::outputs.Output.outputCommands ]

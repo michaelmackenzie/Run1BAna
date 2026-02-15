@@ -141,6 +141,12 @@ void double_dio_mc(const double mean_muons_per_event = 20000., const double nmuo
   h_dio_double     ->Scale(nmuons*r_dio);
   h_dio_double_reco->Scale(nmuons*r_dio);
 
+  // Rebin the distributions
+  h_dio            ->Rebin(10);
+  h_dio_reco       ->Rebin(10);
+  h_dio_double     ->Rebin(10);
+  h_dio_double_reco->Rebin(10);
+
   // Make the total reco histogram
   TH1* h_reco = (TH1*) h_dio_reco->Clone("h_reco");
   h_reco->Add(h_dio_double_reco);

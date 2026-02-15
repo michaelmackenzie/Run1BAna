@@ -16,8 +16,37 @@ physics :
   filters : { @table::REveDis.filters }
 }
 
-# print statements
-physics.analyzers.Mu2eEventDisplay.diagLevel : 10
+
+# geometry options
+physics.analyzers.Mu2eEventDisplay.showCrv                    : true
+physics.analyzers.Mu2eEventDisplay.showPS                     : false
+physics.analyzers.Mu2eEventDisplay.showTS                     : false
+physics.analyzers.Mu2eEventDisplay.showDS                     : false
+physics.analyzers.Mu2eEventDisplay.addCrvBars                 : true
+physics.analyzers.Mu2eEventDisplay.addKalInter                : true
+physics.analyzers.Mu2eEventDisplay.addCrystalHits             : true
+physics.analyzers.Mu2eEventDisplay.filler.addHelixSeeds       : false
+physics.analyzers.Mu2eEventDisplay.filler.addKalSeeds         : true
+physics.analyzers.Mu2eEventDisplay.filler.addClusters         : true
+physics.analyzers.Mu2eEventDisplay.filler.addHits             : true #  adds ComboHits
+physics.analyzers.Mu2eEventDisplay.filler.addCrvClusters      : true
+physics.analyzers.Mu2eEventDisplay.filler.addCrvRecoPulse     : false
+physics.analyzers.Mu2eEventDisplay.filler.addTimeClusters     : false
+physics.analyzers.Mu2eEventDisplay.filler.addSimParts         : false
+physics.analyzers.Mu2eEventDisplay.addTrkStrawHits            : true
+physics.analyzers.Mu2eEventDisplay.addTrkCaloHits             : true
+physics.analyzers.Mu2eEventDisplay.filler.addCosmicTrackSeeds : false
+physics.analyzers.Mu2eEventDisplay.filler.addMCTraj           : true
+physics.analyzers.Mu2eEventDisplay.filler.addHelixSeeds       : false
+
+physics.analyzers.Mu2eEventDisplay.strawdisplay               : false
+physics.analyzers.Mu2eEventDisplay.specifyTag                 : false
+physics.analyzers.Mu2eEventDisplay.seqMode                    : true
+
+physics.analyzers.Mu2eEventDisplay.filler.ComboHitCollection : ["makeSH", "compressRecoMCs"]
+physics.analyzers.Mu2eEventDisplay.filler.TimeClusterCollection : ["TrigAprHelixMerger", "MHDe", "compressRecoMCs"]
+physics.analyzers.Mu2eEventDisplay.diagLevel : 0
+
 
 # the path
 physics.EndPath  : [ @sequence::REveDis.seqBase]

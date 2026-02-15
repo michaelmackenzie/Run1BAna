@@ -19,6 +19,7 @@ namespace Run1BEvtAna {
     Double_t      weight_           ;
     Int_t         ndigis_           ;
     Int_t         ngoodtrks_        ;
+    Int_t         ngoodlines_       ;
     Int_t         ntrks_id_         ;
     Int_t         nclusters_        ;
     Float_t       inst_lum_         ;
@@ -41,6 +42,8 @@ namespace Run1BEvtAna {
     Int_t         nelectrons_       ;
     Int_t         nmuons_           ;
     Int_t         nprotons_         ;
+
+    Int_t         nlines_           ;
 
     // Event selection IDs
     Bool_t        passed_apr_       ;
@@ -65,6 +68,7 @@ namespace Run1BEvtAna {
       napr_tracks_       = 0;
       ncpr_tracks_       = 0;
       ngood_tracks_      = 0;
+      ngoodlines_        = 0;
       nde_tracks_        = 0;
       nue_tracks_        = 0;
       numu_tracks_       = 0;
@@ -75,6 +79,7 @@ namespace Run1BEvtAna {
       nelectrons_        = 0;
       nmuons_            = 0;
       nprotons_          = 0;
+      nlines_            = 0;
       passed_apr_        = false;
       passed_cpr_        = false;
       triggered_         = false;

@@ -44,12 +44,14 @@
 #include "Run1BAna/evtana/inc/Norm_t.hh"
 #include "Run1BAna/evtana/inc/Event_t.hh"
 #include "Run1BAna/evtana/inc/Track_t.hh"
+#include "Run1BAna/evtana/inc/Line_t.hh"
 #include "Run1BAna/evtana/inc/CRVCluster_t.hh"
 #include "Run1BAna/evtana/inc/CaloCluster_t.hh"
 #include "Run1BAna/evtana/inc/SimParticle_t.hh"
 #include "Run1BAna/evtana/inc/Trigger_t.hh"
 #include "Run1BAna/evtana/inc/EventHist_t.hh"
 #include "Run1BAna/evtana/inc/TrackHist_t.hh"
+#include "Run1BAna/evtana/inc/LineHist_t.hh"
 #include "Run1BAna/evtana/inc/CRVHist_t.hh"
 
 using namespace mu2e;
@@ -72,6 +74,7 @@ namespace Run1BEvtAna {
     virtual void InitializeEvent();
     virtual void InitEvent(Event_t& evt);
     virtual void InitTrack(rooutil::Track* track, Track_t& track_par);
+    virtual void InitLine(rooutil::Track* track, Line_t& line_par);
     virtual void InitCRVCluster(rooutil::CrvCoinc* stub, CRVCluster_t& stub_par);
     virtual void FillOutput();
 
@@ -80,9 +83,11 @@ namespace Run1BEvtAna {
     virtual void AddOutputBranches(TTree* t);
     virtual void BookEventHist(EventHist_t* Hist, const char* Folder);
     virtual void BookTrackHist(TrackHist_t* Hist, const char* Folder);
+    virtual void BookLineHist(LineHist_t* Hist, const char* Folder);
     virtual void BookCRVHist(CRVHist_t* Hist, const char* Folder);
     virtual void FillEventHist(EventHist_t* Hist);
     virtual void FillTrackHist(TrackHist_t* Hist, Track_t* Track);
+    virtual void FillLineHist(LineHist_t* Hist, Line_t* Track);
     virtual void FillCRVHist(CRVHist_t* Hist, CRVCluster_t* Stub);
 
     virtual int TrackID(Track_t* track);
@@ -121,6 +126,7 @@ namespace Run1BEvtAna {
     TDirectory*  crv_dirs_ [kMaxHists];
     EventHist_t* evt_hists_[kMaxHists];
     TrackHist_t* trk_hists_[kMaxHists];
+    LineHist_t*  lne_hists_[kMaxHists];
     CRVHist_t*   crv_hists_[kMaxHists];
 
     TString name_; //name for output file
@@ -136,6 +142,7 @@ namespace Run1BEvtAna {
     Track_t* ue_tracks_  [kMaxTracks]; //Upstream electrons
     Track_t* dmu_tracks_ [kMaxTracks]; //Downstream muons
     Track_t* umu_tracks_ [kMaxTracks]; //Upstream muons
+    Line_t   lines_      [kMaxTracks]; //kinematic lines identified
     Trigger_t trigger_; //trigger information
 
     CRVCluster_t crv_clusters_[kMaxCRVClusters]; //CRV coincidence clusters

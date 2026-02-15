@@ -16,7 +16,27 @@ source : {
 services : @local::Services.Reco
 
 physics : {
+  filters: {
+    CaloClusterFilter: {
+      module_type           : CaloClusterCounterFilter
+      CaloClusterModuleLabel: "CaloClusterMaker"
+      DiskID                : [ 0, 1 ]
+      MaxClusterEnergy      : 1.e6
+      MaxNCel               : 100
+      MinClusterEnergy      : 75.
+      MinClusterRadius      : 0.
+      MinNCel               : 1
+      MinNCl                : 1
+      diagLevel             : 0
+    }
+  }
   analyzers: {
+    DumpJson : {
+      module_type    : DumpEventJson
+      triggerPaths   : ["TrigPath"]
+      triggerProcess : "Ana"
+      fileName       : "events.json"
+    }
     HitOriginAna : {
       module_type           : HitOriginAna
       simCollection         : "compressDigiMCs"
@@ -31,6 +51,7 @@ physics : {
       CaloHitCollection       : "CaloHitMaker"
       ComboHitCollection      : "makeSH"
       LineCollection          : "KKLine"
+      TimeClusterCollection   : "SimpleTimeCluster"
       caloClusterCollection   : "CaloClusterMaker"
       caloClusterMCCollection : "compressRecoMCs"
       caloShowerSimCollection : "compressRecoMCs"
@@ -47,10 +68,9 @@ physics : {
       caloClusterTruth      : "compressRecoMCs"
     }
   }
-  EndPath  : [
-    Run1BAna
-  ]
-  trigger_paths : [ ]
+  TrigPath : [ CaloClusterFilter ]
+  EndPath  : [ Run1BAna, DumpJson ]
+  trigger_paths : [ TrigPath ]
   end_paths : [ EndPath ]
 }
 

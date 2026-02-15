@@ -89,8 +89,8 @@ namespace Run1BEvtAna {
     if(ntuple_->GetBranch("trkhitscalibs"  )) ntuple_->SetBranchStatus("trkhitscalibs"    , 0);
     if(ntuple_->GetBranch("trkhitsmc"      )) ntuple_->SetBranchStatus("trkhitsmc"        , 0);
     if(ntuple_->GetBranch("trkmats"        )) ntuple_->SetBranchStatus("trkmats"          , 0);
+    if(ntuple_->GetBranch("trksegpars_lh"  )) ntuple_->SetBranchStatus("trksegpars_lh"    , 0);
     if(ntuple_->GetBranch("trksegpars_ch"  )) ntuple_->SetBranchStatus("trksegpars_ch"    , 0);
-    if(ntuple_->GetBranch("trksegpars_kl"  )) ntuple_->SetBranchStatus("trksegpars_kl"    , 0);
     if(ntuple_->GetBranch("calohits"       )) ntuple_->SetBranchStatus("calohits"         , 0);
     if(ntuple_->GetBranch("calodigis"      )) ntuple_->SetBranchStatus("calodigis"        , 0);
     if(ntuple_->GetBranch("calorecodigis"  )) ntuple_->SetBranchStatus("calorecodigis"    , 0);
@@ -213,6 +213,44 @@ namespace Run1BEvtAna {
     Hist->fMCPStOut      = new TH1F("MC_PSTOut",Form("%s: MC track P(ST exit)"               ,Folder), 600, -300.,  300.);
     Hist->fMCGenE        = new TH1F("MC_GenE"  ,Form("%s: MC generated energy"               ,Folder), 400,    0.,  200.);
     Hist->fMCPSig        = new TH1F("MC_PSig"  ,Form("%s: MC P(front) error / uncertainty"   ,Folder), 400,  -20.,   20.);
+    Hist->fMCPdg[0]      = new TH1F("MC_PDG_0",Form("%s: MC Particle PDG code"               ,Folder),  40,  -20.,   20.);
+    Hist->fMCPdg[1]      = new TH1F("MC_PDG_1",Form("%s: MC Particle |PDG code|"             ,Folder), 220,    0., 2200.);
+    Hist->fMCStrawHits   = new TH1F("MC_strawhits",Form("%s: MC Particle N(straw hits)"      ,Folder), 100,    0.,  100.);
+    Hist->fMCGoodHits    = new TH1F("MC_goodhits",Form("%s: MC Particle N(good hits)"        ,Folder), 100,    0.,  100.);
+    Hist->fMCTrajectory  = new TH1F("MC_trajectory",Form("%s: MC track p_{z} trajectory"     ,Folder),   3,  -1.5,   1.5);
+    Hist->fMCSimProc     = new TH1F("MC_simProc",Form("%s: MC Sim process code"              ,Folder), 200,  -0.5, 199.5);
+  }
+
+  //------------------------------------------------------------------------------------
+  // Initialize the histograms for a line selection
+  void Run1BEvtAna::BookLineHist(LineHist_t* Hist, const char* Folder) {
+    if(!Hist) {
+      throw std::runtime_error("Attempting to book histograms in a null TrackHist_t\n");
+    }
+    Hist->fT0          = new TH1F("t0"          ,Form("%s: track t_{0}"                          ,Folder),  400,    0., 2000.);
+    Hist->fT0Err       = new TH1F("t0err"       ,Form("%s: track t_{0} uncertainty"              ,Folder),  100,    0.,   20.);
+    Hist->fD0          = new TH1F("d0"          ,Form("%s: track d0"                             ,Folder),  200, -200.,  200.);
+    Hist->fChi2NDof    = new TH1F("chi2NDof"    ,Form("%s: track chi2/ndof"                      ,Folder),  200,    0.,   10.);
+    Hist->fFitCons[0]  = new TH1F("fitCons"     ,Form("%s: track p(chi2,ndof)"                   ,Folder),  200,    0.,    1.);
+    Hist->fFitCons[1]  = new TH1F("fitCons_log" ,Form("%s: track log10(p(chi2,ndof))"            ,Folder),  200,   -6.,    0.);
+    Hist->fTanDip      = new TH1F("tanDip"      ,Form("%s: track tanDip"                         ,Folder),  200,    0.,    2.);
+    Hist->fNActive     = new TH1F("nActive"     ,Form("%s: nHits used in fit"                    ,Folder),  150,    0.,  150.);
+    Hist->fClusterE    = new TH1F("clusterE"    ,Form("%s: track's cluster energy"               ,Folder),  600,    0.,  300.);
+    Hist->fDt          = new TH1F("dt"          ,Form("%s: track - cluster time"                 ,Folder),  200,  -10.,   10.);
+    Hist->fTrackID     = new TH1F("track_id"    ,Form("%s: Track ID bits"                        ,Folder),   33,    0.,   33.);
+    Hist->fExlTrackID  = new TH1F("track_exl_id",Form("%s: Track ID bits for exclusive rejection",Folder),   32,    0.,   32.);
+
+    // Initialize bin labels for the Track ID histograms
+    Hist->fTrackID   ->GetXaxis()->SetBinLabel(1, "Passed");
+    Hist->fExlTrackID->GetXaxis()->SetBinLabel(1, "Passed");
+    int current_bin = 2;
+    for(int bit = 0; bit <= Hist->fTrackID->GetNbinsX(); ++bit) {
+      TString name(TrackIDBitName(bit));
+      if(name.BeginsWith("Unknown")) continue;
+      Hist->fTrackID   ->GetXaxis()->SetBinLabel(current_bin, name.Data());
+      Hist->fExlTrackID->GetXaxis()->SetBinLabel(current_bin, name.Data());
+      ++current_bin;
+    }
     Hist->fMCPdg[0]      = new TH1F("MC_PDG_0",Form("%s: MC Particle PDG code"               ,Folder),  40,  -20.,   20.);
     Hist->fMCPdg[1]      = new TH1F("MC_PDG_1",Form("%s: MC Particle |PDG code|"             ,Folder), 220,    0., 2200.);
     Hist->fMCStrawHits   = new TH1F("MC_strawhits",Form("%s: MC Particle N(straw hits)"      ,Folder), 100,    0.,  100.);
@@ -434,6 +472,55 @@ namespace Run1BEvtAna {
   }
 
   //------------------------------------------------------------------------------------
+  // Fill the histograms for a track selection
+  void Run1BEvtAna::FillLineHist(LineHist_t* Hist, Line_t* Track) {
+    if(!Hist) {
+      throw std::runtime_error(Form("Run1BEvtAna::%s: Attempting to fill histograms in a null TrackHist_t\n", __func__));
+    }
+    if(!Track) {
+      if(verbose_ > 0) printf("Run1BEvtAna::%s: Filling track histogram set with null track par\n", __func__);
+      return;
+    }
+    auto trk = Track->line_;
+    if(!trk) {
+      if(verbose_ > 0) printf("Run1BEvtAna::%s: Filling track histogram set with null track\n", __func__);
+      return;
+    }
+    const float Weight(evt_.weight_);
+    Hist->fT0->Fill(Track->TFront(), Weight);
+    Hist->fT0Err->Fill(Track->TErrFront(), Weight);
+    Hist->fD0->Fill(Track->D0Front(), Weight);
+    Hist->fChi2NDof->Fill(Track->Chi2Dof(), Weight);
+    Hist->fFitCons[0]->Fill(Track->FitCon(), Weight);
+    Hist->fFitCons[1]->Fill(std::log10(std::max(1.e-10f, Track->FitCon())), Weight);
+    Hist->fTanDip->Fill(Track->TanDipFront(), Weight);
+    Hist->fNActive->Fill(Track->NActive(), Weight);
+    Hist->fClusterE->Fill(Track->ECluster(), Weight);
+    Hist->fDt->Fill(Track->Dt(), Weight);
+
+    const int ID = Track->ID(0);
+    if(ID == 0) {
+      Hist->fTrackID   ->Fill("Passed", Weight);
+      Hist->fExlTrackID->Fill("Passed", Weight);
+    } else {
+      for(int bit = 0; bit < 30; ++bit) {
+        if((ID & (1 << bit)) != 0) {
+          TString name = TrackIDBitName(bit);
+          Hist->fTrackID->Fill(name.Data(), Weight);
+          if((ID & ~(1 << bit)) == 0) Hist->fExlTrackID->Fill(name.Data(), Weight);
+        }
+      }
+    }
+
+    Hist->fMCPdg[0]->Fill(Track->MCPDG(), Weight);
+    Hist->fMCPdg[1]->Fill(std::abs(Track->MCPDG()), Weight);
+    Hist->fMCStrawHits->Fill(Track->MCHits(), Weight);
+    Hist->fMCGoodHits->Fill(Track->MCActive(), Weight);
+    Hist->fMCTrajectory->Fill(Track->MCTrajectory(), Weight);
+    Hist->fMCSimProc->Fill(Track->MCProcess(), Weight);
+  }
+
+  //------------------------------------------------------------------------------------
   // Fill the histograms for a CRV selection
   void Run1BEvtAna::FillCRVHist(CRVHist_t* Hist, CRVCluster_t* Stub) {
     if(!Hist) {
@@ -548,15 +635,15 @@ namespace Run1BEvtAna {
 
     // Add track information
 
-    // Loop through the tracks
-    auto tracks = event_->GetTracks();
-    evt_.ntracks_ = tracks.size();
-    if(evt_.ntracks_ >= kMaxTracks) throw std::runtime_error(Form("Exceeded the maximum number of allowed tracks with %i!", evt_.ntracks_));
-    for(int itrk = 0; itrk < evt_.ntracks_; ++itrk) {
+    // FIXME: Assuming all tracks are line-fit tracks for now
+    auto lines = event_->GetTracks();
+    evt_.nlines_ = lines.size();
+    if(evt_.nlines_ >= kMaxTracks) throw std::runtime_error(Form("Exceeded the maximum number of allowed tracks with %i!", evt_.ntracks_));
+    for(int iline = 0; iline < evt_.nlines_; ++iline) {
       // First initialize any new sim particle info
-      if(tracks[itrk].trkmcsim) {
-        for(size_t index = 0; index < tracks[itrk].trkmcsim->size(); ++index) {
-          auto& simp = tracks[itrk].trkmcsim->at(index);
+      if(lines[iline].trkmcsim) {
+        for(size_t index = 0; index < lines[iline].trkmcsim->size(); ++index) {
+          auto& simp = lines[iline].trkmcsim->at(index);
           // Check if this sim particle has already been seen
           bool found = false;
           for(int isimp = 0; isimp < evt_.nsimps_; ++isimp) {
@@ -575,80 +662,118 @@ namespace Run1BEvtAna {
         }
       }
 
-      // Initialize the track info
-      InitTrack(&tracks[itrk], tracks_[itrk]);
-      if(tracks_[itrk].IsGood()) ++evt_.ngoodtrks_;
-      if(verbose_ > 1) tracks_[itrk].Print((itrk == 0) ? "banner" : "");
-      if(std::abs(tracks_[itrk].FitPDG()) == 11) { // electron
-        if(tracks_[itrk].PZFront() > 0.) {de_tracks_[evt_.nde_tracks_] = &tracks_[itrk]; ++evt_.nde_tracks_;}
-        else                             {ue_tracks_[evt_.nue_tracks_] = &tracks_[itrk]; ++evt_.nue_tracks_;}
-      } else if(std::abs(tracks_[itrk].FitPDG()) == 13) { // muon
-        if(tracks_[itrk].PZFront() > 0.) {dmu_tracks_[evt_.ndmu_tracks_] = &tracks_[itrk]; ++evt_.ndmu_tracks_;}
-        else                             {umu_tracks_[evt_.numu_tracks_] = &tracks_[itrk]; ++evt_.numu_tracks_;}
-      }
+      // Initialize the line info
+      InitLine(&lines[iline], lines_[iline]);
+      if(lines_[iline].IsGood()) ++evt_.ngoodlines_;
+      if(verbose_ > 1) lines_[iline].Print((iline == 0) ? "banner" : "");
     }
 
-    // Reset remaining tracks
-    for(int itrk = evt_.ntracks_; itrk < kMaxTracks; ++itrk) {
-      tracks_[itrk].Reset();
+    // Reset remaining lines
+    for(int iline = evt_.nlines_; iline < kMaxTracks; ++iline) {
+      lines_[iline].Reset();
     }
 
-    if(verbose_ > 4) {
-      printf("Run1BEvtAna::%s: Printing event information:\n", __func__);
-      printf(" N(tracks) = %2i: %2i De, %2i Ue, %2i Dmu, %2i Umu\n",
-             evt_.ntracks_, evt_.nde_tracks_,evt_.nue_tracks_,evt_.ndmu_tracks_,evt_.numu_tracks_);
-    }
+    // // Loop through the tracks
+    // auto tracks = event_->GetTracks();
+    // evt_.ntracks_ = tracks.size();
+    // if(evt_.ntracks_ >= kMaxTracks) throw std::runtime_error(Form("Exceeded the maximum number of allowed tracks with %i!", evt_.ntracks_));
+    // for(int itrk = 0; itrk < evt_.ntracks_; ++itrk) {
+    //   // First initialize any new sim particle info
+    //   if(tracks[itrk].trkmcsim) {
+    //     for(size_t index = 0; index < tracks[itrk].trkmcsim->size(); ++index) {
+    //       auto& simp = tracks[itrk].trkmcsim->at(index);
+    //       // Check if this sim particle has already been seen
+    //       bool found = false;
+    //       for(int isimp = 0; isimp < evt_.nsimps_; ++isimp) {
+    //         if(simp.id == simps_[isimp].id_) {
+    //           found = true;
+    //           break;
+    //         }
+    //       }
+    //       if(!found) {
+    //         if(evt_.nsimps_ + 1 >= kMaxSimps) throw std::runtime_error("Exceeded the maximum number of sim particles!\n");
+    //         if(verbose_ > 2) printf("%s: Adding Sim particle: ID = %2i, PDG = %5i, Start Code = %3i\n", __func__, simp.id, simp.pdg, simp.startCode);
+    //         auto& simp_t = simps_[evt_.nsimps_];
+    //         ++evt_.nsimps_;
+    //         simp_t.Initialize(&simp);
+    //       }
+    //     }
+    //   }
 
-    // Match upstream tracks to downstream tracks
-    for(int ide = 0; ide < evt_.nde_tracks_; ++ide) {
-      Track_t* de = de_tracks_[ide];
-      Track_t* match = nullptr;
+    //   // Initialize the track info
+    //   InitTrack(&tracks[itrk], tracks_[itrk]);
+    //   if(tracks_[itrk].IsGood()) ++evt_.ngoodtrks_;
+    //   if(verbose_ > 1) tracks_[itrk].Print((itrk == 0) ? "banner" : "");
+    //   if(std::abs(tracks_[itrk].FitPDG()) == 11) { // electron
+    //     if(tracks_[itrk].PZFront() > 0.) {de_tracks_[evt_.nde_tracks_] = &tracks_[itrk]; ++evt_.nde_tracks_;}
+    //     else                             {ue_tracks_[evt_.nue_tracks_] = &tracks_[itrk]; ++evt_.nue_tracks_;}
+    //   } else if(std::abs(tracks_[itrk].FitPDG()) == 13) { // muon
+    //     if(tracks_[itrk].PZFront() > 0.) {dmu_tracks_[evt_.ndmu_tracks_] = &tracks_[itrk]; ++evt_.ndmu_tracks_;}
+    //     else                             {umu_tracks_[evt_.numu_tracks_] = &tracks_[itrk]; ++evt_.numu_tracks_;}
+    //   }
+    // }
 
-      // Find the best matching upstream track
-      const float min_dt(30.f); // to avoid matching against the same helix FIXME: Reject by associated helix
-      const float max_dt(250.f);
+    // // Reset remaining tracks
+    // for(int itrk = evt_.ntracks_; itrk < kMaxTracks; ++itrk) {
+    //   tracks_[itrk].Reset();
+    // }
 
-      // Check electrons
-      for(int iue = 0; iue < evt_.nue_tracks_; ++iue) {
-        Track_t* ue = ue_tracks_[iue];
-        const float dt = de->TFront() - ue->TFront();
-        if(dt > min_dt && dt < max_dt) { // candidate
-          if(!match) {match = ue; continue;}
-          // compare the two
-          const float dt_match = de->TFront() - match->TFront();
-          const float qual = ue->TrkQual();
-          const float fitcon = ue->FitCon();
-          const bool id = qual > 0.1 && fitcon > 1.e-5;
-          const bool id_match = qual > 0.1 && fitcon > 1.e-5;
-          if(id && !id_match) {match = ue; continue;}
-          if(id_match && !id) continue;
-          if(dt < dt_match) {match = ue; continue;}
-          if(fitcon > match->FitCon()) {match = ue; continue;}
-        }
-      }
-      // Check muons next
-      for(int iue = 0; iue < evt_.numu_tracks_; ++iue) {
-        Track_t* ue = umu_tracks_[iue];
-        const float dt = de->TFront() - ue->TFront();
-        if(dt > min_dt && dt < max_dt) { // candidate
-          if(!match) {match = ue; continue;}
-          // compare the two
-          const float dt_match = de->TFront() - match->TFront();
-          const float qual = ue->TrkQual();
-          const float fitcon = ue->FitCon();
-          const bool id = qual > 0.01 && fitcon > 1.e-5;
-          const bool id_match = qual > 0.01 && fitcon > 1.e-5;
-          if(id && !id_match) {match = ue; continue;}
-          if(id_match && !id) continue;
-          if(dt < dt_match) {match = ue; continue;}
-          if(fitcon > match->FitCon()) {match = ue; continue;}
-        }
-      }
-      de->upstream_ = match;
+    // if(verbose_ > 4) {
+    //   printf("Run1BEvtAna::%s: Printing event information:\n", __func__);
+    //   printf(" N(tracks) = %2i: %2i De, %2i Ue, %2i Dmu, %2i Umu\n",
+    //          evt_.ntracks_, evt_.nde_tracks_,evt_.nue_tracks_,evt_.ndmu_tracks_,evt_.numu_tracks_);
+    // }
 
-      // Set track ID info after CRV cluster and upstream track matching
-      de->SetID(TrackID(de), 0);
-    }
+    // // Match upstream tracks to downstream tracks
+    // for(int ide = 0; ide < evt_.nde_tracks_; ++ide) {
+    //   Track_t* de = de_tracks_[ide];
+    //   Track_t* match = nullptr;
+
+    //   // Find the best matching upstream track
+    //   const float min_dt(30.f); // to avoid matching against the same helix FIXME: Reject by associated helix
+    //   const float max_dt(250.f);
+
+    //   // Check electrons
+    //   for(int iue = 0; iue < evt_.nue_tracks_; ++iue) {
+    //     Track_t* ue = ue_tracks_[iue];
+    //     const float dt = de->TFront() - ue->TFront();
+    //     if(dt > min_dt && dt < max_dt) { // candidate
+    //       if(!match) {match = ue; continue;}
+    //       // compare the two
+    //       const float dt_match = de->TFront() - match->TFront();
+    //       const float qual = ue->TrkQual();
+    //       const float fitcon = ue->FitCon();
+    //       const bool id = qual > 0.1 && fitcon > 1.e-5;
+    //       const bool id_match = qual > 0.1 && fitcon > 1.e-5;
+    //       if(id && !id_match) {match = ue; continue;}
+    //       if(id_match && !id) continue;
+    //       if(dt < dt_match) {match = ue; continue;}
+    //       if(fitcon > match->FitCon()) {match = ue; continue;}
+    //     }
+    //   }
+    //   // Check muons next
+    //   for(int iue = 0; iue < evt_.numu_tracks_; ++iue) {
+    //     Track_t* ue = umu_tracks_[iue];
+    //     const float dt = de->TFront() - ue->TFront();
+    //     if(dt > min_dt && dt < max_dt) { // candidate
+    //       if(!match) {match = ue; continue;}
+    //       // compare the two
+    //       const float dt_match = de->TFront() - match->TFront();
+    //       const float qual = ue->TrkQual();
+    //       const float fitcon = ue->FitCon();
+    //       const bool id = qual > 0.01 && fitcon > 1.e-5;
+    //       const bool id_match = qual > 0.01 && fitcon > 1.e-5;
+    //       if(id && !id_match) {match = ue; continue;}
+    //       if(id_match && !id) continue;
+    //       if(dt < dt_match) {match = ue; continue;}
+    //       if(fitcon > match->FitCon()) {match = ue; continue;}
+    //     }
+    //   }
+    //   de->upstream_ = match;
+
+    //   // Set track ID info after CRV cluster and upstream track matching
+    //   de->SetID(TrackID(de), 0);
+    // }
   }
 
   //------------------------------------------------------------------------------------
@@ -707,6 +832,14 @@ namespace Run1BEvtAna {
   }
 
   //------------------------------------------------------------------------------------
+  // Initialize line information
+  void Run1BEvtAna::InitLine(rooutil::Track* line, Line_t& line_par) {
+    line_par.Reset();
+    line_par.line_ = line;
+    if(!line) return;
+  }
+
+  //------------------------------------------------------------------------------------
   // Initialize CRV stub information
   void Run1BEvtAna::InitCRVCluster(rooutil::CrvCoinc* stub, CRVCluster_t& stub_par) {
     stub_par.Reset();
@@ -753,39 +886,6 @@ namespace Run1BEvtAna {
          (deltat_calo > min_extrap_dt && deltat_calo < max_extrap_dt) ||
          (deltat_crv > -25.f && deltat_crv < 0.f))               ID += 1 << kCRV;
     }
-
-    // // MC selection to match MC cuts applied to the Mock Data Samples
-    // bool mc_selection = true;
-    // if(fPrimary
-    //    && fPrimary->CreationCode() != mu2e::ProcessCode::mu2eFlatPhoton  // FIXME: don't cut on RMC photons for now
-    //    && trkpar.fTrack->Charge() < 0) {  // Only apply this to negative tracks
-    //   mc_selection &= trkpar.fGenE <= 0. || trkpar.fGenE > 95.f; // only included DIO with E > 95 MeV
-    // }
-
-    // //MC-truth cut, don't include pileup in background-specific histogramming
-    // if(fDataType == kBackground) {
-    //   bool find_match(false); //FIXME: Add MC relation field to TSimParticle to check track particle relation
-    //   switch(fBackgroundType) {
-    //   case kInternalRPC:
-    //   case kExternalRPC:
-    //   case kInternalRMC:
-    //   case kExternalRMC:
-    //   case kDIO: find_match = true; break;
-    //   default: break;
-    //   }
-    //   if(find_match) {
-    //     bool found(false);
-    //     if(fSimpBlock) {
-    //       for(int isim = 0; isim < fSimpBlock->NParticles(); ++isim) {
-    //         const auto sim = fSimpBlock->Particle(isim);
-    //         found |= track->SimID() == int(sim->GetUniqueID());
-    //         if(found) break;
-    //       }
-    //     }
-    //     mc_selection &= found;
-    //   }
-    // }
-    // if(!mc_selection)                                          ID += 1 << kMC;
 
     return ID;
   }
