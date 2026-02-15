@@ -23,6 +23,7 @@
 #include "Offline/RecoDataProducts/inc/CosmicTrackSeed.hh"
 #include "Offline/RecoDataProducts/inc/HelixSeed.hh"
 #include "Offline/RecoDataProducts/inc/KalSeed.hh"
+#include "Offline/RecoDataProducts/inc/KalSeedAssns.hh"
 #include "Offline/RecoDataProducts/inc/StrawHitIndex.hh"
 #include "Offline/RecoDataProducts/inc/StrawHitFlag.hh"
 #include "Offline/RecoDataProducts/inc/TimeCluster.hh"
@@ -373,10 +374,14 @@ namespace mu2e
     //--------------------------------------------------------------------------------------
     struct LinePar_t {
       const KalSeed* line;
+      const CosmicTrackSeed* cosmic_seed;
+      const TimeCluster* time_cluster;
 
       LinePar_t() { init(); }
       void init(const KalSeed* l = nullptr) {
         line = l;
+        cosmic_seed = nullptr;
+        time_cluster = nullptr;
         if(!l) return;
       }
     };
@@ -453,6 +458,7 @@ namespace mu2e
     bool isGoodTimeCluster(const TimeCluster* tc);
     CLHEP::HepLorentzVector lineAtCluster(const CaloCluster* cl, const KalSeed* seed);
     void initClusterPar(ClusterPar_t& par, const CaloCluster* cluster);
+    void initLinePar(LinePar_t& par, const KalSeed* line);
     void matchLineToCluster(ClusterPar_t& par, const KalSeedCollection* lines);
     void matchTimeClusterToCluster(ClusterPar_t& par, const TimeClusterCollection* time_clusters);
     float getTotalEnergyDepositedBySim(const CaloClusterMC* mc, const SimParticle* sim);
@@ -504,6 +510,7 @@ namespace mu2e
     const CaloShowerSimCollection*         calo_shower_sim_col_ = nullptr;
     const KalSeedCollection*               line_col_ = nullptr;
     const CosmicTrackSeedCollection*       cosmic_seed_col_ = nullptr;
+    const KalLineAssns*                    line_seed_assn_ = nullptr;
     const TimeClusterCollection*           time_cluster_col_ = nullptr;
     const TriggerResultsNavigator*         trig_nav_ = nullptr;
     const art::Event*                      event_ = nullptr;
@@ -1243,6 +1250,25 @@ namespace mu2e
   }
 
   //--------------------------------------------------------------------------------------
+  void Run1BAna::initLinePar(LinePar_t& par, const KalSeed* line) {
+    par.init(line);
+    if(!line) return;
+
+    if(line_seed_assn_) {
+      for(const auto& ent : *line_seed_assn_) {
+        const art::Ptr<KalSeed>& linePtr = ent.first;
+        const art::Ptr<CosmicTrackSeed>& seedPtr = ent.second;
+        if(linePtr.isNonnull() && seedPtr.isNonnull()) {
+          if(&(*line) == &(*linePtr)) {
+            par.cosmic_seed = &(*seedPtr);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  //--------------------------------------------------------------------------------------
   void Run1BAna::matchLineToCluster(ClusterPar_t& par, const KalSeedCollection* lines) {
     if(!par.cluster) return;
     par.line = nullptr;
@@ -1470,6 +1496,7 @@ namespace mu2e
     art::Handle<CaloShowerSimCollection> calo_shower_simH   ; event.getByLabel(calo_shower_sim_tag_, calo_shower_simH);
     art::Handle<KalSeedCollection>     lineH                ; event.getByLabel(line_tag_           , lineH);
     art::Handle<CosmicTrackSeedCollection> cosmic_seedH     ; event.getByLabel(cosmic_seed_tag_    , cosmic_seedH);
+    art::Handle<KalLineAssns>              line_seed_assnH  ; event.getByLabel(line_tag_           , line_seed_assnH);
     art::Handle<TimeClusterCollection> time_clusterH        ; event.getByLabel(time_cluster_tag_   , time_clusterH);
     art::Handle<ProtonBunchIntensity>  pbiH                 ; event.getByLabel(pbi_tag_            , pbiH);
 
@@ -1484,6 +1511,7 @@ namespace mu2e
     calo_shower_sim_col_  = (calo_shower_simH    .isValid()) ? calo_shower_simH.product()     : nullptr;
     line_col_             = (lineH               .isValid()) ? lineH.product()                : nullptr;
     cosmic_seed_col_      = (cosmic_seedH        .isValid()) ? cosmic_seedH.product()         : nullptr;
+    line_seed_assn_       = (line_seed_assnH     .isValid()) ? line_seed_assnH.product()      : nullptr;
     time_cluster_col_     = (time_clusterH       .isValid()) ? time_clusterH.product()        : nullptr;
     cluster_col_          = clusterH.product();
     trig_nav_             = &trigNav;
@@ -1613,8 +1641,8 @@ namespace mu2e
     for(const auto& cluster : *(cluster_col_)) {
       watch_->SetTime("Analysis-Clusters-init");
       initClusterPar(cluster_par_, &cluster);
-      line_par_.init(cluster_par_.line);
-      cosmic_seed_par_.init();
+      initLinePar(line_par_, cluster_par_.line);
+      cosmic_seed_par_.init(line_par_.cosmic_seed);
       time_cluster_par_.init(cluster_par_.time_cluster);
       watch_->StopTime("Analysis-Clusters-init");
 
@@ -1681,9 +1709,9 @@ namespace mu2e
     watch_->SetTime("Analysis-Lines");
     if(line_col_) {
       for(const auto& line : *(line_col_)) {
-        line_par_.init(&line);
-        cosmic_seed_par_.init();
-        time_cluster_par_.init();
+        initLinePar(line_par_, &line);
+        cosmic_seed_par_.init(line_par_.cosmic_seed);
+        time_cluster_par_.init(line_par_.time_cluster);
         // initialize the associated cluster if defined
         const CaloCluster* cluster = (line.hasCaloCluster()) ? &(*line.caloCluster()) : nullptr;
         initClusterPar(cluster_par_, cluster);
@@ -1706,6 +1734,7 @@ namespace mu2e
       for(const auto& seed : *cosmic_seed_col_) {
         cosmic_seed_par_.init(&seed);
         line_par_.init(nullptr); // for now, no line association to cosmic seeds
+        time_cluster_par_.init(nullptr); // for now, no time cluster association to cosmic seeds
         if(seed.hasCaloCluster()) initClusterPar(cluster_par_, &(*seed.caloCluster()));
         else                      initClusterPar(cluster_par_, nullptr);
         fillHistograms(hist_[90]);
@@ -1725,8 +1754,8 @@ namespace mu2e
     // All events, highest energy cluster
     watch_->SetTime("Analysis-Event");
     initClusterPar(cluster_par_, max_cluster);
-    line_par_.init(cluster_par_.line);
-    cosmic_seed_par_.init();
+    initLinePar(line_par_, cluster_par_.line);
+    cosmic_seed_par_.init(line_par_.cosmic_seed);
     time_cluster_par_.init(cluster_par_.time_cluster);
     fillHistograms(hist_[0]);
 
@@ -1741,8 +1770,8 @@ namespace mu2e
     // "best" cluster in the event, passing the cluster ID
     if(best_cluster) {
       initClusterPar(cluster_par_, best_cluster);
-      line_par_.init(cluster_par_.line);
-      cosmic_seed_par_.init();
+      initLinePar(line_par_, cluster_par_.line);
+      cosmic_seed_par_.init(line_par_.cosmic_seed);
       time_cluster_par_.init(cluster_par_.time_cluster);
       fillHistograms(hist_[20]);
       const float dt = cluster_par_.line_dt();
