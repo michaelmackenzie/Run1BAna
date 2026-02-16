@@ -42,6 +42,19 @@ physics : {
   producers : {
     @table::TrigProducers.producers
     @table::Reconstruction.producers
+    CalTimeClusterFinder : {
+      module_type                : CalLineTimePeakFinder
+      DiagLevel                  : 0
+      ComboHitCollectionLabel    : "makeSH"
+      CaloClusterCollectionLabel : "CaloClusterMaker"
+      MinTimeClusterHits         : 8
+      MinCaloClusterEnergy       : 50.
+      HitTimeSigmaThresh         : 3.
+      HitXYSigmaThresh           : 8.
+      StoppingTargetRadius       : 200.
+      ParticleBeta               : 1.
+      FitDirection               : "downstream"
+    }
   }
   filters : {
     @table::TrigFilters.filters
@@ -97,6 +110,27 @@ physics : {
     HitOriginAna,
     Run1BAna
   ]
+}
+
+#--------------------------------------------------------------
+# CalTimePeak
+#--------------------------------------------------------------
+
+# Use this by default
+# physics.producers.LineFinder.TimeClusterCollection : "CalTimeClusterFinder"
+# physics.producers.LineFinder.ComboHitCollection: "makePH"
+
+physics.producers.CalTimeLineFinder : {
+  @table::physics.producers.LineFinder
+  TimeClusterCollection : "CalTimeClusterFinder"
+}
+physics.producers.CalTimeKKLine : {
+  @table::physics.producers.KKLine
+  ModuleSettings : {
+    @table::physics.producers.KKLine.ModuleSettings
+    CosmicTrackSeedCollections : ["CalTimeLineFinder"]
+    PrintLevel : 0
+  }
 }
 
 outputs : {
