@@ -1,0 +1,34 @@
+# No root output modules, only the histogram file
+#include "Run1BAna/fcl/reco_trig.fcl"
+
+# Add a skim output
+physics.analyzers.DumpJson : {
+  module_type    : DumpEventJson
+  triggerPaths   : ["CaloClusterPath"]
+  triggerProcess : "Reconstruct"
+  fileName       : "reco_trig_skim_clusters.json"
+}
+
+# Add a filter to select high energy cluster events
+physics.filters.CaloClusterFilter: {
+  module_type           : CaloClusterCounterFilter
+  CaloClusterModuleLabel: "CaloClusterMaker"
+  DiskID                : [ 0, 1 ]
+  MaxClusterEnergy      : 1.e6
+  MaxNCel               : 100
+  MinClusterEnergy      : 70.
+  MinClusterRadius      : 0.
+  MinNCel               : 1
+  MinNCl                : 1
+  diagLevel             : 0
+}
+
+physics.CaloClusterPath : [ @sequence::Reconstruction.CaloReco, CaloClusterFilter ]
+physics.trigger_paths   : [ @sequence::physics.trigger_paths, CaloClusterPath ]
+
+physics.EndPath  : [
+  @sequence::Reconstruction.OnSpillEndSequence,
+  HitOriginAna,
+  Run1BAna,
+  DumpJson
+]

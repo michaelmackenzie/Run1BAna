@@ -10,7 +10,7 @@
 #include "TString.h"
 
 namespace Run1BEvtAna {
-  enum {kMaxTracks = 200, kMaxCRVClusters = 50, kMaxSimps = 1000, kMaxHists = 10000, kMaxObservables = 10, kMaxSystematics = 100};
+  enum {kMaxTracks = 200, kMaxCRVClusters = 50, kMaxClusters = 200, kMaxSimps = 1000, kMaxHists = 10000, kMaxObservables = 10, kMaxSystematics = 100};
 
   // Track selection info
   enum {kMaxTrackIDs = 20};

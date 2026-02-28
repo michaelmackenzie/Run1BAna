@@ -85,9 +85,9 @@ void plot_Run1BAna(const char* infile = "run1b.root", const char* outdir = "plot
     return;
   }
 
-  printPlot(f, "Run1BAna/evt_0"         , "n_mc_digis"  , outdir,  "n_mc_digis"  , 5,     0., 5000., "N(MC digis)"              );
-  printPlot(f, "Run1BAna/evt_0"         , "n_combo_hits", outdir,  "n_combo_hits", 5,     0., 5000., "N(combo hits)"            );
-  printPlot(f, "Run1BAna/evt_0"         , "n_calo_hits" , outdir,  "n_calo_hits" , 1,     0.,  500., "N(calo hits)"             );
+  printPlot(f, "Run1BAna/evt_0"         , "nmc_digis"   , outdir,  "nmc_digis"   , 5,     1.,   -1., "N(MC digis)"              );
+  printPlot(f, "Run1BAna/evt_0"         , "ncombo_hits" , outdir,  "ncombo_hits" , 5,     1.,   -1., "N(combo hits)"            );
+  printPlot(f, "Run1BAna/evt_0"         , "ncalo_hits"  , outdir,  "ncalo_hits"  , 1,     0.,  500., "N(calo hits)"             );
   printPlot(f, "Run1BAna/evt_0"         , "nclusters"   , outdir,  "nclusters"   , 1,     1.,   -1., "N(calo clusters)"         );
   printPlot(f, "Run1BAna/evt_0"         , "npot"        , outdir,  "npot"        , 1,     1.,   -1., "N(POT)"                   );
   printPlot(f, "HitOriginAna/All events", "hit_z"       , outdir,  "hit_z"       , 1, -6000., 2000., "Straw digi z;z (mm)"      );
@@ -95,10 +95,14 @@ void plot_Run1BAna(const char* infile = "run1b.root", const char* outdir = "plot
   printPlot(f, "HitOriginAna/All events", "origin_type" , outdir,  "origin_type" , 1,     1.,   -1., "Hit origin"               );
 
   // Cluster directory cls_0 -> energy
-  for(int idir = 0; idir < 2; ++idir) {
-    TString dir = Form("Run1BAna/cls_%i", idir);
-    printPlot(f, dir.Data(), "energy", outdir, Form("energy_%i", idir), 1,   0.,  120., "Cluster energy;Energy (MeV)");
-    printPlot(f, dir.Data(), "time"  , outdir, Form("time_%i"  , idir), 1, 300., 2000., "Cluster time;Time (ns)");
+  vector<int> sets = {0, 2, 10, 20};
+  for(int set : sets) {
+    TString dir = Form("Run1BAna/cls_%i", set);
+    printPlot(f, dir.Data(), "energy", outdir, Form("energy_%i", set), 1,   0.,  120., "Cluster energy;Energy (MeV)");
+    printPlot(f, dir.Data(), "time"  , outdir, Form("time_%i"  , set), 1, 300., 2000., "Cluster time;Time (ns)");
+    printPlot(f, dir.Data(), "t_var" , outdir, Form("t_var_%i" , set), 1, 1., -1., "Cluster time variance;#sigma_{t}^{2} (ns^{2})");
+    printPlot(f, dir.Data(), "energy_ratio" , outdir, Form("energy_ratio_%i" , set), 1, 1., -1., "Cluster E_{sim 1}/E;E_{sim 1}/E");
+    printPlot(f, dir.Data(), "energy_ratio2", outdir, Form("energy_ratio2_%i", set), 1, 1., -1., "Cluster E_{sim 2}/E;E_{sim 2}/E");
   }
 
   f->Close();

@@ -26,6 +26,8 @@ namespace Run1BEvtAna {
     //Default histogram selections
     evt_hists_[0] = new EventHist_t;
     trk_hists_[0] = new TrackHist_t;
+    lne_hists_[0] = new LineHist_t;
+    cls_hists_[0] = new ClusterHist_t;
     crv_hists_[0] = new CRVHist_t;
 
     trk_hists_[1] = new TrackHist_t; // good electron tracks
@@ -91,9 +93,9 @@ namespace Run1BEvtAna {
     if(ntuple_->GetBranch("trkmats"        )) ntuple_->SetBranchStatus("trkmats"          , 0);
     if(ntuple_->GetBranch("trksegpars_lh"  )) ntuple_->SetBranchStatus("trksegpars_lh"    , 0);
     if(ntuple_->GetBranch("trksegpars_ch"  )) ntuple_->SetBranchStatus("trksegpars_ch"    , 0);
-    if(ntuple_->GetBranch("calohits"       )) ntuple_->SetBranchStatus("calohits"         , 0);
-    if(ntuple_->GetBranch("calodigis"      )) ntuple_->SetBranchStatus("calodigis"        , 0);
-    if(ntuple_->GetBranch("calorecodigis"  )) ntuple_->SetBranchStatus("calorecodigis"    , 0);
+    // if(ntuple_->GetBranch("calohits"       )) ntuple_->SetBranchStatus("calohits"         , 0);
+    // if(ntuple_->GetBranch("calodigis"      )) ntuple_->SetBranchStatus("calodigis"        , 0);
+    // if(ntuple_->GetBranch("calorecodigis"  )) ntuple_->SetBranchStatus("calorecodigis"    , 0);
     if(ntuple_->GetBranch("crvcoincmcplane")) ntuple_->SetBranchStatus("crvcoincmcplane"  , 0);
 
     event_ = new rooutil::Event(ntuple_);
@@ -225,7 +227,7 @@ namespace Run1BEvtAna {
   // Initialize the histograms for a line selection
   void Run1BEvtAna::BookLineHist(LineHist_t* Hist, const char* Folder) {
     if(!Hist) {
-      throw std::runtime_error("Attempting to book histograms in a null TrackHist_t\n");
+      throw std::runtime_error("Attempting to book histograms in a null LineHist_t\n");
     }
     Hist->fT0          = new TH1F("t0"          ,Form("%s: track t_{0}"                          ,Folder),  400,    0., 2000.);
     Hist->fT0Err       = new TH1F("t0err"       ,Form("%s: track t_{0} uncertainty"              ,Folder),  100,    0.,   20.);
@@ -257,6 +259,49 @@ namespace Run1BEvtAna {
     Hist->fMCGoodHits    = new TH1F("MC_goodhits",Form("%s: MC Particle N(good hits)"        ,Folder), 100,    0.,  100.);
     Hist->fMCTrajectory  = new TH1F("MC_trajectory",Form("%s: MC track p_{z} trajectory"     ,Folder),   3,  -1.5,   1.5);
     Hist->fMCSimProc     = new TH1F("MC_simProc",Form("%s: MC Sim process code"              ,Folder), 200,  -0.5, 199.5);
+  }
+
+  //------------------------------------------------------------------------------------
+  // Initialize the histograms for a cluster selection
+  void Run1BEvtAna::BookClusterHist(ClusterHist_t* Hist, const char* Folder) {
+    if(!Hist) {
+      throw std::runtime_error("Attempting to book histograms in a null ClusterHist_t\n");
+    }
+    Hist->fDiskID        = new TH1D("disk_id"           , Form("%s: Disk ID"        , Folder),   2,     0,     2);
+    Hist->fEnergy        = new TH1F("energy"            , Form("%s: Cluster Energy" , Folder), 500,     0,   250);
+    Hist->fT0            = new TH1F("t0"                , Form("%s: cluster T0"     , Folder), 200,     0,  2000);
+    Hist->fRow           = new TH1F("row"               , Form("%s: cluster Row"    , Folder), 200,     0,   200);
+    Hist->fCol           = new TH1F("col"               , Form("%s: cluster column" , Folder), 200,     0,   200);
+    Hist->fX             = new TH1F("x"                 , Form("%s: cluster X"      , Folder), 200, -1000,  1000);
+    Hist->fY             = new TH1F("y"                 , Form("%s: cluster Y"      , Folder), 200, -1000,  1000);
+    Hist->fZ             = new TH1F("z"                 , Form("%s: cluster Z"      , Folder), 200,   -10,    10);
+    Hist->fR             = new TH1F("r"                 , Form("%s: cluster Radius" , Folder), 100,   300,   800);
+    Hist->fYMean         = new TH1F("ymean"             , Form("%s: cluster YMean"  , Folder), 200, -1000,  1000);
+    Hist->fZMean         = new TH1F("zmean"             , Form("%s: cluster ZMean"  , Folder), 200, -1000,  1000);
+    Hist->fSigY          = new TH1F("sigy"              , Form("%s: cluster SigY"   , Folder), 100,     0,   100);
+    Hist->fSigZ          = new TH1F("sigz"              , Form("%s: cluster SigZ"   , Folder), 100,     0,   100);
+    Hist->fSigR          = new TH1F("sigr"              , Form("%s: cluster SigR"   , Folder), 100,     0,   100);
+    Hist->fNCr0          = new TH1F("ncr0"              , Form("%s: cluster NCR[0]" , Folder), 100,     0,   100);
+    Hist->fNCr1          = new TH1F("ncr1"              , Form("%s: cluster NCR[1]" , Folder), 100,     0,   100);
+    Hist->fFrE1          = new TH1F("fre1"              , Form("%s: E1/Etot"        , Folder), 200,     0,     1);
+    Hist->fFrE2          = new TH1F("fre2"              , Form("%s: (E1+E2)/Etot"   , Folder), 200,     0,     1);
+    Hist->fSigE1         = new TH1F("sige1"             , Form("%s: SigmaE/Etot"    , Folder), 200,     0,    10);
+    Hist->fSigE2         = new TH1F("sige2"             , Form("%s: SigmaE/Emean"   , Folder), 200,     0,    10);
+    Hist->fTimeRMS       = new TH1F("time_rms"          , Form("%s: T(RMS)"         , Folder), 200,     0,    10);
+    Hist->fMaxR          = new TH1F("maxr"              , Form("%s: Max R from main", Folder), 200,     0,   400);
+    Hist->fE9OverE       = new TH1F("e9_over_e"         , Form("%s: E(3x3)/E"       , Folder), 200,     0,   1.1);
+    Hist->fE25OverE      = new TH1F("e25_over_e"        , Form("%s: E(5x5)/E"       , Folder), 200,     0,   1.1);
+    Hist->fRingEOverE    = new TH1F("ring_e_over_e"     , Form("%s: E(ring)/E"      , Folder), 200,     0,   1.1);
+    Hist->fRingEOverE1   = new TH1F("ring_e_over_e1"    , Form("%s: E(ring)/E1"     , Folder), 200,     0,   3.0);
+    Hist->fOutRingE      = new TH1F("out_ring_e"        , Form("%s: E(out ring)"    , Folder), 200,     0,   200);
+    Hist->fOutRingEOverE = new TH1F("out_ring_e_over_e" , Form("%s: E(out ring)/E"  , Folder), 200,     0,   1.1);
+    Hist->fMCSimEDep     = new TH1F("MC_sim_edep"       , Form("%s: MC Sim E(dep)"  , Folder), 250,     0,   250);
+    Hist->fMCSimMomIn    = new TH1F("MC_sim_mom_in"     , Form("%s: MC Sim mom(in)" , Folder), 250,     0,   250);
+    Hist->fMCSimPdg      = new TH1F("MC_sim_pdg"        , Form("%s: MC Sim PDG ID"  , Folder), 200,  -100,   100);
+    Hist->fMCEDep        = new TH1F("MC_edep"           , Form("%s: MC E(dep)"      , Folder), 250,     0,   250);
+    Hist->fMCTime        = new TH1F("MC_time"           , Form("%s: MC time"        , Folder), 200,     0,  2000);
+    Hist->fMC_dE         = new TH1F("MC_dE"             , Form("%s: MC #DeltaE"     , Folder), 200,   -20,    20);
+    Hist->fMC_dt         = new TH1F("MC_dt"             , Form("%s: MC #Deltat"     , Folder), 200,    -5,     5);
   }
 
   //------------------------------------------------------------------------------------
@@ -317,6 +362,22 @@ namespace Run1BEvtAna {
         BookTrackHist(trk_hists_[ihist], folder);
         dir->cd();
         trk_dirs_[ihist] = subdir;
+      }
+      if(lne_hists_[ihist]) {
+        const char* folder = Form("lne_%i", ihist);
+        auto subdir = dir->mkdir(folder);
+        subdir->cd();
+        BookLineHist(lne_hists_[ihist], folder);
+        dir->cd();
+        lne_dirs_[ihist] = subdir;
+      }
+      if(cls_hists_[ihist]) {
+        const char* folder = Form("cls_%i", ihist);
+        auto subdir = dir->mkdir(folder);
+        subdir->cd();
+        BookClusterHist(cls_hists_[ihist], folder);
+        dir->cd();
+        cls_dirs_[ihist] = subdir;
       }
       if(crv_hists_[ihist]) {
         const char* folder = Form("crv_%i", ihist);
@@ -521,6 +582,38 @@ namespace Run1BEvtAna {
   }
 
   //------------------------------------------------------------------------------------
+  // Fill the histograms for a cluster selection
+  void Run1BEvtAna::FillClusterHist(ClusterHist_t* Hist, CaloCluster_t* Cluster) {
+    if(!Hist) {
+      throw std::runtime_error(Form("Run1BEvtAna::%s: Attempting to fill histograms in a null ClusterHist_t\n", __func__));
+    }
+    if(!Cluster) {
+      if(verbose_ > 0) printf("Run1BEvtAna::%s: Filling cluster histogram set with null cluster par\n", __func__);
+      return;
+    }
+    auto cls_wrp = Cluster->cluster_;
+    if(!cls_wrp) {
+      if(verbose_ > 0) printf("Run1BEvtAna::%s: Filling cluster histogram set with null cluster\n", __func__);
+      return;
+    }
+    auto cls = cls_wrp->calocluster;
+    if(!cls) {
+      if(verbose_ > 0) printf("Run1BEvtAna::%s: Filling cluster histogram set with null cluster\n", __func__);
+      return;
+    }
+
+    Hist->fDiskID ->Fill(cls-> diskID_);
+    Hist->fT0     ->Fill(cls-> time_);
+    // Hist->fT0Err ->Fill(cls-> timeErr_;
+    Hist->fEnergy ->Fill(cls-> energyDep_);
+    // Hist->fEnergyErr ->Fill(cls-> energyDepErr_);
+    // Hist->f ->Fill(cls-> cog_);
+    // Hist->fNCr0   ->Fill(cls-> hits_);
+    Hist->fNCr0 ->Fill(cls-> size_);
+    // Hist->f ->Fill(cls-> isSplit_);
+  }
+
+  //------------------------------------------------------------------------------------
   // Fill the histograms for a CRV selection
   void Run1BEvtAna::FillCRVHist(CRVHist_t* Hist, CRVCluster_t* Stub) {
     if(!Hist) {
@@ -633,6 +726,22 @@ namespace Run1BEvtAna {
       InitCRVCluster(&crv_stubs[istub], crv_clusters_[istub]);
     }
 
+    // Add cluster information
+    const auto& clusters = event_->GetCaloClusters();
+    evt_.nclusters_ = clusters.size();
+    if(evt_.nclusters_ >= kMaxClusters) throw std::runtime_error(Form("Exceeded the maximum number of allowed clusters with %i!", evt_.nclusters_));
+    for(int icls = 0; icls < evt_.nclusters_; ++icls) {
+      const auto& cluster = clusters[icls];
+      const auto* info = cluster.calocluster;
+      if(verbose_ > 1) std::cout << "Cluster " << icls << ":"
+                                 << " Disk ID = " << info->diskID_
+                                 << " Energy = " << info->energyDep_
+                                 << " Time = " << info->time_
+                                 << std::endl;
+      InitCluster(&cluster, clusters_[icls]);
+    }
+    for(int icls = evt_.nclusters_; icls < kMaxClusters; ++icls) clusters_[icls].Reset();
+
     // Add track information
 
     // FIXME: Assuming all tracks are line-fit tracks for now
@@ -673,107 +782,6 @@ namespace Run1BEvtAna {
       lines_[iline].Reset();
     }
 
-    // // Loop through the tracks
-    // auto tracks = event_->GetTracks();
-    // evt_.ntracks_ = tracks.size();
-    // if(evt_.ntracks_ >= kMaxTracks) throw std::runtime_error(Form("Exceeded the maximum number of allowed tracks with %i!", evt_.ntracks_));
-    // for(int itrk = 0; itrk < evt_.ntracks_; ++itrk) {
-    //   // First initialize any new sim particle info
-    //   if(tracks[itrk].trkmcsim) {
-    //     for(size_t index = 0; index < tracks[itrk].trkmcsim->size(); ++index) {
-    //       auto& simp = tracks[itrk].trkmcsim->at(index);
-    //       // Check if this sim particle has already been seen
-    //       bool found = false;
-    //       for(int isimp = 0; isimp < evt_.nsimps_; ++isimp) {
-    //         if(simp.id == simps_[isimp].id_) {
-    //           found = true;
-    //           break;
-    //         }
-    //       }
-    //       if(!found) {
-    //         if(evt_.nsimps_ + 1 >= kMaxSimps) throw std::runtime_error("Exceeded the maximum number of sim particles!\n");
-    //         if(verbose_ > 2) printf("%s: Adding Sim particle: ID = %2i, PDG = %5i, Start Code = %3i\n", __func__, simp.id, simp.pdg, simp.startCode);
-    //         auto& simp_t = simps_[evt_.nsimps_];
-    //         ++evt_.nsimps_;
-    //         simp_t.Initialize(&simp);
-    //       }
-    //     }
-    //   }
-
-    //   // Initialize the track info
-    //   InitTrack(&tracks[itrk], tracks_[itrk]);
-    //   if(tracks_[itrk].IsGood()) ++evt_.ngoodtrks_;
-    //   if(verbose_ > 1) tracks_[itrk].Print((itrk == 0) ? "banner" : "");
-    //   if(std::abs(tracks_[itrk].FitPDG()) == 11) { // electron
-    //     if(tracks_[itrk].PZFront() > 0.) {de_tracks_[evt_.nde_tracks_] = &tracks_[itrk]; ++evt_.nde_tracks_;}
-    //     else                             {ue_tracks_[evt_.nue_tracks_] = &tracks_[itrk]; ++evt_.nue_tracks_;}
-    //   } else if(std::abs(tracks_[itrk].FitPDG()) == 13) { // muon
-    //     if(tracks_[itrk].PZFront() > 0.) {dmu_tracks_[evt_.ndmu_tracks_] = &tracks_[itrk]; ++evt_.ndmu_tracks_;}
-    //     else                             {umu_tracks_[evt_.numu_tracks_] = &tracks_[itrk]; ++evt_.numu_tracks_;}
-    //   }
-    // }
-
-    // // Reset remaining tracks
-    // for(int itrk = evt_.ntracks_; itrk < kMaxTracks; ++itrk) {
-    //   tracks_[itrk].Reset();
-    // }
-
-    // if(verbose_ > 4) {
-    //   printf("Run1BEvtAna::%s: Printing event information:\n", __func__);
-    //   printf(" N(tracks) = %2i: %2i De, %2i Ue, %2i Dmu, %2i Umu\n",
-    //          evt_.ntracks_, evt_.nde_tracks_,evt_.nue_tracks_,evt_.ndmu_tracks_,evt_.numu_tracks_);
-    // }
-
-    // // Match upstream tracks to downstream tracks
-    // for(int ide = 0; ide < evt_.nde_tracks_; ++ide) {
-    //   Track_t* de = de_tracks_[ide];
-    //   Track_t* match = nullptr;
-
-    //   // Find the best matching upstream track
-    //   const float min_dt(30.f); // to avoid matching against the same helix FIXME: Reject by associated helix
-    //   const float max_dt(250.f);
-
-    //   // Check electrons
-    //   for(int iue = 0; iue < evt_.nue_tracks_; ++iue) {
-    //     Track_t* ue = ue_tracks_[iue];
-    //     const float dt = de->TFront() - ue->TFront();
-    //     if(dt > min_dt && dt < max_dt) { // candidate
-    //       if(!match) {match = ue; continue;}
-    //       // compare the two
-    //       const float dt_match = de->TFront() - match->TFront();
-    //       const float qual = ue->TrkQual();
-    //       const float fitcon = ue->FitCon();
-    //       const bool id = qual > 0.1 && fitcon > 1.e-5;
-    //       const bool id_match = qual > 0.1 && fitcon > 1.e-5;
-    //       if(id && !id_match) {match = ue; continue;}
-    //       if(id_match && !id) continue;
-    //       if(dt < dt_match) {match = ue; continue;}
-    //       if(fitcon > match->FitCon()) {match = ue; continue;}
-    //     }
-    //   }
-    //   // Check muons next
-    //   for(int iue = 0; iue < evt_.numu_tracks_; ++iue) {
-    //     Track_t* ue = umu_tracks_[iue];
-    //     const float dt = de->TFront() - ue->TFront();
-    //     if(dt > min_dt && dt < max_dt) { // candidate
-    //       if(!match) {match = ue; continue;}
-    //       // compare the two
-    //       const float dt_match = de->TFront() - match->TFront();
-    //       const float qual = ue->TrkQual();
-    //       const float fitcon = ue->FitCon();
-    //       const bool id = qual > 0.01 && fitcon > 1.e-5;
-    //       const bool id_match = qual > 0.01 && fitcon > 1.e-5;
-    //       if(id && !id_match) {match = ue; continue;}
-    //       if(id_match && !id) continue;
-    //       if(dt < dt_match) {match = ue; continue;}
-    //       if(fitcon > match->FitCon()) {match = ue; continue;}
-    //     }
-    //   }
-    //   de->upstream_ = match;
-
-    //   // Set track ID info after CRV cluster and upstream track matching
-    //   de->SetID(TrackID(de), 0);
-    // }
   }
 
   //------------------------------------------------------------------------------------
@@ -840,6 +848,14 @@ namespace Run1BEvtAna {
   }
 
   //------------------------------------------------------------------------------------
+  // Initialize cluster information
+  void Run1BEvtAna::InitCluster(const rooutil::CaloCluster* cluster, CaloCluster_t& cls_par) {
+    cls_par.Reset();
+    cls_par.cluster_ = cluster;
+    if(!cluster) return;
+  }
+
+  //------------------------------------------------------------------------------------
   // Initialize CRV stub information
   void Run1BEvtAna::InitCRVCluster(rooutil::CrvCoinc* stub, CRVCluster_t& stub_par) {
     stub_par.Reset();
@@ -901,23 +917,23 @@ namespace Run1BEvtAna {
     // Loop through the track collection
     for(int itrk = 0; itrk < evt_.ntracks_; ++itrk) {
       FillTrackHist(trk_hists_[0], &tracks_[itrk]); // all tracks
-      bool trk_id = tracks_[itrk].IsGood() && tracks_[itrk].FitPDG() == 11;
-      trk_id &= tracks_[itrk].PZFront() > 0.f;
-      if(trk_id) {
-        FillTrackHist(trk_hists_[1], &tracks_[itrk]);
-        const int ID = tracks_[itrk].ID();
-        const int id_no_crv = ID & (~(1 << kCRV)); //ID without the CRV coincidence cluster considered
-        const int id_no_us  = ID & (~(1 << kUpstream)); //ID without the upstream track veto
-        const int id_no_us_crv  = id_no_crv & id_no_us; //ID without the upstream track veto or CRV veto
-        // const int id_no_time = ID & (~(1 << kT0)); //ID with a looser timing cut
-        // const int id_no_crv_time = id_no_crv & id_no_time;
-        // const int id_no_mc_cut = ID & (~(1 << kMC)); //ID without the MC cuts
-        // const bool mc_cut = (ID & (1 << kMC)) == 0; // only check the MC bit
-        if(ID == 0) FillTrackHist(trk_hists_[2], &tracks_[itrk]);
-        if(id_no_crv == 0) FillTrackHist(trk_hists_[3], &tracks_[itrk]);
-        if(id_no_us == 0) FillTrackHist(trk_hists_[4], &tracks_[itrk]);
-        if(id_no_us_crv == 0) FillTrackHist(trk_hists_[5], &tracks_[itrk]);
-      }
+    }
+
+    // Loop through the line collection
+    for(int iline = 0; iline < evt_.nlines_; ++iline) {
+      FillLineHist(lne_hists_[0], &lines_[iline]); // all tracks
+    }
+
+    // Loop through the cluster collection
+    for(int icls = 0; icls < evt_.nclusters_; ++icls) {
+      const auto* cluster = clusters_[icls].cluster_;
+      const auto* info = cluster->calocluster;
+      if(verbose_ > 1) std::cout << "Cluster " << icls << ":"
+                                 << " Disk ID = " << info->diskID_
+                                 << " Energy = " << info->energyDep_
+                                 << " Time = " << info->time_
+                                 << std::endl;
+      FillClusterHist(cls_hists_[0], &clusters_[icls]); // all clusters
     }
 
     // Loop through the CRV stub collection

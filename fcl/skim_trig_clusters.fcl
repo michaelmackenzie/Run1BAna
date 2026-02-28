@@ -1,0 +1,55 @@
+#------------------------------------------------------------------------------
+# skim out events with relevant clusters
+#------------------------------------------------------------------------------
+
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardServices.fcl"
+
+process_name : SkimClusters
+source : {
+  module_type : RootInput
+  inputCommands: [ "keep *" ]
+}
+services : @local::Services.Reco
+services.scheduler.wantSummary: true
+
+physics : {
+  filters: {
+    CaloClusterFilter: {
+      module_type           : CaloClusterCounterFilter
+      CaloClusterModuleLabel: "CaloClusterFast"
+      DiskID                : [ 0, 1 ]
+      MaxClusterEnergy      : 1.e6
+      MaxNCel               : 100
+      MinClusterEnergy      : 70.
+      MinClusterRadius      : 0.
+      MinNCel               : 1
+      MinNCl                : 1
+      diagLevel             : 0
+    }
+  }
+  analyzers: {
+    DumpJson : {
+      module_type    : DumpEventJson
+      # triggerPaths   : ["calo_cluster_70"]
+      # triggerProcess : "Digitize"
+      triggerPaths   : ["TrigPath"]
+      triggerProcess : "SkimClusters"
+      fileName       : "skim_trig_clusters.json"
+    }
+  }
+  # TrigPath : [ ]
+  TrigPath : [ CaloClusterFilter ]
+  # EndPath  : [ DumpJson ]
+  EndPath  : [ DumpJson, Output ]
+  trigger_paths : [ TrigPath ]
+  end_paths : [ EndPath ]
+}
+
+outputs : {
+  Output : {
+    module_type : RootOutput
+    SelectEvents : [ "TrigPath" ]
+    fileName : "dig.owner.skim_trig_clusters.Run1B.%6r_%8s.art"
+  }
+}

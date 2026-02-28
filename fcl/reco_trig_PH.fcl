@@ -1,0 +1,227 @@
+#------------------------------------------------------------------------------
+# runs the trigger + Offline reco
+#------------------------------------------------------------------------------
+#include "Production/JobConfig/recoMC/prolog.fcl"
+
+# Trigger info, replacing the changes made in includes above
+#include "mu2e-trig-config/core/trigProducers.fcl"
+#include "mu2e-trig-config/core/trigFilters.fcl"
+#include "mu2e-trig-config/core/trigRecoSequences.fcl"
+BEGIN_PROLOG
+# override the trigger digitization sequence (must be before trigSequences)
+TrigRecoSequences.artFragmentsGen : []
+END_PROLOG
+#include "mu2e-trig-config/core/trigSequences.fcl"
+
+#include "mu2e-trig-config/gen/trig_noFieldMenuPSConfig_OnSpill.fcl"
+#include "mu2e-trig-config/gen/trig_noFieldMenu_OnSpill.fcl"
+
+BEGIN_PROLOG
+Reconstruction.OnSpillPath : [
+  @sequence::Reconstruction.CaloReco,
+  @sequence::Reconstruction.TrkHitReco,
+  @sequence::Reconstruction.CrvReco,
+  # @sequence::Reconstruction.OnSpillTrk,
+  CalTimeClusterFinder, TZClusterFinder, TPhiClusterFinder,
+  @sequence::Reconstruction.LineReco,
+  # KLFilter,
+  @sequence::Reconstruction.MCReco
+]
+END_PROLOG
+
+process_name : Reconstruct
+source : { module_type : RootInput
+  inputCommands : [ "keep *",
+    "drop *_Trig*KSFMC_*_*"
+  ]
+}
+services : @local::Services.Reco
+services.scheduler.wantSummary: true
+
+physics : {
+  @table::TrigSequences
+  producers : {
+    @table::TrigProducers.producers
+    @table::Reconstruction.producers
+    CalTimeClusterFinder : {
+      module_type                : CalLineTimePeakFinder
+      DiagLevel                  : 0
+      ComboHitCollectionLabel    : "makePH"
+      CaloClusterCollectionLabel : "CaloClusterMaker"
+      MinTimeClusterHits         : 6
+      MinCaloClusterEnergy       : 50.
+      HitTimeSigmaThresh         : 3.
+      HitXYSigmaThresh           : 8.
+      StoppingTargetRadius       : 200.
+      ParticleBeta               : 1.
+      FitDirection               : "downstream"
+    }
+  }
+  filters : {
+    @table::TrigFilters.filters
+    @table::Trig_noFieldMenuPSConfig
+    @table::Reconstruction.filters
+    # Triggerable calo events
+    TriggerableCalo : {
+      module_type : CaloShowerSimFilter
+      MinParticleEnergy : 75.0
+      MinTotalEnergy    : 1e6
+      CaloShowerSimCollection : "compressDigiMCs"
+      particleTypes : [11, -11, 13, -13, 211, -211, 22]
+    }
+  }
+  analyzers: {
+    @table::Reconstruction.analyzers
+    HitOriginAna : {
+      module_type           : HitOriginAna
+      simCollection         : "compressDigiMCs"
+      strawDigiMCCollection : "compressDigiMCs"
+      debugLevel            : 0
+    }
+    Run1BAna : {
+      module_type : Run1BAna
+      simCollection           : "compressDigiMCs"
+      primaryParticle         : "compressDigiMCs"
+      strawDigiMCCollection   : "compressDigiMCs"
+      CaloHitCollection       : "CaloHitMaker"
+      ComboHitCollection      : "makePH"
+      LineCollection          : "KKLine"
+      cosmicSeedCollection    : "LineFinder"
+      timeClusterCollection   : "CalTimeClusterFinder"
+      caloClusterCollection   : "CaloClusterMaker"
+      caloClusterMCCollection : "CaloClusterTruthMatch"
+      caloShowerSimCollection : "compressDigiMCs"
+      triggerProcess          : "Reconstruct"
+      PBI                     : "PBISim"
+      debugLevel              : 0
+    }
+    CaloExample : {
+      module_type : CaloExample
+      vdCollection          : "compressRecoMCs:virtualdetector"
+      caloHitCollection     : "CaloHitMaker"
+      caloClusterCollection : "CaloClusterMaker"
+      caloHitTruth          : "compressRecoMCs"
+      caloClusterTruth      : "compressRecoMCs"
+    }
+  }
+  TriggerableCalo : [ TriggerableCalo ]
+  RecoPath : [ @sequence::Reconstruction.OnSpillPath ]
+  EndPath  : [
+    @sequence::Reconstruction.OnSpillEndSequence, Output, TriggerableOutput, TriggeredOutput,
+    HitOriginAna,
+    Run1BAna
+  ]
+}
+
+#--------------------------------------------------------------
+# TZ cluster finder
+#--------------------------------------------------------------
+
+#--------------------------------------------------------------
+# TPhi cluster finder
+#--------------------------------------------------------------
+
+physics.producers.TPhiClusterFinder : {
+  @table::TrkPatRec.TimeAndPhiClusterFinder
+  ComboHitCollection : "makePH"
+  UseCaloCluster : true
+  MaxTimeDT : 25.0
+  FilterMVA : false
+  MaxDeltaPhi : 0.1
+}
+
+#--------------------------------------------------------------
+# Configure the time cluster and hit collections
+#--------------------------------------------------------------
+
+# Use this by default
+physics.producers.TPhiClusterFinder.ComboHitCollection : "makePH"
+physics.producers.SimpleTimeCluster.ComboHitCollection : "makePH"
+physics.producers.LineFinder.ComboHitCollection        : "makePH"
+physics.producers.TZClusterFinder.chCollLabel          : "makePH"
+
+# physics.analyzers.Run1BAna.timeClusterCollection       : "SimpleTimeCluster"
+# physics.producers.LineFinder.TimeClusterCollection     : "SimpleTimeCluster"
+# physics.analyzers.Run1BAna.timeClusterCollection       : "TPhiClusterFinder"
+# physics.producers.LineFinder.TimeClusterCollection     : "TPhiClusterFinder"
+# physics.analyzers.Run1BAna.timeClusterCollection       : "TZClusterFinder"
+# physics.producers.LineFinder.TimeClusterCollection     : "TZClusterFinder"
+physics.producers.LineFinder.TimeClusterCollection : "CalTimeClusterFinder"
+physics.analyzers.Run1BAna.timeClusterCollection   : "CalTimeClusterFinder"
+
+physics.producers.CalTimeLineFinder : {
+  @table::physics.producers.LineFinder
+  TimeClusterCollection : "CalTimeClusterFinder"
+}
+physics.producers.CalTimeKKLine : {
+  @table::physics.producers.KKLine
+  ModuleSettings : {
+    @table::physics.producers.KKLine.ModuleSettings
+    CosmicTrackSeedCollections : ["CalTimeLineFinder"]
+    PrintLevel : 0
+  }
+}
+
+#--------------------------------------------------------------
+# Use calo cluster info in line fits/track fits
+#--------------------------------------------------------------
+
+physics.producers.LineFinder.CaloClusterCollection    : "CaloClusterMaker"
+physics.producers.LineFinder.AddCaloClusters          : true
+physics.producers.KKLine.KKFitSettings.UseCaloCluster : true
+
+#--------------------------------------------------------------
+# Outputs
+#--------------------------------------------------------------
+
+outputs : {
+  Output : {
+    @table::Reconstruction.Output
+    SelectEvents : [ ] # [ "RecoPath" ]
+  }
+  TriggeredOutput : {
+    module_type  : RootOutput
+    SelectEvents : [ @sequence::Trig_noFieldMenu.trigger_list ]
+  }
+  TriggerableOutput : {
+    module_type  : RootOutput
+    SelectEvents : [ TriggerableCalo ]
+  }
+}
+physics.analyzers.LHCompressionCheck.SelectEvents : [ "RecoPath" ]
+# final config
+#include "Production/JobConfig/recoMC/epilog.fcl"
+#include "Production/JobConfig/common/epilog.fcl"
+#include "mu2e-trig-config/core/trigDigiInputsEpilog.fcl"
+#include "Production/JobConfig/reco/drop_trigger.fcl"
+physics.end_paths : [ EndPath ]
+physics.trigger_paths : [ RecoPath, "25:TriggerableCalo", @sequence::Trig_noFieldMenu.trigger_paths ]
+
+physics.producers.SelectReco.SaveAllUnusedDigiMCs : true
+# physics.producers.KLFilter : { module_type : NullProducer }
+# physics.filters.KLFilter : @erase
+
+physics.producers.KKLine.ModuleSettings.FitParticle : 11
+physics.producers.KKLine.ModuleSettings.SeedMomentum : 105
+
+services.DbService.purpose: "Sim_best"
+services.DbService.version: "v1_1"
+services.DbService.verbose : 2
+
+outputs.Output.outputCommands : [ @sequence::outputs.Output.outputCommands,
+  "keep mu2e::KalSeeds_*_*_*",
+  "keep mu2e::HelixSeed*_*_*_*",
+  "keep mu2e::CosmicTrackSeed*_*_*_*",
+  "keep mu2e::TimeCluster*_*_*_*"
+]
+outputs.TriggeredOutput.outputCommands   : [ @sequence::outputs.Output.outputCommands ]
+outputs.TriggerableOutput.outputCommands : [ @sequence::outputs.Output.outputCommands ]
+
+
+outputs.Output.fileName            : "mcs.owner.reco_trig_PH.Reco.Run1B.art"
+outputs.TriggeredOutput.fileName   : "mcs.owner.reco_trig_PH.Triggered.Run1B.art"
+outputs.TriggerableOutput.fileName : "mcs.owner.reco_trig_PH.Triggerable.Run1B.art"
+services.TFileService.fileName     : "nts.owner.reco_trig_PH.Run1B.sequencer.root"
+
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v01.txt"

@@ -1,6 +1,8 @@
 <lcgdict>
   <class name="Run1BEvtAna::Norm_t" />
   <class name="Run1BEvtAna::Track_t" />
+  <class name="Run1BEvtAna::Line_t" />
+  <class name="Run1BEvtAna::CaloCluster_t" />
   <class name="Run1BEvtAna::SimParticle_t" />
   <class name="Run1BEvtAna::Run1BEvtAna" />
   <class name="Run1BEvtAna::RMCAna" />

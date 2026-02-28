@@ -10,11 +10,12 @@
 
 // EventNtuple includes
 #include "EventNtuple/inc/CaloClusterInfo.hh"
+#include "EventNtuple/rooutil/inc/CaloCluster.hh"
 #include "EventNtuple/inc/CaloHitInfo.hh"
 
 namespace Run1BEvtAna {
   struct CaloCluster_t {
-    mu2e::CaloClusterInfo* cluster_;
+    const rooutil::CaloCluster* cluster_;
 
 
     //-------------------------------------------------

@@ -16,9 +16,9 @@
 #include "canvas/Persistency/Common/TriggerResults.h"
 
 // Mu2e
-#include "Offline/RecoDataProducts/inc/CaloCluster.hh"
-
+#include "Offline/CaloCluster/inc/ClusterUtils.hh"
 #include "Offline/RecoDataProducts/inc/CaloHit.hh"
+#include "Offline/RecoDataProducts/inc/CaloCluster.hh"
 #include "Offline/RecoDataProducts/inc/ComboHit.hh"
 #include "Offline/RecoDataProducts/inc/CosmicTrackSeed.hh"
 #include "Offline/RecoDataProducts/inc/HelixSeed.hh"
@@ -59,10 +59,27 @@
 #include <iostream>
 
 // local
+#include "Run1BAna/modules/inc/Structs.hh"
 #include "Run1BAna/modules/inc/SimUtils.hh"
-// #include "Run1BAna/modules/inc/Run1BAnaUtils.hh"
+#include "Run1BAna/modules/inc/Run1BAnaUtils.hh"
 
 using namespace CLHEP;
+using EventHist_t = Run1BAnaStructs::EventHist_t;
+using ClusterHist_t = Run1BAnaStructs::ClusterHist_t;
+using LineHist_t = Run1BAnaStructs::LineHist_t;
+using CosmicSeedHist_t = Run1BAnaStructs::CosmicSeedHist_t;
+using TimeClusterHist_t = Run1BAnaStructs::TimeClusterHist_t;
+using SimHist_t = Run1BAnaStructs::SimHist_t;
+// using ChargedTrackHist_t = Run1BAnaStructs::ChargedTrackHist_t;
+
+using EventPar_t = Run1BAnaStructs::EventPar_t;
+using ClusterPar_t = Run1BAnaStructs::ClusterPar_t;
+using LinePar_t = Run1BAnaStructs::LinePar_t;
+using CosmicSeedPar_t = Run1BAnaStructs::CosmicSeedPar_t;
+using TimeClusterPar_t = Run1BAnaStructs::TimeClusterPar_t;
+using SimPar_t = Run1BAnaStructs::SimPar_t;
+using ChargedTrack_t = Run1BAnaStructs::ChargedTrack_t;
+using Photon_t = Run1BAnaStructs::Photon_t;
 
 namespace mu2e
 {
@@ -96,146 +113,7 @@ namespace mu2e
     };
 
 
-    //--------------------------------------------------------------------------------------
     // Histograms
-    //--------------------------------------------------------------------------------------
-
-    // Per event
-    struct EventHist_t {
-      TH1* npot;
-      TH1* n_mc_digis;
-      TH1* ncombo_hits;
-      TH1* ncalo_hits;
-      TH1* nclusters;
-      TH1* ngood_clusters;
-      TH1* nlines;
-      TH1* ngood_lines;
-      TH1* ncosmic_seeds;
-      TH1* ngood_cosmic_seeds;
-      TH1* ntime_clusters;
-      TH1* ngood_time_clusters;
-      TH1* trig_bits;
-      TH1* trig_paths;
-
-      TH2* sim_dr_dt;
-      TH2* hit_x_y;
-    };
-
-    // Per cluster
-    struct ClusterHist_t {
-      TH1* energy;
-      TH1* mc_edep;
-      TH1* time;
-      TH1* radius;
-      TH1* ncr;
-      TH1* disk;
-      TH1* energy_per_crystal;
-      TH1* frac_first_crystal;
-      TH1* frac_first_two_crystals;
-
-      TH1* line_dt;
-      TH1* line_dr;
-      TH1* nmatched_lines;
-      TH1* nfit_matched_lines;
-
-      TH1* time_cluster_dt;
-      TH1* time_cluster_dr;
-      TH1* nmatched_time_clusters;
-      TH1* nfit_matched_time_clusters;
-
-      TH1* esum;
-      TH1* dt;
-      TH1* dr;
-      TH2* dr_vs_dt;
-
-      TH1* pdg;
-      TH1* energy_sim;
-      TH1* energy_ratio;
-      TH1* pdg2;
-      TH1* energy_sim2;
-      TH1* energy_ratio2;
-      TH1* sim_dt;
-      TH1* MC_energy_diff;
-      TH1* MC_time_diff;
-      TH2* energy_time_diff2d;
-      TH2* energy_vs_gen_energy;
-    };
-
-    // Per line (KalSeed)
-    struct LineHist_t {
-      TH1* chi2;
-      TH1* nhits;
-      TH1* nplanes;
-      TH1* nstereo;
-      TH1* d0;
-      TH1* tdip;
-      TH1* cos;
-      TH1* z0;
-      TH1* t0;
-      TH1* phi0;
-
-      TH1* cl_energy; // associated calo cluster info
-      TH1* cl_dt;
-      TH1* cl_dr;
-    };
-
-    // Per cosmic seed
-    struct CosmicSeedHist_t {
-      TH1* chi2;
-      TH1* nhits;
-      TH1* d0;
-      TH1* tdip;
-      TH1* cos;
-      TH1* z0;
-      TH1* t0;
-      TH1* phi0;
-
-      TH1* A0;
-      TH1* A1;
-      TH1* B0;
-      TH1* B1;
-
-      TH1* cl_energy; // associated calo cluster info
-      TH1* cl_time;
-      TH1* cl_disk;
-      TH1* cl_dt;
-      TH1* cl_dr;
-     };
-
-    // Per time cluster
-    struct TimeClusterHist_t {
-      TH1* nhits;
-      TH1* nstraw_hits;
-      TH1* t0;
-      TH1* t0err;
-      TH1* z0;
-      TH1* phi0; // phi in the tracker system
-      TH1* cl_energy;
-      TH1* cl_time;
-      TH1* cl_disk;
-      TH1* cl_dt;
-      TH1* cl_dr;
-      TH1* n_primary_hits;
-      TH1* n_other_hits;
-      TH1* purity;
-      TH1* efficiency;
-    };
-
-    // Per sim
-    struct SimHist_t {
-      TH1* pdg;
-      TH1* type;
-      TH1* parent_type;
-      TH1* origin_type;
-      TH1* nhits;
-      TH1* energy_start;
-      TH1* mom_cz_start;
-      TH1* edep;
-      TH2* start_x_y;
-      TH2* energy_vs_trig_path;
-    };
-
-    // Total
     struct Hist_t {
       EventHist_t   event;
       ClusterHist_t cluster;
@@ -243,217 +121,6 @@ namespace mu2e
       CosmicSeedHist_t cosmic_seed;
       TimeClusterHist_t time_cluster;
       SimHist_t     sim;
-    };
-
-    //--------------------------------------------------------------------------------------
-    // Internal data structures
-    //--------------------------------------------------------------------------------------
-
-    //--------------------------------------------------------------------------------------
-    struct EventPar_t {
-      long long npot;
-      int n_good_clusters;
-      int n_good_lines;
-      int n_good_cosmic_seeds;
-      int n_good_time_clusters;
-
-      EventPar_t() {
-        init();
-      }
-
-      void init(long long np = 0) {
-        npot = np;
-        n_good_clusters = 0;
-        n_good_lines = 0;
-        n_good_cosmic_seeds = 0;
-        n_good_time_clusters = 0;
-      }
-    };
-
-    //--------------------------------------------------------------------------------------
-    struct SimPar_t {
-      const SimParticle* sim;
-      unsigned nhits;
-      double edep;
-
-      SimPar_t() {
-        init();
-      }
-
-      void init(const SimParticle* s = nullptr, unsigned n = 0, double e = 0.) {
-        sim = s;
-        nhits = n;
-        edep = e;
-      }
-    };
-
-    //--------------------------------------------------------------------------------------
-    struct ClusterPar_t {
-      const CaloCluster*   cluster;
-      const KalSeed*       line;
-      const TimeCluster*   time_cluster;
-      const CaloClusterMC* mc;
-      const SimParticle*   primary_sim;
-      const SimParticle*   secondary_sim;
-
-      float r;
-      int nmatched_lines;
-      int nfit_matched_lines;
-      int nmatched_time_clusters;
-      int nfit_matched_time_clusters;
-
-      ClusterPar_t() {
-        init();
-      }
-
-      void init(const CaloCluster* cl = nullptr,  const KalSeed* ln = nullptr, const TimeCluster* tc = nullptr) {
-        cluster = cl;
-        line = ln;
-        time_cluster = tc;
-        mc = nullptr;
-        primary_sim = nullptr;
-        secondary_sim = nullptr;
-        r = 0.f;
-        nmatched_lines = 0;
-        nfit_matched_lines = 0;
-        nmatched_time_clusters = 0;
-        nfit_matched_time_clusters = 0;
-        if(!cl) return;
-
-        const float x = cluster->cog3Vector().x();
-        const float y = cluster->cog3Vector().y();
-        r = std::sqrt(x*x + y*y);
-      }
-
-      size_t ncr() const {
-        return (cluster) ? cluster->caloHitsPtrVector().size() : size_t(0);
-      }
-
-      double frac_1() const {
-        if(!cluster) return 0.;
-        const double edep = cluster->energyDep();
-        if(edep <= 0. || ncr() == 0) return 0.;
-        return (cluster->caloHitsPtrVector().at(0)->energyDep() / edep);
-      }
-
-      double frac_2() const {
-        if(!cluster) return 0.;
-        const double edep = cluster->energyDep();
-        if(edep <= 0. || ncr() == 0) return 0.;
-        if(ncr() == 1) return frac_1();
-        return ((cluster->caloHitsPtrVector().at(0)->energyDep() +
-                 cluster->caloHitsPtrVector().at(1)->energyDep()) / edep);
-      }
-
-      double time_var() const {
-        if(!cluster) return -9999.;
-        const double t0 = cluster->time();
-        const auto& hits = cluster->caloHitsPtrVector();
-        if(hits.empty()) return 0.;
-        double var = 0.;
-        for(const auto& hit : hits) {
-          const double dt = hit->time() - t0;
-          var += dt*dt;
-        }
-        var /= hits.size();
-        return var;
-      }
-
-      double line_dt() const {
-        if(!cluster || !line) return -9999.;
-        // const auto seg = line->nearestSegment(cluster_pos)
-        // if(seg == line->segments().end()) return -9999.;
-        // const auto cluster_pos = cluster->cog3Vector();
-        // const double t0 = seg.t0Val(TrkFitFlag(TrkFitFlag::KKLine));
-        double t0;
-        auto seg = line->t0Segment(t0);
-        if(seg == line->segments().end()) return -9999.;
-        return t0 - cluster->time();
-      }
-
-      double line_dr() const {
-        if(!cluster || !line) return -9999.;
-        double dr(1.e10), dz(1.e10);
-        const auto cluster_pos = cluster->cog3Vector();
-        for(const auto& seg : line->segments()) {
-          const auto pos = seg.position3();
-          const double curr_dr = std::sqrt( std::pow(pos.x() - cluster_pos.x(), 2) +
-                                            std::pow(pos.y() - cluster_pos.y(), 2) );
-          const double curr_dz = std::abs(pos.z() - cluster_pos.z());
-          if(curr_dz < dz) {
-            dz = curr_dz;
-            dr = curr_dr;
-          }
-        }
-        return dr;
-      }
-    };
-
-    //--------------------------------------------------------------------------------------
-    struct LinePar_t {
-      const KalSeed* line;
-      const CosmicTrackSeed* cosmic_seed;
-      const TimeCluster* time_cluster;
-
-      LinePar_t() { init(); }
-      void init(const KalSeed* l = nullptr) {
-        line = l;
-        cosmic_seed = nullptr;
-        time_cluster = nullptr;
-        if(!l) return;
-      }
-    };
-
-    //--------------------------------------------------------------------------------------
-    struct CosmicSeedPar_t {
-      const CosmicTrackSeed* seed;
-
-      CosmicSeedPar_t() { init(); }
-      void init(const CosmicTrackSeed* s = nullptr) {
-        seed = s;
-        if(!s) return;
-      }
-    };
-
-    //--------------------------------------------------------------------------------------
-    struct TimeClusterPar_t {
-      const TimeCluster* tc;
-
-      int n_primary_hits;
-      int n_other_hits;
-      int n_total_primary_hits;
-
-      TimeClusterPar_t() { init(); }
-      void init(const TimeCluster* t = nullptr) {
-        tc = t;
-        n_primary_hits = 0;
-        n_other_hits = 0;
-        n_total_primary_hits = 0;
-        if(!t) return;
-      }
-
-      double purity() const {
-        if(n_primary_hits + n_other_hits == 0) return 0.;
-        return static_cast<double>(n_primary_hits) / (n_primary_hits + n_other_hits);
-      }
-
-      double efficiency() const {
-        if(n_total_primary_hits == 0) return 0.;
-        return static_cast<double>(n_primary_hits) / n_total_primary_hits;
-      }
-    };
-
-    //--------------------------------------------------------------------------------------
-    struct ChargedTrack_t {
-      const CaloCluster* cluster;
-      const KalSeed* line;
-
-      ChargedTrack_t() { init(); }
-      void init(const CaloCluster* c = nullptr, const KalSeed* l = nullptr) {
-        cluster = c;
-        line = l;
-        if(!c || !l) return;
-      }
     };
 
     //--------------------------------------------------------------------------------------
@@ -479,12 +146,12 @@ namespace mu2e
     void bookSimHistograms        (SimHist_t*         Hist, const int index, const char* name);
     void bookHistograms           (                         const int index, const char* name);
 
-    void fillClusterHistograms     (ClusterHist_t*     Hist);
-    void fillLineHistograms        (LineHist_t*        Hist);
-    void fillCosmicSeedHistograms  (CosmicSeedHist_t*  Hist);
-    void fillTimeClusterHistograms (TimeClusterHist_t* Hist);
-    void fillEventHistograms       (EventHist_t*       Hist);
-    void fillSimHistograms         (SimHist_t*         Hist);
+    void fillClusterHistograms     (ClusterHist_t*     Hist, double Weight = 1.);
+    void fillLineHistograms        (LineHist_t*        Hist, double Weight = 1.);
+    void fillCosmicSeedHistograms  (CosmicSeedHist_t*  Hist, double Weight = 1.);
+    void fillTimeClusterHistograms (TimeClusterHist_t* Hist, double Weight = 1.);
+    void fillEventHistograms       (EventHist_t*       Hist, double Weight = 1.);
+    void fillSimHistograms         (SimHist_t*         Hist, double Weight = 1.);
     void fillHistograms            (Hist_t*            Hist);
 
     bool isGoodCluster(const CaloCluster* cluster);
@@ -492,11 +159,13 @@ namespace mu2e
     bool isGoodCosmicSeed(const CosmicTrackSeed* seed);
     bool isGoodTimeCluster(const TimeCluster* tc);
     CLHEP::HepLorentzVector lineAtCluster(const CaloCluster* cl, const KalSeed* seed);
+    CLHEP::HepLorentzVector lineSeedAtCluster(const CaloCluster* cl, const CosmicTrackSeed* seed);
     void initClusterPar(ClusterPar_t& par, const CaloCluster* cluster);
     void initLinePar(LinePar_t& par, const KalSeed* line);
     void initCosmicSeedPar(CosmicSeedPar_t& par, const CosmicTrackSeed* seed);
     void initTimeClusterPar(TimeClusterPar_t& par, const TimeCluster* tc);
     void matchLineToCluster(ClusterPar_t& par, const KalSeedCollection* lines);
+    void matchSeedToCluster(ClusterPar_t& par, const CosmicTrackSeedCollection* seeds);
     void matchTimeClusterToCluster(ClusterPar_t& par, const TimeClusterCollection* time_clusters);
     float getTotalEnergyDepositedBySim(const CaloClusterMC* mc, const SimParticle* sim);
     float getAverageTimeDepositedBySim(const CaloClusterMC* mc, const SimParticle* sim);
@@ -539,8 +208,8 @@ namespace mu2e
     const SimParticleCollection*           sim_col_ = nullptr;
     const PrimaryParticle*                 primary_ = nullptr;
     const StrawDigiMCCollection*           mc_digi_col_ = nullptr;
-    const ComboHitCollection*              combo_hits_col_ = nullptr;
-    const CaloHitCollection*               calo_hits_col_ = nullptr;
+    const ComboHitCollection*              combo_hit_col_ = nullptr;
+    const CaloHitCollection*               calo_hit_col_ = nullptr;
     const CaloClusterCollection*           cluster_col_ = nullptr;
     const CaloClusterMCCollection*         calo_cluster_mc_col_ = nullptr;
     const CaloClusterMCTruthAssn*          calo_cluster_mc_assn_ = nullptr;
@@ -551,12 +220,14 @@ namespace mu2e
     const TimeClusterCollection*           time_cluster_col_ = nullptr;
     const TriggerResultsNavigator*         trig_nav_ = nullptr;
     const art::Event*                      event_ = nullptr;
+    const Calorimeter*                     calorimeter_ = nullptr;
     EventPar_t                             evt_par_;
     ClusterPar_t                           cluster_par_;
     LinePar_t                              line_par_;
     CosmicSeedPar_t                        cosmic_seed_par_;
     TimeClusterPar_t                       time_cluster_par_;
     SimPar_t                               sim_par_;
+    Photon_t                               photon_;
     std::map<unsigned, SimUtils::Sim_t>    sim_info_;
     mu2e::StopWatch*                       watch_; // for timing
 
@@ -582,81 +253,94 @@ namespace mu2e
     , max_gen_energy_     (config().maxGenEnergy())
     , debug_level_        (config().debugLevel())
     , nevt_              (0)
-    {
-      // Normalization histogram
-      art::ServiceHandle<art::TFileService> tfs;
-      art::TFileDirectory dir = tfs->mkdir("data", "Data");
-      hist_norm_ = dir.make<TH1D>("norm", "Normalization counts", 1, 0., 1.);
+  {
+    // Normalization histogram
+    art::ServiceHandle<art::TFileService> tfs;
+    art::TFileDirectory dir = tfs->mkdir("data", "Data");
+    hist_norm_ = dir.make<TH1D>("norm", "Normalization counts", 1, 0., 1.);
 
-      // Analysis histograms
-      for(int i = 0; i < kMaxHists; ++i) hist_[i] = nullptr;
-      bookHistograms(0, "all_events");
-      bookHistograms(1, "all_clusters");
-      bookHistograms(2, "70MeV_clusters");
-      bookHistograms(3, "70MeV_disk0");
-      bookHistograms(4, "70MeV_disk1");
-      bookHistograms(5, "cluster_id");
-      bookHistograms(6, "time_30MeV_clusters");
-      bookHistograms(7, "time_50MeV_clusters");
-      bookHistograms(8, "10_sim_hits");
-      bookHistograms(9, "10_sim_hits_70MeV");
+    // Analysis histograms
+    for(int i = 0; i < kMaxHists; ++i) hist_[i] = nullptr;
+    bookHistograms(0, "all_events");
+    bookHistograms(1, "all_clusters");
+    bookHistograms(2, "70MeV_clusters");
+    bookHistograms(3, "70MeV_disk0");
+    bookHistograms(4, "70MeV_disk1");
+    bookHistograms(5, "cluster_id");
+    bookHistograms(6, "time_30MeV_clusters");
+    bookHistograms(7, "time_50MeV_clusters");
+    bookHistograms(8, "10_sim_hits");
+    bookHistograms(9, "10_sim_hits_70MeV");
 
-      bookHistograms(10, "max_70MeV");
-      bookHistograms(11, "max_70MeV_line");
-      bookHistograms(12, "max_70MeV_noline");
+    bookHistograms(10, "max_70MeV");
+    bookHistograms(11, "max_70MeV_line");
+    bookHistograms(12, "max_70MeV_noline");
 
-      bookHistograms(20, "cluster_ID");
-      bookHistograms(21, "cluster_ID_line");
-      bookHistograms(22, "cluster_ID_noline");
-      bookHistograms(23, "cluster_ID_80MeV");
+    bookHistograms(20, "cluster_ID");
+    bookHistograms(21, "cluster_ID_line");
+    bookHistograms(22, "cluster_ID_noline");
+    bookHistograms(23, "cluster_ID_80MeV");
 
-      bookHistograms(25, "cluster_sig_ID");
+    bookHistograms(25, "cluster_sig_ID");
 
-      bookHistograms(30, "merged_clusters");
-      bookHistograms(31, "merged_clusters_10MeV");
+    bookHistograms(30, "merged_clusters");
+    bookHistograms(31, "merged_clusters_10MeV");
 
-      bookHistograms(40, "unmerged_clusters");
-      bookHistograms(41, "unmerged_clusters_30MeV");
+    bookHistograms(40, "unmerged_clusters");
+    bookHistograms(41, "unmerged_clusters_30MeV");
 
-      bookHistograms(80, "all_lines");
-      bookHistograms(81, "lines_cluster");
-      bookHistograms(82, "lines_cluster_70MeV");
+    bookHistograms(60, "photon_");
+    bookHistograms(61, "photon_no_weight");
+    bookHistograms(62, "photon_no_tcl");
+    bookHistograms(63, "photon_tcl_50ns");
+    bookHistograms(64, "photon_tcl_50ns_100ns");
+    bookHistograms(65, "photon_no_csm");
+    bookHistograms(66, "photon_no_line");
+    bookHistograms(67, "photon_no_tcl_r500");
+    bookHistograms(68, "photon_no_tcl_r550");
 
-      bookHistograms(90, "all_cosmic_seeds");
-      bookHistograms(91, "cosmic_seed_ID");
-      bookHistograms(92, "cosmic_seed_cls");
-      bookHistograms(93, "cosmic_seed_cls_70MeV");
+    bookHistograms(80, "all_lines");
+    bookHistograms(81, "lines_cluster");
+    bookHistograms(82, "lines_cluster_70MeV");
 
-      bookHistograms(95, "all_time_clusters");
-      bookHistograms(96, "time_cluster_most_sim_hits");
+    bookHistograms(90, "all_cosmic_seeds");
+    bookHistograms(91, "cosmic_seed_ID");
+    bookHistograms(92, "cosmic_seed_cls");
+    bookHistograms(93, "cosmic_seed_cls_70MeV");
+
+    bookHistograms(95, "all_time_clusters");
+    bookHistograms(96, "time_cluster_most_sim_hits");
 
 
-      // For timing info
-      watch_ = new mu2e::StopWatch();
-      watch_->Calibrate();
-    }
+    // For timing info
+    watch_ = new mu2e::StopWatch();
+    watch_->Calibrate();
+  }
 
   //--------------------------------------------------------------------------------------
   void Run1BAna::beginJob() {
   }
 
   //--------------------------------------------------------------------------------------
-  void Run1BAna::beginRun(const art::Run & run){
+  void Run1BAna::beginRun(const art::Run & run) {
+    // Get the calorimeter geometry
+    const mu2e::GeomHandle<mu2e::Calorimeter> cal;
+    calorimeter_ = &*cal;
   }
 
   //--------------------------------------------------------------------------------------
   void Run1BAna::bookEventHistograms(EventHist_t* Hist, const int index, const char* title) {
     art::ServiceHandle<art::TFileService> tfs;
     art::TFileDirectory dir = tfs->mkdir(std::format("evt_{}", index), title);
-    Hist->npot           = dir.make<TH1F>("npot"          , "N(POT);"                     ,  100,    0.,   1.e7);
-    Hist->n_mc_digis     = dir.make<TH1F>("nmc_digis"     , "N(MC digis);"                , 1000,    0., 10000.);
-    Hist->ncombo_hits    = dir.make<TH1F>("ncombo_hits"   , "N(combo hits);"              ,  500,    0., 10000.);
-    Hist->ncalo_hits     = dir.make<TH1F>("ncalo_hits"    , "N(calo hits);"               ,  500,    0.,  2000.);
-    Hist->nclusters      = dir.make<TH1D>("nclusters"     , "N(calo clusters);"           ,  100,    0.,   100.);
-    Hist->ngood_clusters = dir.make<TH1D>("ngood_clusters", "N(calo clusters | ID);"      ,  100,    0.,   100.);
+    Hist->npot           = dir.make<TH1F>("npot"          , "N(POT);"                     , 1000,    0.,   1.e8);
+    Hist->n_mc_digis     = dir.make<TH1F>("nmc_digis"     , "N(MC digis);"                , 1000,    0., 20000.);
+    Hist->ncombo_hits    = dir.make<TH1F>("ncombo_hits"   , "N(combo hits);"              ,  500,    0., 20000.);
+    Hist->ncalo_hits     = dir.make<TH1F>("ncalo_hits"    , "N(calo hits);"               ,  500,    0.,  5000.);
+    Hist->nclusters      = dir.make<TH1D>("nclusters"     , "N(calo clusters);"           ,  200,    0.,   200.);
+    Hist->ngood_clusters = dir.make<TH1D>("ngood_clusters", "N(calo clusters | ID);"      ,  200,    0.,   200.);
     Hist->nlines         = dir.make<TH1D>("nlines"        , "N(Kinematic lines);"         ,  100,    0.,   100.);
     Hist->ngood_lines    = dir.make<TH1D>("ngood_lines"   , "N(Kinematic lines | ID);"    ,  100,    0.,   100.);
-    Hist->ncosmic_seeds  = dir.make<TH1D>("ncosmic_seeds"   , "N(Cosmic seeds);"         ,  100,    0.,   100.);
+    Hist->ncosmic_seeds  = dir.make<TH1D>("ncosmic_seeds"   , "N(Cosmic seeds);"          ,  100,    0.,   100.);
     Hist->ngood_cosmic_seeds = dir.make<TH1D>("ngood_cosmic_seeds"   , "N(Cosmic seeds | ID);"    ,  100,    0.,   100.);
     Hist->ntime_clusters = dir.make<TH1D>("ntime_clusters", "N(time clusters);"           ,  100,    0.,   100.);
     Hist->ngood_time_clusters = dir.make<TH1D>("ngood_time_clusters", "N(time clusters | ID);"    ,  100,    0.,   100.);
@@ -680,6 +364,12 @@ namespace mu2e
     Hist->energy_per_crystal     = dir.make<TH1F>("energy_per_crystal", "Cluster crystal energy;Energy (MeV);", 300, 0., 300.);
     Hist->frac_first_crystal     = dir.make<TH1F>("frac_first_crystal", "First crystal energy / cluster energy;Frac;", 101, 0., 1.01);
     Hist->frac_first_two_crystals= dir.make<TH1F>("frac_first_two_crystals", "First two crystals energy / cluster energy;Frac;", 101, 0., 1.01);
+    Hist->second_moment = dir.make<TH1F>("second_moment", "Cluster second moment;Second moment;", 200, 0., 1.e6);
+    Hist->e1            = dir.make<TH1F>("e1", "Cluster E1;E1 (MeV);", 300, 0., 300.);
+    Hist->e2            = dir.make<TH1F>("e2", "Cluster E2;E2 (MeV);", 300, 0., 300.);
+    Hist->e9            = dir.make<TH1F>("e9", "Cluster E9;E9 (MeV);", 300, 0., 300.);
+    Hist->e25           = dir.make<TH1F>("e25", "Cluster E25;E25 (MeV);", 300, 0., 300.);
+    Hist->t_var         = dir.make<TH1F>("t_var", "Cluster time variance;#sigma_{t}^{2} (ns^{2});", 200, 0., 10.);
     Hist->line_dt       = dir.make<TH1F>("line_dt" , "Line-cluster time diff;dt (ns);"   ,  100, -200.,    200.);
     Hist->line_dr       = dir.make<TH1F>("line_dr" , "Line-cluster distance;dr (mm);"    ,  100,    0.,    500.);
     Hist->nmatched_lines= dir.make<TH1D>("nmatched_lines", "N(lines) matched to the cluster;N(lines)",  40, 0.,    40.);
@@ -799,19 +489,25 @@ namespace mu2e
   }
 
   //--------------------------------------------------------------------------------------
-  void Run1BAna::fillClusterHistograms(ClusterHist_t* Hist) {
+  void Run1BAna::fillClusterHistograms(ClusterHist_t* Hist, double Weight) {
     if(!Hist) return;
     auto Cluster = cluster_par_.cluster;
     auto Line = cluster_par_.line;
     auto TimeCluster = cluster_par_.time_cluster;
     if(!Cluster) return;
 
-    Hist->energy->Fill(Cluster->energyDep());
-    if(cluster_par_.mc) Hist->mc_edep->Fill(cluster_par_.mc->totalEnergyDep());
-    Hist->time->Fill(Cluster->time());
-    Hist->radius->Fill(cluster_par_.r);
-    Hist->ncr->Fill(Cluster->caloHitsPtrVector().size());
-    Hist->disk->Fill(Cluster->diskID());
+    Hist->energy->Fill(Cluster->energyDep(), Weight);
+    if(cluster_par_.mc) Hist->mc_edep->Fill(cluster_par_.mc->totalEnergyDep(), Weight);
+    Hist->time->Fill(Cluster->time(), Weight);
+    Hist->radius->Fill(cluster_par_.r, Weight);
+    Hist->ncr->Fill(Cluster->caloHitsPtrVector().size(), Weight);
+    Hist->disk->Fill(Cluster->diskID(), Weight);
+    Hist->second_moment->Fill(cluster_par_.second_moment, Weight);
+    Hist->e1->Fill(cluster_par_.e1, Weight);
+    Hist->e2->Fill(cluster_par_.e2, Weight);
+    Hist->e9->Fill(cluster_par_.e9, Weight);
+    Hist->e25->Fill(cluster_par_.e25, Weight);
+    Hist->t_var->Fill(cluster_par_.t_var, Weight);
     if(Line) {
       const auto line_pos = lineAtCluster(Cluster, Line);
       const auto cl_pos = Cluster->cog3Vector();
@@ -820,11 +516,11 @@ namespace mu2e
       const double dr = std::sqrt(dx*dx + dy*dy);
       const double dt = line_pos.t() - Cluster->time();
 
-      Hist->line_dt->Fill(dt);
-      Hist->line_dr->Fill(dr);
+      Hist->line_dt->Fill(dt, Weight);
+      Hist->line_dr->Fill(dr, Weight);
     }
-    Hist->nmatched_lines->Fill(cluster_par_.nmatched_lines);
-    Hist->nfit_matched_lines->Fill(cluster_par_.nfit_matched_lines);
+    Hist->nmatched_lines->Fill(cluster_par_.nmatched_lines, Weight);
+    Hist->nfit_matched_lines->Fill(cluster_par_.nfit_matched_lines, Weight);
 
     if(TimeCluster) {
       const auto tc_pos = TimeCluster->position();
@@ -834,19 +530,19 @@ namespace mu2e
       const double dr = std::sqrt(dx*dx + dy*dy);
       const double dt = TimeCluster->t0().t0() - Cluster->time();
 
-      Hist->time_cluster_dt->Fill(dt);
-      Hist->time_cluster_dr->Fill(dr);
+      Hist->time_cluster_dt->Fill(dt, Weight);
+      Hist->time_cluster_dr->Fill(dr, Weight);
     }
-    Hist->nmatched_time_clusters->Fill(cluster_par_.nmatched_time_clusters);
-    Hist->nfit_matched_time_clusters->Fill(cluster_par_.nfit_matched_time_clusters);
+    Hist->nmatched_time_clusters->Fill(cluster_par_.nmatched_time_clusters, Weight);
+    Hist->nfit_matched_time_clusters->Fill(cluster_par_.nfit_matched_time_clusters, Weight);
 
     // Per-cluster per-crystal and fraction metrics
     const auto& chptrs = Cluster->caloHitsPtrVector();
     const size_t ncr = chptrs.size();
     const float per_crystal = Cluster->energyDep() / static_cast<float>(ncr);
-    Hist->energy_per_crystal->Fill(per_crystal);
-    Hist->frac_first_crystal->Fill(cluster_par_.frac_1());
-    Hist->frac_first_two_crystals->Fill(cluster_par_.frac_2());
+    Hist->energy_per_crystal->Fill(per_crystal, Weight);
+    Hist->frac_first_crystal->Fill(cluster_par_.frac_1(), Weight);
+    Hist->frac_first_two_crystals->Fill(cluster_par_.frac_2(), Weight);
 
     for(const auto& cls : *cluster_col_) {
       if(&cls == &(*Cluster)) continue;
@@ -856,18 +552,18 @@ namespace mu2e
       const float dy = (Cluster->cog3Vector() - cls.cog3Vector()).y();
       const float dr = std::sqrt(dx*dx + dy*dy);
       const float dt = Cluster->time() - cls.time();
-      Hist->esum      ->Fill(Cluster->energyDep() + cls.energyDep());
-      Hist->dt        ->Fill(dt);
-      Hist->dr        ->Fill(dr);
-      Hist->dr_vs_dt  ->Fill(dt, dr);
+      Hist->esum      ->Fill(Cluster->energyDep() + cls.energyDep(), Weight);
+      Hist->dt        ->Fill(dt, Weight);
+      Hist->dr        ->Fill(dr, Weight);
+      Hist->dr_vs_dt  ->Fill(dt, dr, Weight);
     }
 
     // MC information
     if(cluster_par_.mc) {
       const float mc_energy = cluster_par_.mc->totalEnergyDep();
-      Hist->MC_energy_diff->Fill(Cluster->energyDep() - mc_energy);
+      Hist->MC_energy_diff->Fill(Cluster->energyDep() - mc_energy, Weight);
       const float mc_time = getAverageTimeDeposited(cluster_par_.mc);
-      Hist->MC_time_diff->Fill(Cluster->time() - mc_time);
+      Hist->MC_time_diff->Fill(Cluster->time() - mc_time, Weight);
       const auto sim_1 = cluster_par_.primary_sim;
       const auto sim_2 = cluster_par_.secondary_sim;
       const float sim_edep_1 = (sim_1) ? getTotalEnergyDepositedBySim(cluster_par_.mc, sim_1) : 0.;
@@ -877,13 +573,13 @@ namespace mu2e
       const float sim_pdg_1  = (sim_1) ? int(sim_1->pdgId()) : 0.;
       const float sim_pdg_2  = (sim_2) ? int(sim_2->pdgId()) : 0.;
 
-      Hist->pdg->Fill(sim_pdg_1);
-      Hist->energy_sim->Fill(sim_edep_1);
-      Hist->energy_ratio->Fill(sim_edep_1 / mc_energy);
+      Hist->pdg->Fill(sim_pdg_1, Weight);
+      Hist->energy_sim->Fill(sim_edep_1, Weight);
+      Hist->energy_ratio->Fill(sim_edep_1 / mc_energy, Weight);
 
-      Hist->pdg2->Fill(sim_pdg_2);
-      Hist->energy_sim2->Fill(sim_edep_2);
-      Hist->energy_ratio2->Fill(sim_edep_2 / mc_energy);
+      Hist->pdg2->Fill(sim_pdg_2, Weight);
+      Hist->energy_sim2->Fill(sim_edep_2, Weight);
+      Hist->energy_ratio2->Fill(sim_edep_2 / mc_energy, Weight);
 
       if((sim_edep_1 + sim_edep_2)/mc_energy > 1.01) {
         std::cout << "[Run1BAna::" << __func__ << "] " << event_->id()
@@ -896,16 +592,16 @@ namespace mu2e
       }
 
       if(sim_1 && sim_2) { // only fill if both are found
-        Hist->sim_dt->Fill(sim_time_1 - sim_time_2);
+        Hist->sim_dt->Fill(sim_time_1 - sim_time_2, Weight);
       }
     }
 
     const float e_gen = (cluster_par_.primary_sim) ? cluster_par_.primary_sim->startMomentum().e() : 0.;
-    Hist->energy_vs_gen_energy->Fill(e_gen, Cluster->energyDep());
+    Hist->energy_vs_gen_energy->Fill(e_gen, Cluster->energyDep(), Weight);
   }
 
   //--------------------------------------------------------------------------------------
-  void Run1BAna::fillLineHistograms(LineHist_t* Hist) {
+  void Run1BAna::fillLineHistograms(LineHist_t* Hist, double Weight) {
     if(!Hist) return;
     auto Line = line_par_.line;
     if(!Line) return;
@@ -945,16 +641,16 @@ namespace mu2e
     unsigned nactive = Line->nHits(true);
 
     // Fill histograms
-    Hist->chi2->Fill(Line->chisquared() / Line->nDOF());
-    Hist->nhits->Fill(nactive);
-    Hist->nplanes->Fill(pcount.size());
-    Hist->nstereo->Fill(stcount.size());
-    Hist->d0->Fill(d0);
-    Hist->tdip->Fill(td);
-    Hist->cos->Fill(std::cos(theta));
-    Hist->z0->Fill(posvec.Z());
-    Hist->t0->Fill(t0);
-    Hist->phi0->Fill(phi);
+    Hist->chi2->Fill(Line->chisquared() / Line->nDOF(), Weight);
+    Hist->nhits->Fill(nactive, Weight);
+    Hist->nplanes->Fill(pcount.size(), Weight);
+    Hist->nstereo->Fill(stcount.size(), Weight);
+    Hist->d0->Fill(d0, Weight);
+    Hist->tdip->Fill(td, Weight);
+    Hist->cos->Fill(std::cos(theta), Weight);
+    Hist->z0->Fill(posvec.Z(), Weight);
+    Hist->t0->Fill(t0, Weight);
+    Hist->phi0->Fill(phi, Weight);
 
     // Fill cluster-matched histograms if available
     if(Cluster && Cluster->energyDep() > 1.) {
@@ -966,96 +662,96 @@ namespace mu2e
       const double dt = line_pos.t() - Cluster->time();
 
 
-      Hist->cl_energy->Fill(Cluster->energyDep());
-      Hist->cl_dt->Fill(dt);
-      Hist->cl_dr->Fill(dr);
+      Hist->cl_energy->Fill(Cluster->energyDep(), Weight);
+      Hist->cl_dt->Fill(dt, Weight);
+      Hist->cl_dr->Fill(dr, Weight);
     }
   }
 
   //--------------------------------------------------------------------------------------
-  void Run1BAna::fillCosmicSeedHistograms(CosmicSeedHist_t* Hist) {
+  void Run1BAna::fillCosmicSeedHistograms(CosmicSeedHist_t* Hist, double Weight) {
     if(!Hist) return;
     auto CosmicSeed = cosmic_seed_par_.seed;
     if(!CosmicSeed) return;
     const auto& Track = CosmicSeed->track();
     auto Cluster = (CosmicSeed->hasCaloCluster()) ? &(*CosmicSeed->caloCluster()) : nullptr;
-    Hist->nhits->Fill(CosmicSeed->hits().size());
-    Hist->t0->Fill(CosmicSeed->t0().t0());
-    Hist->d0->Fill(Track.d0());
-    Hist->phi0->Fill(Track.phi0());
-    Hist->z0->Fill(Track.z0());
-    Hist->cos->Fill(Track.cost());
-    Hist->A0->Fill(Track.FitParams.A0);
-    Hist->B0->Fill(Track.FitParams.B0);
-    Hist->A1->Fill(Track.FitParams.A1);
-    Hist->B1->Fill(Track.FitParams.B1);
-    // Hist->t0err->Fill(CosmicSeed->t0().t0Err());
-    // Hist->z0->Fill(CosmicSeed->position().z());
-    // Hist->phi0->Fill(CosmicSeed->position().phi());
+    Hist->nhits->Fill(CosmicSeed->hits().size(), Weight);
+    Hist->t0->Fill(CosmicSeed->t0().t0(), Weight);
+    Hist->d0->Fill(Track.d0(), Weight);
+    Hist->phi0->Fill(Track.phi0(), Weight);
+    Hist->z0->Fill(Track.z0(), Weight);
+    Hist->cos->Fill(Track.cost(), Weight);
+    Hist->A0->Fill(Track.FitParams.A0, Weight);
+    Hist->B0->Fill(Track.FitParams.B0, Weight);
+    Hist->A1->Fill(Track.FitParams.A1, Weight);
+    Hist->B1->Fill(Track.FitParams.B1, Weight);
+    // Hist->t0err->Fill(CosmicSeed->t0().t0Err(), Weight);
+    // Hist->z0->Fill(CosmicSeed->position().z(), Weight);
+    // Hist->phi0->Fill(CosmicSeed->position().phi(), Weight);
     if(Cluster) {
-      Hist->cl_energy->Fill(Cluster->energyDep());
-      Hist->cl_time->Fill(Cluster->time());
-      Hist->cl_disk->Fill(Cluster->diskID());
+      Hist->cl_energy->Fill(Cluster->energyDep(), Weight);
+      Hist->cl_time->Fill(Cluster->time(), Weight);
+      Hist->cl_disk->Fill(Cluster->diskID(), Weight);
       const double dt = CosmicSeed->t0().t0() - Cluster->time();
-      // Hist->cl_dr     ->Fill(dr);
-      Hist->cl_dt     ->Fill(dt);
+      // Hist->cl_dr     ->Fill(dr, Weight);
+      Hist->cl_dt     ->Fill(dt, Weight);
     }
   }
 
   //--------------------------------------------------------------------------------------
-  void Run1BAna::fillTimeClusterHistograms(TimeClusterHist_t* Hist) {
+  void Run1BAna::fillTimeClusterHistograms(TimeClusterHist_t* Hist, double Weight) {
     if(!Hist) return;
     auto TimeCluster = time_cluster_par_.tc;
     if(!TimeCluster) return;
     auto Cluster = (TimeCluster->hasCaloCluster()) ? &(*TimeCluster->caloCluster()) : nullptr;
 
-    Hist->nhits->Fill(TimeCluster->hits().size());
-    Hist->nstraw_hits->Fill(TimeCluster->nStrawHits());
-    Hist->t0->Fill(TimeCluster->t0().t0());
-    Hist->t0err->Fill(TimeCluster->t0().t0Err());
-    Hist->z0->Fill(TimeCluster->position().z());
-    Hist->phi0->Fill(TimeCluster->position().phi());
+    Hist->nhits->Fill(TimeCluster->hits().size(), Weight);
+    Hist->nstraw_hits->Fill(TimeCluster->nStrawHits(), Weight);
+    Hist->t0->Fill(TimeCluster->t0().t0(), Weight);
+    Hist->t0err->Fill(TimeCluster->t0().t0Err(), Weight);
+    Hist->z0->Fill(TimeCluster->position().z(), Weight);
+    Hist->phi0->Fill(TimeCluster->position().phi(), Weight);
     if(Cluster) {
-      Hist->cl_energy->Fill(Cluster->energyDep());
-      Hist->cl_time->Fill(Cluster->time());
-      Hist->cl_disk->Fill(Cluster->diskID());
+      Hist->cl_energy->Fill(Cluster->energyDep(), Weight);
+      Hist->cl_time->Fill(Cluster->time(), Weight);
+      Hist->cl_disk->Fill(Cluster->diskID(), Weight);
       const auto tc_pos = TimeCluster->position();
       const auto cl_pos = Cluster->cog3Vector();
       const double dx = tc_pos.x() - cl_pos.x();
       const double dy = tc_pos.y() - cl_pos.y();
       const double dr = std::sqrt(dx*dx + dy*dy);
       const double dt = TimeCluster->t0().t0() - Cluster->time();
-      Hist->cl_dr->Fill(dr);
-      Hist->cl_dt->Fill(dt);
+      Hist->cl_dr->Fill(dr, Weight);
+      Hist->cl_dt->Fill(dt, Weight);
     }
-    Hist->n_primary_hits->Fill(time_cluster_par_.n_primary_hits);
-    Hist->n_other_hits->Fill(time_cluster_par_.n_other_hits);
-    Hist->purity->Fill(time_cluster_par_.purity());
-    Hist->efficiency->Fill(time_cluster_par_.efficiency());
+    Hist->n_primary_hits->Fill(time_cluster_par_.n_primary_hits, Weight);
+    Hist->n_other_hits->Fill(time_cluster_par_.n_other_hits, Weight);
+    Hist->purity->Fill(time_cluster_par_.purity(), Weight);
+    Hist->efficiency->Fill(time_cluster_par_.efficiency(), Weight);
   }
 
   //--------------------------------------------------------------------------------------
-  void Run1BAna::fillEventHistograms(EventHist_t* Hist) {
+  void Run1BAna::fillEventHistograms(EventHist_t* Hist, double Weight) {
     if(!Hist) return;
-    Hist->npot           ->Fill(evt_par_.npot);
-    Hist->n_mc_digis     ->Fill((mc_digi_col_) ? mc_digi_col_->size() : 0);
-    Hist->ncombo_hits    ->Fill((combo_hits_col_) ? combo_hits_col_->size() : 0);
-    Hist->ncalo_hits     ->Fill((calo_hits_col_) ? calo_hits_col_->size() : 0);
-    Hist->nclusters      ->Fill((cluster_col_) ? cluster_col_->size() : 0);
-    Hist->ngood_clusters ->Fill(evt_par_.n_good_clusters);
-    Hist->nlines         ->Fill((line_col_) ? line_col_->size() : 0);
-    Hist->ngood_lines    ->Fill(evt_par_.n_good_lines);
-    Hist->ncosmic_seeds  ->Fill((cosmic_seed_col_) ? cosmic_seed_col_->size() : 0);
-    Hist->ngood_cosmic_seeds->Fill(evt_par_.n_good_cosmic_seeds);
-    Hist->ntime_clusters ->Fill((time_cluster_col_) ? time_cluster_col_->size() : 0);
-    Hist->ngood_time_clusters ->Fill(evt_par_.n_good_time_clusters);
+    Hist->npot           ->Fill(evt_par_.npot, Weight);
+    Hist->n_mc_digis     ->Fill((mc_digi_col_) ? mc_digi_col_->size() : 0, Weight);
+    Hist->ncombo_hits    ->Fill((combo_hit_col_) ? combo_hit_col_->size() : 0, Weight);
+    Hist->ncalo_hits     ->Fill((calo_hit_col_) ? calo_hit_col_->size() : 0, Weight);
+    Hist->nclusters      ->Fill((cluster_col_) ? cluster_col_->size() : 0, Weight);
+    Hist->ngood_clusters ->Fill(evt_par_.n_good_clusters, Weight);
+    Hist->nlines         ->Fill((line_col_) ? line_col_->size() : 0, Weight);
+    Hist->ngood_lines    ->Fill(evt_par_.n_good_lines, Weight);
+    Hist->ncosmic_seeds  ->Fill((cosmic_seed_col_) ? cosmic_seed_col_->size() : 0, Weight);
+    Hist->ngood_cosmic_seeds->Fill(evt_par_.n_good_cosmic_seeds, Weight);
+    Hist->ntime_clusters ->Fill((time_cluster_col_) ? time_cluster_col_->size() : 0, Weight);
+    Hist->ngood_time_clusters ->Fill(evt_par_.n_good_time_clusters, Weight);
 
     // Trigger information
     for (size_t index = 0; index < trig_nav_->getTrigPaths().size(); ++index) {
       const std::string path = trig_nav_->getTrigPathNameByIndex(index);
       if(trig_nav_->accepted(path)) {
-        Hist->trig_bits ->Fill(trig_nav_->getTrigBitByName(path));
-        Hist->trig_paths->Fill(path.c_str(), 1.);
+        Hist->trig_bits ->Fill(trig_nav_->getTrigBitByName(path), Weight);
+        Hist->trig_paths->Fill(path.c_str(), Weight);
       }
     }
 
@@ -1075,31 +771,31 @@ namespace mu2e
       const double dz = pos0.z() - pos1.z();
       const double dist = std::sqrt(dx*dx + dy*dy + dz*dz);
       if(e0 > 0.f && e1 > 0.f) {
-        Hist->sim_dr_dt->Fill(t0 - t1, dist);
-        Hist->hit_x_y->Fill(pos0.x() + 3904., pos0.y());
-        Hist->hit_x_y->Fill(pos1.x() + 3904., pos1.y());
+        Hist->sim_dr_dt->Fill(t0 - t1, dist, Weight);
+        Hist->hit_x_y->Fill(pos0.x() + 3904., pos0.y(), Weight);
+        Hist->hit_x_y->Fill(pos1.x() + 3904., pos1.y(), Weight);
       }
     }
   }
 
   //--------------------------------------------------------------------------------------
-  void Run1BAna::fillSimHistograms(SimHist_t* Hist) {
+  void Run1BAna::fillSimHistograms(SimHist_t* Hist, double Weight) {
     if(!Hist) return;
     const SimParticle* sim = sim_par_.sim;
     if(!sim) return;
-    Hist->pdg         ->Fill(sim->pdgId());
-    Hist->type        ->Fill(SimUtils::getSimType(sim));
-    Hist->parent_type ->Fill(SimUtils::getSimType((sim->hasParent()) ? &(*sim->parent()) : nullptr));
-    Hist->origin_type ->Fill(SimUtils::getSimOriginType(sim));
-    Hist->energy_start->Fill(sim->startMomentum().e());
-    Hist->nhits       ->Fill(sim_par_.nhits);
-    Hist->start_x_y   ->Fill(sim->startPosition().x() + 3904., sim->startPosition().y());
+    Hist->pdg         ->Fill(sim->pdgId(), Weight);
+    Hist->type        ->Fill(SimUtils::getSimType(sim), Weight);
+    Hist->parent_type ->Fill(SimUtils::getSimType((sim->hasParent()) ? &(*sim->parent()) : nullptr), Weight);
+    Hist->origin_type ->Fill(SimUtils::getSimOriginType(sim), Weight);
+    Hist->energy_start->Fill(sim->startMomentum().e(), Weight);
+    Hist->nhits       ->Fill(sim_par_.nhits, Weight);
+    Hist->start_x_y   ->Fill(sim->startPosition().x() + 3904., sim->startPosition().y(), Weight);
 
     // Trigger information
     for (size_t index = 0; index < trig_nav_->getTrigPaths().size(); ++index) {
       const std::string path = trig_nav_->getTrigPathNameByIndex(index);
       if(trig_nav_->accepted(path)) {
-        Hist->energy_vs_trig_path->Fill(path.c_str(), sim->startMomentum().e(), 1.);
+        Hist->energy_vs_trig_path->Fill(path.c_str(), sim->startMomentum().e(), Weight);
       }
     }
   }
@@ -1107,13 +803,14 @@ namespace mu2e
   //--------------------------------------------------------------------------------------
   void Run1BAna::fillHistograms(Hist_t* Hist) {
     if(!Hist) return;
+    const double weight = evt_par_.weight;
     watch_->SetTime("FillHistogram");
-    fillEventHistograms(&Hist->event);
-    fillClusterHistograms(&Hist->cluster);
-    fillLineHistograms(&Hist->line);
-    fillCosmicSeedHistograms(&Hist->cosmic_seed);
-    fillTimeClusterHistograms(&Hist->time_cluster);
-    fillSimHistograms(&Hist->sim);
+    fillEventHistograms(&Hist->event, weight);
+    fillClusterHistograms(&Hist->cluster, weight);
+    fillLineHistograms(&Hist->line, weight);
+    fillCosmicSeedHistograms(&Hist->cosmic_seed, weight);
+    fillTimeClusterHistograms(&Hist->time_cluster, weight);
+    fillSimHistograms(&Hist->sim, weight);
     watch_->StopTime("FillHistogram");
   }
 
@@ -1121,7 +818,7 @@ namespace mu2e
   bool Run1BAna::isGoodTimeCluster(const TimeCluster* tc) {
     if(!tc) return false;
     if(tc->nhits() < 3) return false; // must have at least 3 hits
-    if(tc->t0().t0() < 600. || tc->t0().t0() > 1650.) return false; // time window selection
+    // if(tc->t0().t0() < 600. || tc->t0().t0() > 1650.) return false; // time window selection
     return true;
   }
 
@@ -1129,7 +826,7 @@ namespace mu2e
   bool Run1BAna::isGoodCosmicSeed(const CosmicTrackSeed* seed) {
     if(!seed) return false;
     if(seed->hits().size() < 5) return false; // must have at least 5 hits
-    if(seed->t0().t0() < 550. || seed->t0().t0() > 1650.) return false; // time window selection
+    // if(seed->t0().t0() < 550. || seed->t0().t0() > 1650.) return false; // time window selection
     return true; // passes all selections
   }
 
@@ -1138,7 +835,8 @@ namespace mu2e
     if(!seed) return false;
     if(seed->intersections().empty()) return false; // intersections list must be populated
 
-    constexpr int min_nactive(5), min_nstereo(2), min_npanels(3);
+    constexpr int min_nactive(4), min_nstereo(1), min_npanels(1);
+    // constexpr int min_nactive(5), min_nstereo(2), min_npanels(3);
     constexpr double max_chi2_dof(10.);
 
     if(seed->nHits(true) < min_nactive) return false; // active hits
@@ -1173,55 +871,21 @@ namespace mu2e
 
   //--------------------------------------------------------------------------------------
   CLHEP::HepLorentzVector Run1BAna::lineAtCluster(const CaloCluster* cl, const KalSeed* seed) {
-    if(!cl || !seed) return CLHEP::HepLorentzVector(0.,0.,0., 0.);
-    const int disk_id = cl->diskID();
-    if(disk_id != 0 && disk_id != 1) return CLHEP::HepLorentzVector(0.,0.,0.,0.); // bad cluster
-    if(!isGoodLine(seed)) return CLHEP::HepLorentzVector(0.,0.,0.,0.); // bad line
-    // take any intersection -- it's a line
-    const auto line = seed->intersections().front().kinematicLine();
-    const auto pos0 = line.pos0();
-    const auto t0   = line.t0();
-    const auto dir  = line.direction();
-    if(std::abs(pos0.x()) > 1.e10) return CLHEP::HepLorentzVector(0.,0.,0., 0.); // bad line
-
     mu2e::GeomHandle<mu2e::Calorimeter> cal;
-    const auto pos_cl_trk = cal->geomUtil().mu2eToTracker(cal->geomUtil().diskToMu2e(disk_id, cl->cog3Vector()));
-    const double dx = pos_cl_trk.z() - pos0.z();
-    const double dy = pos_cl_trk.z() - pos0.z();
-    const double dz = pos_cl_trk.z() - pos0.z();
-    const double distance = std::sqrt(dx*dx + dy*dy + dz*dz);
+    return mu2e::Run1BAnaUtils::lineAtCluster(cl, seed, cal,debug_level_-1);
+  }
 
-    // Get the position at the calo disk
-    auto pos = pos0 + (dz/dir.z())*dir;
-    CLHEP::Hep3Vector pos_trk(pos.x(), pos.y(), pos.z());
-    const auto pos_cal = cal->geomUtil().mu2eToDisk(disk_id, cal->geomUtil().trackerToMu2e(pos_trk));
-
-    // Get the time at the calo disk
-    const double speed = line.speed();
-    const double t_cal = t0 + ((pos0.z() < pos_cl_trk.z()) ? 1. : -1.) * distance / speed; // assume going ST -> calo
-
-    // Validate the evaluation
-    const double val_dz = pos_cal.z() - cl->cog3Vector().z();
-    const bool val_issue =  std::abs(val_dz) > 1.;
-    if(debug_level_ > 2 || val_issue) {
-      std::cout << "[Run1BAna::" << __func__ << "]";
-      if(val_issue) std::cout << " Problem with line matching!";
-      std::cout << std::endl
-                << " Line pos0 = " << pos0 << std::endl
-                << " dir = " << dir << pos0 << std::endl
-                << " pos_trk = " << pos_trk << pos0 << std::endl
-                << " pos_cal = " << pos_cal << pos0 << std::endl
-                << " cluster = " << cl->cog3Vector() << pos0 << std::endl
-                << " t_cal = " << t_cal << pos0 << std::endl
-                << " t_cluster = " << cl->time() << pos0 << std::endl;
-    }
-    return CLHEP::HepLorentzVector(pos_cal.x(), pos_cal.y(), pos_cal.z(), t_cal);
+  //--------------------------------------------------------------------------------------
+  CLHEP::HepLorentzVector Run1BAna::lineSeedAtCluster(const CaloCluster* cl, const CosmicTrackSeed* seed) {
+    mu2e::GeomHandle<mu2e::Calorimeter> cal;
+    return Run1BAnaUtils::lineSeedAtCluster(cl, seed, cal, debug_level_-1);
   }
 
   //--------------------------------------------------------------------------------------
   void Run1BAna::initClusterPar(ClusterPar_t& par, const CaloCluster* cluster) {
     par.init(cluster);
     matchLineToCluster(par, line_col_);
+    matchSeedToCluster(par, cosmic_seed_col_);
     matchTimeClusterToCluster(par, time_cluster_col_);
 
     // Match reconstructed cluster to MC cluster using the CaloClusterMCTruthAssn
@@ -1331,16 +995,21 @@ namespace mu2e
       int n_other_digis = 0;
       const SimParticle& sim = *sim_par_.sim;
       std::vector<StrawHitIndex> shiv;
-      for(const size_t hit_index : tc->hits()) {
-        if(hit_index >= combo_hits_col_->size()) {
-          std::cerr << "Warning: hit index " << hit_index << " out of range for combo hit collection of size " << combo_hits_col_->size() << std::endl;
+      const auto hit_indices = tc->hits();
+      for(size_t i_hit = 0; i_hit < hit_indices.size(); ++i_hit) {
+        const size_t hit_index = hit_indices.at(i_hit);
+        if(hit_index >= combo_hit_col_->size()) {
+          std::cerr << "[Run1BAna::" << __func__ << "] Warning: hit index " << hit_index << " out of range for combo hit collection of size "
+                    << combo_hit_col_->size()
+                    << " (i_hit = " << i_hit << ", N(hit indices) = " << hit_indices.size() << ")"
+                    << std::endl;
           continue;
         }
         shiv.clear();
-        combo_hits_col_->fillStrawHitIndices(hit_index, shiv);
+        combo_hit_col_->fillStrawHitIndices(hit_index, shiv);
         for(const size_t digi_index : shiv) {
           if(digi_index >= mc_digi_col_->size()) {
-            std::cerr << "Warning: digi index " << digi_index << " out of range for MC digi collection of size " << mc_digi_col_->size() << std::endl;
+            std::cerr << "[Run1BAna::" << __func__ << "] Warning: digi index " << digi_index << " out of range for MC digi collection of size " << mc_digi_col_->size() << std::endl;
             continue;
           }
           const auto& digi = mc_digi_col_->at(digi_index);
@@ -1348,7 +1017,7 @@ namespace mu2e
           const auto sim_ptr = digi.strawGasStep(digi.earlyEnd())->simParticle();
           if(sim_ptr.isNull()) continue;
           if(&(*sim_ptr) == &sim) {
-             ++n_primary_digis;
+            ++n_primary_digis;
           } else {
             ++n_other_digis;
           }
@@ -1411,6 +1080,49 @@ namespace mu2e
   }
 
   //--------------------------------------------------------------------------------------
+  void Run1BAna::matchSeedToCluster(ClusterPar_t& par, const CosmicTrackSeedCollection* seeds) {
+    if(!par.cluster) return;
+    par.cosmic_seed = nullptr;
+    if(!seeds) return;
+    const auto cluster = par.cluster;
+
+    CLHEP::Hep3Vector cl_pos(cluster->cog3Vector());
+
+    constexpr double max_dt = 100.; // ns
+    constexpr double max_dr = 500.; // mm
+    float dt_curr(1.e10), dr_curr(1.e10);
+    for(const auto& seed : *seeds) {
+      if(seed.hasCaloCluster() && &(*seed.caloCluster()) == &(*cluster)) ++par.nfit_matched_cosmic_seeds; // the fit connected the cluster and seed
+      if(!isGoodCosmicSeed(&seed)) continue;
+
+      const auto seed_pos_t = lineSeedAtCluster(cluster, &seed);
+      const auto seed_pos = seed_pos_t.vect();
+      const auto seed_t = seed_pos_t.t();
+      const double dx = seed_pos.x() - cl_pos.x();
+      const double dy = seed_pos.y() - cl_pos.y();
+      const double dr = std::sqrt(dx*dx + dy*dy);
+      if(dr > max_dr) {
+        continue;
+      }
+
+      // check for its agreement with the cluster
+      const double dt = std::abs(cluster->time() - seed_t);
+      if(dt > max_dt) {
+        continue;
+      }
+      ++par.nmatched_cosmic_seeds; // a cosmic seed was matched to the cluster
+      if(dt < dt_curr) {
+        par.cosmic_seed = &seed;
+        dt_curr = dt;
+        dr_curr = dr;
+      }
+    }
+    if(par.cosmic_seed && debug_level_ > 2) std::cout << "[Run1BAna::" << __func__ << "] "
+                                                      << " Matched cosmic seed with dt = " << dt_curr
+                                                      << " and dr = " << dr_curr
+                                                      << std::endl;
+  }
+  //--------------------------------------------------------------------------------------
   void Run1BAna::matchTimeClusterToCluster(ClusterPar_t& par, const TimeClusterCollection* time_clusters) {
     if(!par.cluster) return;
     par.time_cluster = nullptr;
@@ -1444,7 +1156,7 @@ namespace mu2e
       if(dt < dt_curr) {
         if(debug_level_ > 2) std::cout << "[Run1BAna::" << __func__ << "] "
                                        << " Found better time cluster match with dr = " << dr << " and dt = " << dt
-                                      << std::endl;
+                                       << std::endl;
         par.time_cluster = &time_cluster;
         dt_curr = dt;
         dr_curr = dr;
@@ -1570,6 +1282,7 @@ namespace mu2e
     ++nevt_;
     hist_norm_->Fill(0.);
     event_ = &event;
+    cluster_par_.calorimeter = calorimeter_;
 
     //--------------------------------------------------------------------------------------
     // Retrieve the collections
@@ -1596,8 +1309,8 @@ namespace mu2e
     sim_col_              = (simH                .isValid()) ? simH.product()                 : nullptr;
     primary_              = (primaryH            .isValid()) ? primaryH.product()             : nullptr;
     mc_digi_col_          = (mc_digiH            .isValid()) ? mc_digiH.product()             : nullptr;
-    combo_hits_col_       = (combo_hitsH         .isValid()) ? combo_hitsH.product()          : nullptr;
-    calo_hits_col_        = (calo_hitsH          .isValid()) ? calo_hitsH.product()           : nullptr;
+    combo_hit_col_        = (combo_hitsH         .isValid()) ? combo_hitsH.product()          : nullptr;
+    calo_hit_col_         = (calo_hitsH          .isValid()) ? calo_hitsH.product()           : nullptr;
     calo_cluster_mc_col_  = (calo_cluster_mcH    .isValid()) ? calo_cluster_mcH.product()     : nullptr;
     calo_cluster_mc_assn_ = (calo_cluster_mcassnH.isValid()) ? calo_cluster_mcassnH.product() : nullptr;
     calo_shower_sim_col_  = (calo_shower_simH    .isValid()) ? calo_shower_simH.product()     : nullptr;
@@ -1612,14 +1325,24 @@ namespace mu2e
     if(debug_level_ > 1) std::cout << "[Run1BAna::" << __func__ << "::" << moduleDescription().moduleLabel() << "]"
                                    << " Input from:"
                                    << "\n  " << clusters_tag_.encode().c_str()   << ": N(clusters) = "   << cluster_col_->size()
-                                   << "\n  " << calo_hits_tag_.encode().c_str()  << ": N(calo hits) = "  << int((calo_hits_col_)  ? calo_hits_col_->size()  : -1)
-                                   << "\n  " << combo_hits_tag_.encode().c_str() << ": N(combo hits) = " << int((combo_hits_col_) ? combo_hits_col_->size() : -1)
+                                   << "\n  " << calo_hits_tag_.encode().c_str()  << ": N(calo hits) = "  << int((calo_hit_col_)   ? calo_hit_col_->size()  : -1)
+                                   << "\n  " << combo_hits_tag_.encode().c_str() << ": N(combo hits) = " << int((combo_hit_col_)  ? combo_hit_col_->size() : -1)
                                    << "\n  " << mc_digi_tag_.encode().c_str()    << ": N(MC digis) = "   << int((mc_digi_col_)    ? mc_digi_col_->size()    : -1)
                                    << "\n  " << calo_cluster_mc_tag_.encode().c_str() << ": N(calo cluster MC) = " << int((calo_cluster_mc_col_) ? calo_cluster_mc_col_->size() : -1)
                                    << "\n  " << time_cluster_tag_.encode().c_str() << ": N(time clusters) = " << int((time_cluster_col_) ? time_cluster_col_->size() : -1)
                                    << "\n  " << line_tag_.encode().c_str()       << ": N(lines) = "      << int((line_col_)       ? line_col_->size()       : -1)
                                    << std::endl;
 
+    if(debug_level_ > 2 && time_cluster_col_) {
+      std::cout << "[Run1BAna::" << __func__ << "::" << moduleDescription().moduleLabel() << "]"
+                << " Time clusters:" << std::endl;
+      for(const auto& tc : *time_cluster_col_) {
+        std::cout << "  t0 = " << tc.t0().t0() << " ns, position = " << tc.position() << ", N(hits) = " << tc.nhits() << std::endl;
+        for(const auto& hit_index : tc.hits()) {
+          std::cout << "    hit index = " << hit_index << std::endl;
+        }
+      }
+    }
     //--------------------------------------------------------------------------------------
     // Event filtering
     //--------------------------------------------------------------------------------------
@@ -1644,6 +1367,7 @@ namespace mu2e
     line_par_.init();
     cosmic_seed_par_.init();
     time_cluster_par_.init();
+    photon_.init();
     evt_par_.init((pbiH.isValid()) ? pbiH->intensity() : 0);
     const SimParticle* primary_sim = (primary_ && !primary_->primarySimParticles().empty()) ? &(*primary_->primarySimParticles().front()) : nullptr;
     const SimParticle* secondary_sim = (primary_ && primary_->primarySimParticles().size() > 1) ? &(*primary_->primarySimParticles().at(1)) : nullptr;
@@ -1735,7 +1459,7 @@ namespace mu2e
       watch_->SetTime("Analysis-Clusters-init");
       initClusterPar(cluster_par_, &cluster);
       initLinePar(line_par_, cluster_par_.line);
-      initCosmicSeedPar(cosmic_seed_par_, line_par_.cosmic_seed);
+      initCosmicSeedPar(cosmic_seed_par_, (line_par_.cosmic_seed) ? line_par_.cosmic_seed : cluster_par_.cosmic_seed);
       initTimeClusterPar(time_cluster_par_, cluster_par_.time_cluster);
       watch_->StopTime("Analysis-Clusters-init");
 
@@ -1745,8 +1469,8 @@ namespace mu2e
 
       // Two primary event merged into one cluster
       bool merged_cluster = (cluster_par_.primary_sim && cluster_par_.secondary_sim &&
-                            (isRelated(cluster_par_.primary_sim, primary_sim) || isRelated(cluster_par_.primary_sim, secondary_sim)) &&
-                            (isRelated(cluster_par_.secondary_sim, primary_sim) || isRelated(cluster_par_.secondary_sim, secondary_sim)));
+                             (isRelated(cluster_par_.primary_sim, primary_sim) || isRelated(cluster_par_.primary_sim, secondary_sim)) &&
+                             (isRelated(cluster_par_.secondary_sim, primary_sim) || isRelated(cluster_par_.secondary_sim, secondary_sim)));
 
       // All clusters
       fillHistograms(hist_[1]);
@@ -1875,14 +1599,14 @@ namespace mu2e
     watch_->SetTime("Analysis-Event");
     initClusterPar(cluster_par_, max_cluster);
     initLinePar(line_par_, cluster_par_.line);
-    initCosmicSeedPar(cosmic_seed_par_, line_par_.cosmic_seed);
+    initCosmicSeedPar(cosmic_seed_par_, (line_par_.cosmic_seed) ? line_par_.cosmic_seed : cluster_par_.cosmic_seed);
     initTimeClusterPar(time_cluster_par_, cluster_par_.time_cluster);
     fillHistograms(hist_[0]);
 
     // above 70 MeV
     if(cluster_par_.cluster && cluster_par_.cluster->energyDep() > 70.) {
       fillHistograms(hist_[10]);
-      const float dt = cluster_par_.line_dt();
+      const float dt = cluster_par_.cluster->time() - lineAtCluster(cluster_par_.cluster, cluster_par_.line).t();
       if(std::fabs(dt) < 50.) fillHistograms(hist_[11]);
       else                    fillHistograms(hist_[12]);
     }
@@ -1897,20 +1621,74 @@ namespace mu2e
     if(best_cluster) {
       initClusterPar(cluster_par_, best_cluster);
       initLinePar(line_par_, cluster_par_.line);
-      initCosmicSeedPar(cosmic_seed_par_, line_par_.cosmic_seed);
+      initCosmicSeedPar(cosmic_seed_par_, (line_par_.cosmic_seed) ? line_par_.cosmic_seed : cluster_par_.cosmic_seed);
       initTimeClusterPar(time_cluster_par_, cluster_par_.time_cluster);
       fillHistograms(hist_[20]);
-      const float dt = cluster_par_.line_dt();
+      const float dt = cluster_par_.cluster->time() - lineAtCluster(cluster_par_.cluster, cluster_par_.line).t();
       if(std::fabs(dt) < 50.) fillHistograms(hist_[21]);
       else                    fillHistograms(hist_[22]);
       if(best_cluster->energyDep() > 80.) fillHistograms(hist_[23]);
 
       // Signal selection
       bool signal_id = true;
-      signal_id &= cluster_par_.ncr() > 1;
-      signal_id &= cluster_par_.frac_2() > 0.65;
+      signal_id &= cluster_par_.ncr() > 0;
+      signal_id &= cluster_par_.ncr() < 6;
+      signal_id &= cluster_par_.frac_1() > 0.60;
+      signal_id &= cluster_par_.frac_2() > 0.80;
+      signal_id &= cluster_par_.t_var < 1.0;
+      signal_id &= cluster_par_.second_moment < 1.e5;
+      // if(cluster_par_.time_cluster) signal_id &= cluster_par_.time_cluster->nhits() < 80; // FIXME: Depends on the beam intensity used
       if(signal_id) fillHistograms(hist_[25]);
     }
+
+    // histograms for photon candidates
+    photon_.init(best_cluster); // FIXME: Find all photon candidates
+    if(photon_.cluster) {
+      const double prev_weight = evt_par_.weight; // store the previous weight
+      initClusterPar(cluster_par_, photon_.cluster);
+      initLinePar(line_par_, cluster_par_.line);
+      initCosmicSeedPar(cosmic_seed_par_, (line_par_.cosmic_seed) ? line_par_.cosmic_seed : cluster_par_.cosmic_seed);
+      initTimeClusterPar(time_cluster_par_, cluster_par_.time_cluster);
+      photon_.cosmic_seed = cluster_par_.cosmic_seed;
+      photon_.line = cluster_par_.line;
+      photon_.time_cluster = cluster_par_.time_cluster;
+      const float radius = photon_.r;
+      const auto cluster = photon_.cluster;
+      const int disk_id = cluster->diskID();
+
+      // Get the RMC weight, if this is a flat photon sample
+      double weight = 1.;
+      if(primary_sim && primary_sim->creationCode() == mu2e::ProcessCode::mu2eFlatPhoton) {
+        const double e_gen = primary_sim->startMomentum().e();
+        constexpr double kmax = 90.1; // use for reference
+        weight = Run1BAnaUtils::closureApprox(e_gen, kmax);
+      }
+
+      // Assign the event weight
+      evt_par_.weight = weight;
+      fillHistograms(hist_[60]);
+
+      // Set without weights
+      evt_par_.weight = 1.;
+      fillHistograms(hist_[61]);
+      evt_par_.weight = weight;
+
+      if(!photon_.time_cluster) { // no time cluster selection
+        fillHistograms(hist_[62]);
+        if(disk_id == 0 && radius > 500.) fillHistograms(hist_[67]);
+        if(disk_id == 0 && radius > 550.) fillHistograms(hist_[68]);
+      } else {
+        const float dt = photon_.cluster->time() - photon_.time_cluster->t0().t0();
+        if(std::fabs(dt) < 50.) fillHistograms(hist_[63]);
+        else                    fillHistograms(hist_[64]);
+      }
+      // line/seed selections
+      if(!photon_.cosmic_seed) fillHistograms(hist_[65]);
+      if(!photon_.line)        fillHistograms(hist_[66]);
+
+      evt_par_.weight = prev_weight;
+    }
+
     watch_->StopTime("Analysis-Event");
 
 

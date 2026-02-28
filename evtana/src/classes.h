@@ -1,5 +1,7 @@
 #include "Run1BAna/evtana/inc/Norm_t.hh"
 #include "Run1BAna/evtana/inc/Track_t.hh"
+#include "Run1BAna/evtana/inc/Line_t.hh"
+#include "Run1BAna/evtana/inc/CaloCluster_t.hh"
 #include "Run1BAna/evtana/inc/SimParticle_t.hh"
 #include "Run1BAna/evtana/inc/Run1BEvtAna.hh"
 #include "Run1BAna/evtana/inc/RMCAna.hh"

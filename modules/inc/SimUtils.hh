@@ -104,7 +104,7 @@ namespace mu2e
       return isIPA(sim) || (sim->parent().isNonnull() && isIPAOrigin(&(*sim->parent())));
     }
 
-    static SimType getSimType(const SimParticle* sim) {
+    static SimType getSimType(const SimParticle* sim, const int debug_level = 0) {
       if(!sim) return SimType::kUnknown;
       if(isIPA(sim)) return SimType::kIPA;
       const int pdg = sim->pdgId();
@@ -130,7 +130,7 @@ namespace mu2e
       case 22:             return SimType::kPhoton;
       }
       if(std::abs(pdg) > 10000) return SimType::kIon;
-      std::cout << __func__ << ": Unknown PDG: " << pdg << std::endl;
+      if(debug_level > 0) std::cout << __func__ << ": Unknown PDG: " << pdg << std::endl;
       return SimType::kOther;
     }
     static TString getSimTypeName(SimType type) {

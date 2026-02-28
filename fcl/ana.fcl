@@ -49,9 +49,10 @@ physics : {
       primaryParticle         : "compressRecoMCs"
       strawDigiMCCollection   : "compressRecoMCs"
       CaloHitCollection       : "CaloHitMaker"
-      ComboHitCollection      : "makeSH"
+      ComboHitCollection      : "makePH"
       LineCollection          : "KKLine"
-      TimeClusterCollection   : "SimpleTimeCluster"
+      cosmicSeedCollection    : "LineFinder"
+      timeClusterCollection   : "CalTimeClusterFinder"
       caloClusterCollection   : "CaloClusterMaker"
       caloClusterMCCollection : "compressRecoMCs"
       caloShowerSimCollection : "compressRecoMCs"
@@ -69,7 +70,7 @@ physics : {
     }
   }
   TrigPath : [ CaloClusterFilter ]
-  EndPath  : [ Run1BAna, DumpJson ]
+  EndPath  : [ Run1BAna ] #, DumpJson ]
   trigger_paths : [ TrigPath ]
   end_paths : [ EndPath ]
 }

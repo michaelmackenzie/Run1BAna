@@ -1,11 +1,11 @@
 void draw_cal_time_peaks() {
-    // Create geometry
+    // Create the geometry
     TGeoManager *geom = new TGeoManager("cylinders", "Cylinders with Cone");
 
     TGeoMaterial *matVac = new TGeoMaterial("Vacuum", 0, 0, 0);
     TGeoMedium *medVac = new TGeoMedium("Vacuum", 1, matVac);
 
-    // Create master volume
+    // Create the master volume
     TGeoVolume *top = geom->MakeBox("top", medVac, 10, 10, 10);
     geom->SetTopVolume(top);
 
@@ -47,33 +47,6 @@ void draw_cal_time_peaks() {
     TGeoCombiTrans *combi = new TGeoCombiTrans(*trans, *rot);
     top->AddNode(cone_vol, 4, combi);
 
-    //   // Parameters for cylinders
-    // Double_t outerR = 2.0;
-    // Double_t innerR = 0.8;
-    // Double_t thickness = 0.8;
-    // Double_t zPos[] = {2, 4, 6, 8};
-
-    // // Create and place four cylinders with holes
-    // for(Int_t i = 0; i < 4; i++) {
-    //     TGeoTube *outerCyl = new TGeoTube(Form("outer%d", i), 0, outerR, thickness/2);
-    //     TGeoTube *hole = new TGeoTube(Form("hole%d", i), 0, innerR, thickness/2);
-    //     TGeoCompositeShape *cylinder = new TGeoCompositeShape(
-    //         Form("cyl%d", i),
-    //         Form("outer%d - hole%d", i, i)
-    //     );
-    //     TGeoVolume *cylVol = new TGeoVolume(Form("cylvol%d", i), cylinder, medVac);
-    //     cylVol->SetLineColor(kBlue + i);
-
-    //     top->AddNode(cylVol, i, new TGeoTranslation(0, 0, zPos[i]));
-    // }
-
-    // // Create cone from third cylinder (z=6) to first cylinder (z=2)
-    // TGeoCone *cone = new TGeoCone("cone", 2.0, 1.0, 1.5, 1.0, 1.5);
-    // TGeoVolume *coneVol = new TGeoVolume("conevol", cone, medVac);
-    // coneVol->SetLineColor(kRed);
-
-    // top->AddNode(coneVol, 0, new TGeoTranslation(0, 0, 4));
-
     geom->CloseGeometry();
-    top->Draw("ogl");
+    top->Draw("ogl"); // draw with OpenGL
 }

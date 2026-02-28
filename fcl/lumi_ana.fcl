@@ -1,0 +1,34 @@
+# Process the lumi stream and run lumi reco/analysis
+
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardServices.fcl"
+
+
+process_name : lumiAna
+
+services : @local::Services.Sim
+services.GeometryService.bFieldFile   : "Offline/Mu2eG4/geom/bfgeom_reco_v01.txt"
+services.SeedService.baseSeed         :  8
+services.SeedService.maxUniqueEngines :  20
+source: {
+  module_type: RootInput
+}
+
+physics : {
+  producers : { }
+  filters   : { }
+
+  analyzers : {
+    LumiStreamAna : {
+      module_type: LumiStreamAna
+      diagLevel  : 1
+    }
+  }
+}
+
+
+physics.e1            : [ LumiStreamAna ]
+physics.end_paths     : [ e1 ]
+physics.trigger_paths : [    ]
+
+services.TFileService.fileName : "nts.user.lumi_ana.sequencer.version.root"

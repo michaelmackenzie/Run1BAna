@@ -22,6 +22,7 @@ Reconstruction.OnSpillPath : [
   @sequence::Reconstruction.TrkHitReco,
   @sequence::Reconstruction.CrvReco,
   # @sequence::Reconstruction.OnSpillTrk,
+  CalTimeClusterFinder,
   @sequence::Reconstruction.LineReco,
   # KLFilter,
   @sequence::Reconstruction.MCReco
@@ -45,9 +46,9 @@ physics : {
     CalTimeClusterFinder : {
       module_type                : CalLineTimePeakFinder
       DiagLevel                  : 0
-      ComboHitCollectionLabel    : "makeSH"
+      ComboHitCollectionLabel    : "makePH"
       CaloClusterCollectionLabel : "CaloClusterMaker"
-      MinTimeClusterHits         : 8
+      MinTimeClusterHits         : 6
       MinCaloClusterEnergy       : 50.
       HitTimeSigmaThresh         : 3.
       HitXYSigmaThresh           : 8.
@@ -83,7 +84,7 @@ physics : {
       primaryParticle         : "compressDigiMCs"
       strawDigiMCCollection   : "compressDigiMCs"
       CaloHitCollection       : "CaloHitMaker"
-      ComboHitCollection      : "makeSH"
+      ComboHitCollection      : "makePH"
       LineCollection          : "KKLine"
       cosmicSeedCollection    : "LineFinder"
       timeClusterCollection   : "SimpleTimeCluster"
@@ -116,10 +117,6 @@ physics : {
 # CalTimePeak
 #--------------------------------------------------------------
 
-# Use this by default
-# physics.producers.LineFinder.TimeClusterCollection : "CalTimeClusterFinder"
-# physics.producers.LineFinder.ComboHitCollection: "makePH"
-
 physics.producers.CalTimeLineFinder : {
   @table::physics.producers.LineFinder
   TimeClusterCollection : "CalTimeClusterFinder"
@@ -132,6 +129,17 @@ physics.producers.CalTimeKKLine : {
     PrintLevel : 0
   }
 }
+
+
+# Use this by default
+physics.producers.TPhiClusterFinder.ComboHitCollection : "makePH"
+physics.producers.SimpleTimeCluster.ComboHitCollection : "makePH"
+physics.producers.LineFinder.ComboHitCollection        : "makePH"
+physics.producers.TZClusterFinder.chCollLabel          : "makePH"
+
+physics.producers.LineFinder.TimeClusterCollection : "CalTimeClusterFinder"
+physics.producers.LineFinder.ComboHitCollection    : "makePH"
+physics.analyzers.Run1BAna.timeClusterCollection   : "CalTimeClusterFinder"
 
 outputs : {
   Output : {

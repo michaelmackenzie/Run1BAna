@@ -1,0 +1,15 @@
+#------------------------------------------------------------------------------
+# runs Offline reco
+#------------------------------------------------------------------------------
+#include "Production/JobConfig/recoMC/NoFieldRun1B.fcl"
+
+services.DbService.purpose: "Sim_best"
+services.DbService.version: "v1_4"
+services.DbService.verbose : 2
+
+
+outputs.Output.fileName            : "mcs.owner.reco.Reco.Run1B.art"
+services.TFileService.fileName     : "nts.owner.reco.Run1B.sequencer.root"
+
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v01.txt"
