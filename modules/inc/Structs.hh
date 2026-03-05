@@ -77,6 +77,8 @@ namespace Run1BAnaStructs {
       TH1* energy_sim2;
       TH1* energy_ratio2;
       TH1* sim_dt;
+      TH1* sim_dr;
+      TH2* sim_dt_dr;
       TH1* MC_energy_diff;
       TH1* MC_time_diff;
       TH2* energy_time_diff2d;
@@ -227,6 +229,20 @@ namespace Run1BAnaStructs {
       int nmatched_time_clusters;
       int nfit_matched_time_clusters;
 
+      float mc_time;
+      float sim_1_edep;
+      float sim_1_time;
+      float sim_1_x;
+      float sim_1_y;
+      int   sim_1_main_crystal;
+      float sim_1_main_crystal_energy;
+      float sim_2_edep;
+      float sim_2_time;
+      float sim_2_x;
+      float sim_2_y;
+      int   sim_2_main_crystal;
+      float sim_2_main_crystal_energy;
+
       ClusterPar_t() {
         init();
         calorimeter = nullptr;
@@ -254,6 +270,19 @@ namespace Run1BAnaStructs {
         nfit_matched_cosmic_seeds = 0;
         nmatched_time_clusters = 0;
         nfit_matched_time_clusters = 0;
+        mc_time = 0.f;
+        sim_1_edep = 0.f;
+        sim_1_time = 0.f;
+        sim_1_x = 0.f;
+        sim_1_y = 0.f;
+        sim_1_main_crystal = -1;
+        sim_1_main_crystal_energy = 0.f;
+        sim_2_edep = 0.f;
+        sim_2_time = 0.f;
+        sim_2_x = 0.f;
+        sim_2_y = 0.f;
+        sim_2_main_crystal = -1;
+        sim_2_main_crystal_energy = 0.f;
         if(!cl) return;
 
         const float x = cluster->cog3Vector().x();

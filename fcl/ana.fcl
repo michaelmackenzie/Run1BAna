@@ -58,6 +58,7 @@ physics : {
       caloShowerSimCollection : "compressRecoMCs"
       triggerProcess          : "Reconstruct"
       PBI                     : "PBISim"
+      fromReco                : true
       debugLevel              : 0
     }
     CaloExample : {

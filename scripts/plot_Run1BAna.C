@@ -89,7 +89,7 @@ void plot_Run1BAna(const char* infile = "run1b.root", const char* outdir = "plot
   printPlot(f, "Run1BAna/evt_0"         , "ncombo_hits" , outdir,  "ncombo_hits" , 5,     1.,   -1., "N(combo hits)"            );
   printPlot(f, "Run1BAna/evt_0"         , "ncalo_hits"  , outdir,  "ncalo_hits"  , 1,     0.,  500., "N(calo hits)"             );
   printPlot(f, "Run1BAna/evt_0"         , "nclusters"   , outdir,  "nclusters"   , 1,     1.,   -1., "N(calo clusters)"         );
-  printPlot(f, "Run1BAna/evt_0"         , "npot"        , outdir,  "npot"        , 1,     1.,   -1., "N(POT)"                   );
+  printPlot(f, "Run1BAna/evt_0"         , "npot"        , outdir,  "npot"        , 5,     1.,   -1., "N(POT)"                   );
   printPlot(f, "HitOriginAna/All events", "hit_z"       , outdir,  "hit_z"       , 1, -6000., 2000., "Straw digi z;z (mm)"      );
   printPlot(f, "HitOriginAna/All events", "hit_t"       , outdir,  "hit_t"       , 1,     1.,   -1., "Straw digi time;time (ns)");
   printPlot(f, "HitOriginAna/All events", "origin_type" , outdir,  "origin_type" , 1,     1.,   -1., "Hit origin"               );
@@ -97,12 +97,17 @@ void plot_Run1BAna(const char* infile = "run1b.root", const char* outdir = "plot
   // Cluster directory cls_0 -> energy
   vector<int> sets = {0, 2, 10, 20};
   for(int set : sets) {
-    TString dir = Form("Run1BAna/cls_%i", set);
-    printPlot(f, dir.Data(), "energy", outdir, Form("energy_%i", set), 1,   0.,  120., "Cluster energy;Energy (MeV)");
-    printPlot(f, dir.Data(), "time"  , outdir, Form("time_%i"  , set), 1, 300., 2000., "Cluster time;Time (ns)");
-    printPlot(f, dir.Data(), "t_var" , outdir, Form("t_var_%i" , set), 1, 1., -1., "Cluster time variance;#sigma_{t}^{2} (ns^{2})");
-    printPlot(f, dir.Data(), "energy_ratio" , outdir, Form("energy_ratio_%i" , set), 1, 1., -1., "Cluster E_{sim 1}/E;E_{sim 1}/E");
-    printPlot(f, dir.Data(), "energy_ratio2", outdir, Form("energy_ratio2_%i", set), 1, 1., -1., "Cluster E_{sim 2}/E;E_{sim 2}/E");
+    TString cls_dir = Form("Run1BAna/cls_%i", set);
+    TString tcls_dir = Form("Run1BAna/tcls_%i", set);
+    printPlot(f, cls_dir.Data(), "energy"       , outdir, Form("energy_%i"       , set), 1,   0.,  120., "Cluster energy;Energy (MeV)");
+    printPlot(f, cls_dir.Data(), "time"         , outdir, Form("time_%i"         , set), 1, 300., 2000., "Cluster time;Time (ns)");
+    printPlot(f, cls_dir.Data(), "t_var"        , outdir, Form("t_var_%i"        , set), 1,   1.,   -1., "Cluster time variance;#sigma_{t}^{2} (ns^{2})");
+    printPlot(f, cls_dir.Data(), "energy_ratio" , outdir, Form("energy_ratio_%i" , set), 1,   1.,   -1., "Cluster E_{sim 1}/E;E_{sim 1}/E");
+    printPlot(f, cls_dir.Data(), "energy_ratio2", outdir, Form("energy_ratio2_%i", set), 1,   1.,   -1., "Cluster E_{sim 2}/E;E_{sim 2}/E");
+    printPlot(f, tcls_dir.Data(), "nhits"       , outdir, Form("tcls_nhits_%i"   , set), 1,   0.,  200., "Time cluster N(hits);N(hits)");
+    printPlot(f, tcls_dir.Data(), "cl_dt"       , outdir, Form("tcls_dt_%i"      , set), 1, -50.,   50., "Time cluster - Cluster time;#Deltat (ns)");
+    printPlot(f, tcls_dir.Data(), "purity"      , outdir, Form("tcls_purity_%i"  , set), 1,   0.,    1., "Time cluster purity;Purity");
+    printPlot(f, tcls_dir.Data(), "efficiency"  , outdir, Form("tcls_eff_%i"     , set), 1,   0.,    1., "Time cluster efficiency;Efficiency");
   }
 
   f->Close();

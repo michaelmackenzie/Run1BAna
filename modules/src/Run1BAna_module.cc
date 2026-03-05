@@ -108,6 +108,7 @@ namespace mu2e
       fhicl::Atom<std::string>        trigProcess      { Name("triggerProcess")         , Comment("Process name for the trigger results")};
       fhicl::Atom<art::InputTag>      pbi              { Name("PBI")                    , Comment("ProtonBunchIntensity tag")            };
       fhicl::Atom<art::InputTag>      genCounter       { Name("genCounter")             , Comment("Generator counter tag")              , "genCounter"};
+      fhicl::Atom<bool>               fromReco         { Name("fromReco")               , Comment("From reco sample")                   , false};
       fhicl::Atom<double>             maxGenEnergy     { Name("maxGenEnergy")           , Comment("Cut on the maximum primary energy")  , -1.};
       fhicl::Atom<int>                debugLevel       { Name("debugLevel")             , Comment("debugLevel")                         , 0 };
     };
@@ -170,6 +171,7 @@ namespace mu2e
     float getTotalEnergyDepositedBySim(const CaloClusterMC* mc, const SimParticle* sim);
     float getAverageTimeDepositedBySim(const CaloClusterMC* mc, const SimParticle* sim);
     float getAverageTimeDeposited(const CaloClusterMC* mc);
+    void getSimMainCrystal(const CaloShowerSimCollection* col, const SimParticle* sim, int& mainCrystalID, float& mainCrystalEdep);
     void getShowerSimEnergyAndAvgTime(const CaloShowerSimCollection* col, const SimParticle* sim, float& energy, float& avgTime) const;
     CLHEP::Hep3Vector getCrystalPosition(const int crystalID) const;
     CLHEP::Hep3Vector getSimParticleHitPosition(const CaloShowerSimCollection* col, const SimParticle* sim) const;
@@ -200,6 +202,7 @@ namespace mu2e
     art::InputTag  trig_tag_;
     art::InputTag  pbi_tag_;
     double         max_gen_energy_;
+    bool           from_reco_;
     int            debug_level_;
 
     enum {kMaxHists = 100};
@@ -251,6 +254,7 @@ namespace mu2e
     , trig_tag_           ("TriggerResults::" + config().trigProcess())
     , pbi_tag_            (config().pbi())
     , max_gen_energy_     (config().maxGenEnergy())
+    , from_reco_          (config().fromReco())
     , debug_level_        (config().debugLevel())
     , nevt_              (0)
   {
@@ -284,7 +288,8 @@ namespace mu2e
     bookHistograms(25, "cluster_sig_ID");
 
     bookHistograms(30, "merged_clusters");
-    bookHistograms(31, "merged_clusters_10MeV");
+    bookHistograms(31, "merged_clusters_20MeV");
+    bookHistograms(32, "merged_clusters_crystal");
 
     bookHistograms(40, "unmerged_clusters");
     bookHistograms(41, "unmerged_clusters_30MeV");
@@ -393,6 +398,8 @@ namespace mu2e
     Hist->energy_sim2   = dir.make<TH1F>("energy_sim2", "Secondary sim total energy deposited;Energy (MeV);"  ,  300,    0.,    300.);
     Hist->energy_ratio2 = dir.make<TH1F>("energy_ratio2", "Energy ratio (secondary/total);E_sim/E_total;"     ,  110,    0.,    1.1);
     Hist->sim_dt        = dir.make<TH1F>("sim_dt", "Primary-secondary sim time diff;#Delta t (ns);", 200, -50., 50.);
+    Hist->sim_dr        = dir.make<TH1F>("sim_dr", "Primary-secondary sim position diff;#Delta r (mm);", 200, 0., 200.);
+    Hist->sim_dt_dr     = dir.make<TH2F>("sim_dt_dr", "Primary-secondary sim time vs position diff;#Delta t (ns);#Delta r (mm);", 200, -50., 50., 200, 0., 200.);
     Hist->MC_energy_diff= dir.make<TH1F>("energy_res", "Reconstructed - MC cluster energy;#Delta E (MeV);", 300, -15., 15.);
     Hist->MC_time_diff  = dir.make<TH1F>("time_res", "Reconstructed - MC cluster time;#Delta t (ns);", 200, -20., 20.);
     Hist->energy_vs_gen_energy = dir.make<TH2F>("energy_vs_gen_energy", "Cluster energy vs. generated energy;E_{gen} (MeV);E_{cluster} (MeV)",  60, 50., 110., 80, 40., 120.);
@@ -562,14 +569,18 @@ namespace mu2e
     if(cluster_par_.mc) {
       const float mc_energy = cluster_par_.mc->totalEnergyDep();
       Hist->MC_energy_diff->Fill(Cluster->energyDep() - mc_energy, Weight);
-      const float mc_time = getAverageTimeDeposited(cluster_par_.mc);
+      const float mc_time = cluster_par_.mc_time;
       Hist->MC_time_diff->Fill(Cluster->time() - mc_time, Weight);
       const auto sim_1 = cluster_par_.primary_sim;
       const auto sim_2 = cluster_par_.secondary_sim;
-      const float sim_edep_1 = (sim_1) ? getTotalEnergyDepositedBySim(cluster_par_.mc, sim_1) : 0.;
-      const float sim_edep_2 = (sim_2) ? getTotalEnergyDepositedBySim(cluster_par_.mc, sim_2) : 0.;
-      const float sim_time_1 = (sim_1) ? getAverageTimeDepositedBySim(cluster_par_.mc, sim_1) : 0.;
-      const float sim_time_2 = (sim_2) ? getAverageTimeDepositedBySim(cluster_par_.mc, sim_2) : 0.;
+      const float sim_edep_1 = cluster_par_.sim_1_edep;
+      const float sim_edep_2 = cluster_par_.sim_2_edep;
+      const float sim_time_1 = cluster_par_.sim_1_time;
+      const float sim_time_2 = cluster_par_.sim_2_time;
+      const float sim_x_1    = cluster_par_.sim_1_x;
+      const float sim_y_1    = cluster_par_.sim_1_y;
+      const float sim_x_2    = cluster_par_.sim_2_x;
+      const float sim_y_2    = cluster_par_.sim_2_y;
       const float sim_pdg_1  = (sim_1) ? int(sim_1->pdgId()) : 0.;
       const float sim_pdg_2  = (sim_2) ? int(sim_2->pdgId()) : 0.;
 
@@ -592,7 +603,11 @@ namespace mu2e
       }
 
       if(sim_1 && sim_2) { // only fill if both are found
-        Hist->sim_dt->Fill(sim_time_1 - sim_time_2, Weight);
+        const float dt = sim_time_1 - sim_time_2;
+        const float dr = std::sqrt(std::pow(sim_x_1 - sim_x_2, 2) + std::pow(sim_y_1 - sim_y_2, 2));
+        Hist->sim_dt->Fill(dt, Weight);
+        Hist->sim_dr->Fill(dr, Weight);
+        Hist->sim_dt_dr->Fill(dt, dr, Weight);
       }
     }
 
@@ -756,24 +771,22 @@ namespace mu2e
     }
 
     // Event-level primary sim distance/time difference 2D histogram
-    if(primary_ && calo_shower_sim_col_ && primary_->primarySimParticles().size() > 1) {
-      const auto& pvec = primary_->primarySimParticles();
-      const SimParticle* psim0 = &(*pvec.front());
-      const SimParticle* psim1 = &(*pvec.at(1));
-      float e0 = 0.f, t0 = 0.f;
-      float e1 = 0.f, t1 = 0.f;
-      getShowerSimEnergyAndAvgTime(calo_shower_sim_col_, psim0, e0, t0);
-      getShowerSimEnergyAndAvgTime(calo_shower_sim_col_, psim1, e1, t1);
-      const auto pos0 = getSimParticleHitPosition(calo_shower_sim_col_, psim0);
-      const auto pos1 = getSimParticleHitPosition(calo_shower_sim_col_, psim1);
-      const double dx = pos0.x() - pos1.x();
-      const double dy = pos0.y() - pos1.y();
-      const double dz = pos0.z() - pos1.z();
-      const double dist = std::sqrt(dx*dx + dy*dy + dz*dz);
-      if(e0 > 0.f && e1 > 0.f) {
-        Hist->sim_dr_dt->Fill(t0 - t1, dist, Weight);
-        Hist->hit_x_y->Fill(pos0.x() + 3904., pos0.y(), Weight);
-        Hist->hit_x_y->Fill(pos1.x() + 3904., pos1.y(), Weight);
+    const auto sim_1 = cluster_par_.primary_sim;
+    const auto sim_2 = cluster_par_.secondary_sim;
+    if(sim_1 && sim_2) { // only fill if both are found
+      const float e_1 = cluster_par_.sim_1_edep;
+      const float e_2 = cluster_par_.sim_2_edep;
+      const float t_1 = cluster_par_.sim_1_time;
+      const float t_2 = cluster_par_.sim_2_time;
+      const float x_1 = cluster_par_.sim_1_x;
+      const float x_2 = cluster_par_.sim_2_x;
+      const float y_1 = cluster_par_.sim_1_y;
+      const float y_2 = cluster_par_.sim_2_y;
+      const float dist = std::sqrt(std::pow(x_1 - x_2, 2) + std::pow(y_1 - y_2, 2));
+      if(e_1 > 0.f && e_2 > 0.f) {
+        Hist->sim_dr_dt->Fill(t_1 - t_2, dist, Weight);
+        Hist->hit_x_y->Fill(x_1 + 3904., y_1, Weight);
+        Hist->hit_x_y->Fill(x_2 + 3904., y_2, Weight);
       }
     }
   }
@@ -926,6 +939,7 @@ namespace mu2e
 
     // Initialize MC info if MC cluster found
     if(par.mc) {
+      par.mc_time = getAverageTimeDeposited(par.mc);
       // Find top 2 sim particles by total energy deposited
       std::map<const SimParticle*, float> sim_energy_map;
       const auto& edeps = par.mc->energyDeposits();
@@ -956,6 +970,31 @@ namespace mu2e
       }
       par.primary_sim = top1;
       par.secondary_sim = top2;
+
+      if(top1) {
+        par.sim_1_edep = getTotalEnergyDepositedBySim(par.mc, top1);
+        par.sim_1_time = getAverageTimeDepositedBySim(par.mc, top1);
+        // getShowerSimEnergyAndAvgTime(calo_shower_sim_col_, top1, par.sim_1_edep, par.sim_1_time);
+        const auto pos = getSimParticleHitPosition(calo_shower_sim_col_, top1);
+        par.sim_1_x = pos.x();
+        par.sim_1_y = pos.y();
+        getSimMainCrystal(calo_shower_sim_col_, top1, par.sim_1_main_crystal, par.sim_1_main_crystal_energy);
+        if(debug_level_ > 2) std::cout << "[Run1BAna::" << __func__ << "] Primary sim: PDG = " << top1->pdgId()
+                                       << " E = " << par.sim_1_edep << " Time = " << par.sim_1_time
+                                       << " x = " << par.sim_1_x << " y = " << par.sim_1_y
+                                       << " Main crystal = " << par.sim_1_main_crystal
+                                       << " Main crystal energy = " << par.sim_1_main_crystal_energy
+                                       << std::endl;
+      }
+      if(top2) {
+        par.sim_2_edep = getTotalEnergyDepositedBySim(par.mc, top2);
+        par.sim_2_time = getAverageTimeDepositedBySim(par.mc, top2);
+        // getShowerSimEnergyAndAvgTime(calo_shower_sim_col_, top2, par.sim_2_edep, par.sim_2_time);
+        const auto pos = getSimParticleHitPosition(calo_shower_sim_col_, top2);
+        par.sim_2_x = pos.x();
+        par.sim_2_y = pos.y();
+        getSimMainCrystal(calo_shower_sim_col_, top2, par.sim_2_main_crystal, par.sim_2_main_crystal_energy);
+      }
     }
   }
 
@@ -989,7 +1028,7 @@ namespace mu2e
     par.init(tc);
     if(!tc) return;
 
-    if(sim_par_.sim && mc_digi_col_) {
+    if(sim_par_.sim && mc_digi_col_ && !from_reco_) {
       // Count the number of primary digis in the time cluster
       int n_primary_digis = 0;
       int n_other_digis = 0;
@@ -1215,6 +1254,27 @@ namespace mu2e
     return 0.f;
   }
 
+  void Run1BAna::getSimMainCrystal(const CaloShowerSimCollection* col, const SimParticle* sim, int& mainCrystalID, float& mainCrystalEdep) {
+    mainCrystalID = -1;
+    mainCrystalEdep = 0.f;
+    if(!col || !sim) return;
+
+    std::map<int, float> crystal_energy_map; // map of crystal ID to total energy deposited by this sim
+    for(const auto& shower : *col) {
+      if(shower.sim().isNull()) continue;
+      if(&(*shower.sim()) == sim) {
+        crystal_energy_map[shower.crystalID()] += shower.energyDep();
+      }
+    }
+    // Find the crystal with the maximum energy deposition
+    for(const auto& [crystalID, energy] : crystal_energy_map) {
+      if(energy > mainCrystalEdep) {
+        mainCrystalEdep = energy;
+        mainCrystalID = crystalID;
+      }
+    }
+  }
+
   // Compute the total energy and energy-weighted average time for deposits
   // in a CaloShowerSimCollection associated to a given SimParticle (includes related sims)
   void Run1BAna::getShowerSimEnergyAndAvgTime(const CaloShowerSimCollection* col, const SimParticle* sim, float& energy, float& avgTime) const {
@@ -1370,7 +1430,6 @@ namespace mu2e
     photon_.init();
     evt_par_.init((pbiH.isValid()) ? pbiH->intensity() : 0);
     const SimParticle* primary_sim = (primary_ && !primary_->primarySimParticles().empty()) ? &(*primary_->primarySimParticles().front()) : nullptr;
-    const SimParticle* secondary_sim = (primary_ && primary_->primarySimParticles().size() > 1) ? &(*primary_->primarySimParticles().at(1)) : nullptr;
     sim_par_.init((primary_sim) ? primary_sim : nullptr, (primary_sim) ? sim_info_[primary_sim->id().asUint()].nhits_ : 0, 0.);
 
     // If the first event, initialize the trigger path histogram bins for stability
@@ -1467,10 +1526,13 @@ namespace mu2e
       bool cluster_time = (cluster.time() > 600. && cluster.time() < 1650.);
       bool cluster_id = (cluster.energyDep() > 70. && cluster_time);
 
-      // Two primary event merged into one cluster
-      bool merged_cluster = (cluster_par_.primary_sim && cluster_par_.secondary_sim &&
-                             (isRelated(cluster_par_.primary_sim, primary_sim) || isRelated(cluster_par_.primary_sim, secondary_sim)) &&
-                             (isRelated(cluster_par_.secondary_sim, primary_sim) || isRelated(cluster_par_.secondary_sim, secondary_sim)));
+      // Two sims merged into one cluster
+      const auto cl_mc = cluster_par_.mc;
+      const auto sim_1 = cluster_par_.primary_sim;
+      const auto sim_2 = cluster_par_.secondary_sim;
+      const float frac_sim_1 = (cl_mc && sim_1) ? cluster_par_.sim_1_edep / cl_mc->totalEnergyDep() : 0.f;
+      const float frac_sim_2 = (cl_mc && sim_2) ? cluster_par_.sim_2_edep / cl_mc->totalEnergyDep() : 0.f;
+      const bool merged_cluster = frac_sim_1 > 0.3f && frac_sim_2 > 0.2f; // two sims contribute a significant amount of the energy
 
       // All clusters
       fillHistograms(hist_[1]);
@@ -1489,33 +1551,28 @@ namespace mu2e
         if(cluster.energyDep() > 50.) fillHistograms(hist_[7]);
         if(merged_cluster) {
           fillHistograms(hist_[30]);
-          const float edep_1 = getTotalEnergyDepositedBySim(cluster_par_.mc, cluster_par_.primary_sim);
-          const float edep_2 = getTotalEnergyDepositedBySim(cluster_par_.mc, cluster_par_.secondary_sim);
-          if(edep_1 > 10. && edep_2 > 10.) {
-            std::cout << "Merged cluster: " << event.id() << std::endl;
+          const float edep_1 = cluster_par_.sim_1_edep;
+          const float edep_2 = cluster_par_.sim_2_edep;
+          if(cluster.energyDep() > 70. && edep_1 > 20. && edep_2 > 20.) {
+            std::cout << "Merged cluster: " << event.id()
+                      << " : E = " << std::setprecision(2) << cluster.energyDep()
+                      << " sim 1: E = " << edep_1
+                      << " t = " << cluster_par_.sim_1_time
+                      << " main crystal = " << cluster_par_.sim_1_main_crystal
+                      << " sim 2: E = " << edep_2
+                      << " t = " << cluster_par_.sim_2_time
+                      << " main crystal = " << cluster_par_.sim_2_main_crystal
+                      << std::endl;
             fillHistograms(hist_[31]);
+            if(cluster_par_.sim_1_main_crystal == cluster_par_.sim_2_main_crystal) {
+              std::cout << "  --> same main crystal! " << event.id() << std::endl;
+              fillHistograms(hist_[32]);
+            }
           }
         } else {
           fillHistograms(hist_[40]);
           if(cluster.energyDep() > 30.) {
             fillHistograms(hist_[41]);
-            if(primary_ && calo_shower_sim_col_ && primary_->primarySimParticles().size() > 1) {
-              const auto& pvec = primary_->primarySimParticles();
-              const SimParticle* psim0 = &(*pvec.front());
-              const SimParticle* psim1 = &(*pvec.at(1));
-              float e0 = 0.f, t0 = 0.f;
-              float e1 = 0.f, t1 = 0.f;
-              getShowerSimEnergyAndAvgTime(calo_shower_sim_col_, psim0, e0, t0);
-              getShowerSimEnergyAndAvgTime(calo_shower_sim_col_, psim1, e1, t1);
-              const auto pos0 = getSimParticleHitPosition(calo_shower_sim_col_, psim0);
-              const auto pos1 = getSimParticleHitPosition(calo_shower_sim_col_, psim1);
-              const double dx = pos0.x() - pos1.x();
-              const double dy = pos0.y() - pos1.y();
-              const double dz = pos0.z() - pos1.z();
-              const double dist = std::sqrt(dx*dx + dy*dy + dz*dz);
-              if(dist < 50. && std::fabs(t0-t1) < 25.)
-                std::cout << "Unmerged cluster, dr = " << dist << " dt = " << t0 - t1 << ": " << event.id() << std::endl;
-            }
           }
         }
       }

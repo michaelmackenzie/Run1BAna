@@ -41,55 +41,18 @@
 #include "Offline/Mu2eUtilities/inc/LsqSums4.hh"
 #include "Offline/Mu2eUtilities/inc/polyAtan2.hh"
 
-// BaBar
-#include "BTrk/BaBar/BaBar.hh"
-#include "BTrk/BField/BField.hh"
-#include "BTrk/BField/BFieldFixed.hh"
-#include "BTrk/BbrGeom/BbrVectorErr.hh"
-#include "BTrk/BaBar/BbrStringUtils.hh"
-#include "BTrk/ProbTools/ChisqConsistency.hh"
-#include "BTrk/TrkBase/HelixParams.hh"
-#include "BTrk/TrkBase/TrkErrCode.hh"
-#include "BTrk/TrkBase/TrkMomCalculator.hh"
-#include "BTrk/TrkBase/TrkParticle.hh"
-#include "BTrk/TrkBase/TrkPoca.hh"
-
-// boost
-#include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/median.hpp>
-#include <boost/accumulators/statistics/stats.hpp>
-#include <boost/accumulators/statistics/moment.hpp>
-#include <boost/algorithm/string.hpp>
 
 //CLHEP
 #include "CLHEP/Units/PhysicalConstants.h"
 
-// ROOT
-#include "TROOT.h"
-#include "TFolder.h"
-#include "TMath.h"
-#include "TFile.h"
-#include "TH1F.h"
-#include "TApplication.h"
-#include "TFolder.h"
-#include "TVector2.h"
-#include "TSystem.h"
-#include "TInterpreter.h"
 
 // C++
 #include <iostream>
-#include <fstream>
 #include <string>
-#include <memory>
-#include <functional>
 #include <float.h>
 #include <vector>
 #include <set>
 #include <map>
-
-using namespace boost::accumulators;
-using CLHEP::HepVector;
-using CLHEP::Hep3Vector;
 
 namespace mu2e {
   class Calorimeter;
@@ -107,13 +70,15 @@ namespace mu2e {
       using Name = fhicl::Name;
       using Comment = fhicl::Comment;
       fhicl::Atom<int>                           diag_level             {Name("DiagLevel"),                  Comment("Diagnostic output level"),0 };
-      fhicl::Atom<art::InputTag>                 hit_coll_tag           {Name("ComboHitCollectionLabel"),    Comment(" Combo Hit Collection Label") };
+      fhicl::Atom<art::InputTag>                 hit_coll_tag           {Name("ComboHitCollectionLabel"),    Comment("Combo Hit Collection Label") };
+      fhicl::Atom<art::InputTag>                 straw_hit_coll_tag     {Name("StrawHitCollectionLabel"),    Comment("Straw Hit Collection Label") };
       fhicl::Atom<std::string>                   time_cluster_coll_tag  {Name("TimeClusterCollectionLabel"), Comment("TimeCluster Collection Label") };
       fhicl::Atom<std::string>                   calo_cluster_coll_tag  {Name("CaloClusterCollectionLabel"), Comment("CaloCluster Collection Label") };
       fhicl::Atom<int>                           min_tc_hits            {Name("MinTimeClusterHits"),         Comment("Min NHits in TimeCluster") };
       fhicl::Atom<float>                         min_calo_cluster_energy{Name("MinCaloClusterEnergy"),       Comment("Min Calo Cluster Energy") };
       fhicl::Atom<float>                         max_edep_avg           {Name("MaxEDepAvg"),                 Comment("Max Avg EDep") };
-      fhicl::Atom<int>                           min_line_hits          {Name("MinLineHits"),               Comment("Min NHits in Line") };
+      fhicl::Atom<float>                         max_edep_hit           {Name("MaxEDepHit"),                 Comment("Max EDep in a single hit"), -1. };
+      fhicl::Atom<int>                           min_line_hits          {Name("MinLineHits"),                Comment("Min NHits in Line") };
       fhicl::Atom<float>                         hit_time_sigma_thresh  {Name("HitTimeSigmaThresh"),         Comment("Time consistency threshold for hits to be added to the line") };
       fhicl::Atom<float>                         hit_xy_dist_thresh     {Name("HitXYDistThresh"),            Comment("Spatial consistency threshold for hits to be added to the line") };
       fhicl::Atom<std::string>                   fit_direction          {Name("FitDirection"),               Comment("Fit Direction in Search (\"downstream\" or \"upstream\")") };
@@ -124,17 +89,20 @@ namespace mu2e {
     // Inputs
     //-----------------------------------------------------------------------------
     art::InputTag                         hit_tag_;                // input hit collection label
+    art::InputTag                         straw_hit_coll_tag_;     // input straw hit collection label
     art::InputTag                         time_cluster_tag_;       // input time cluster collection label
     art::InputTag                         calo_cluster_tag_;       // input calo cluster collection label
 
     int                                   min_tc_hits_;            // N(hits) in the time cluster
     float                                 min_calo_cluster_energy_;    // min energy of the associated calo cluster
     float                                 max_edep_avg_;           // max avg hit energy deposition
+    float                                 max_edep_hit_;           // max hit energy deposition
     size_t                                min_line_hits_;          // min number of hits in a line
     float                                 hit_time_sigma_thresh_;  // time consistency threshold for hits to be added to the line
     float                                 hit_xy_dist_thresh_;     // spatial consistency threshold for hits to be added to
+    float                                 hit_xy_seed_sigma_ = 5.; // spatial consistency threshold for hits to be added to the line seed (in sigma)
     TrkFitDirection                       fit_dir_;                // fit direction in search
-    bool                                  single_search_;          // only search for one line per time cluster (for diagnostics)
+    bool                                  single_search_;          // only search for one line per time cluster
     int                                   diag_level_;             // diagnostic output
     //-----------------------------------------------------------------------------
     // Data
@@ -142,9 +110,11 @@ namespace mu2e {
     const art::Event*                     event_;
 
     const ComboHitCollection*             combo_hit_col_;           // input combo hit collection
+    const ComboHitCollection*             straw_hit_col_;           // input straw hit collection
     const TimeClusterCollection*          time_cluster_col_;        // input time cluster collection
     const CaloClusterCollection*          calo_cluster_col_;        // input calo cluster collection
     art::Handle<ComboHitCollection>       combo_hit_col_handle_;    // handle for input combo hit collection
+    art::Handle<ComboHitCollection>       straw_hit_col_handle_;    // handle for input straw hit collection
     art::Handle<TimeClusterCollection>    time_cluster_col_handle_; // handle for input time cluster collection
 
     const Tracker*                        tracker_     ;            // tracker geometry
@@ -165,11 +135,13 @@ namespace mu2e {
     //-----------------------------------------------------------------------------
     // helper functions
     //-----------------------------------------------------------------------------
-    bool findData             (const art::Event& e);
-    bool isGoodTimeCluster    (const TimeCluster& tc);
-    int  goodHitsTimeCluster  (const TimeCluster& TimeCluster);
-    bool findLineInTimeCluster(const size_t i_tc, std::vector<CosmicTrackSeed>& seeds);
-    void fitLine(const CLHEP::Hep3Vector& cluster_pos, CLHEP::Hep3Vector& seed_dir, CLHEP::Hep3Vector& seed_int, std::vector<size_t>& hit_indices);
+    bool   findData             (const art::Event& e);
+    bool   isGoodHit            (const size_t hit_index) const;
+    bool   isGoodTimeCluster    (const TimeCluster& tc);
+    int    goodHitsTimeCluster  (const TimeCluster& TimeCluster);
+    double hitXYSigma           (const ComboHit& hit, const CLHEP::Hep3Vector& line_pos);
+    bool   findLineInTimeCluster(const size_t i_tc, std::vector<CosmicTrackSeed>& seeds);
+    void   fitLine(const CLHEP::Hep3Vector& cluster_pos, CLHEP::Hep3Vector& seed_dir, CLHEP::Hep3Vector& seed_int, std::vector<StrawHitIndex>& hit_indices);
   };
 
   //-----------------------------------------------------------------------------
@@ -178,11 +150,13 @@ namespace mu2e {
   CalLineFinder::CalLineFinder(const art::EDProducer::Table<Config>& config) :
     art::EDProducer{config}
     , hit_tag_(config().hit_coll_tag())
+    , straw_hit_coll_tag_(config().straw_hit_coll_tag())
     , time_cluster_tag_(config().time_cluster_coll_tag())
     , calo_cluster_tag_(config().calo_cluster_coll_tag())
     , min_tc_hits_(config().min_tc_hits())
     , min_calo_cluster_energy_(config().min_calo_cluster_energy())
     , max_edep_avg_(config().max_edep_avg())
+    , max_edep_hit_(config().max_edep_hit())
     , min_line_hits_(config().min_line_hits())
     , hit_time_sigma_thresh_(config().hit_time_sigma_thresh())
     , hit_xy_dist_thresh_(config().hit_xy_dist_thresh())
@@ -246,6 +220,15 @@ namespace mu2e {
       combo_hit_col_ = combo_hit_col_handle_.product();
     }
 
+    evt.getByLabel(straw_hit_coll_tag_, straw_hit_col_handle_);
+    if(!straw_hit_col_handle_.isValid()) {
+      printf("[CalLineFinder::%s] ERROR: StrawHit collection with label \"%s\" not found! RETURN\n", __func__, straw_hit_coll_tag_.encode().c_str());
+      straw_hit_col_ = nullptr;
+      return false;
+    } else {
+      straw_hit_col_ = straw_hit_col_handle_.product();
+    }
+
     auto calo_cluster_handle = evt.getValidHandle<CaloClusterCollection>(calo_cluster_tag_);
     calo_cluster_col_ = calo_cluster_handle.product();
 
@@ -260,6 +243,44 @@ namespace mu2e {
 
     return true;
   }
+
+  //-----------------------------------------------------------------------------
+  // Check if this hit should be considered
+  //-----------------------------------------------------------------------------
+  bool CalLineFinder::isGoodHit(const size_t hit_index) const {
+    if(!combo_hit_col_) return false;
+    if(hits_used_in_lines_.count(hit_index) > 0) return false; // this hit has already been used in a line, so skip it
+    if(hit_index >= combo_hit_col_->size()) return false;
+    const auto& hit = combo_hit_col_->at(hit_index);
+    if(max_edep_hit_ > 0. && hit.energyDep() > max_edep_hit_) return false; // hit has too much energy deposition
+    return true;
+  }
+
+  //-----------------------------------------------------------------------------
+  // Hit distance from a line in units of the hit's xy position resolution
+  //-----------------------------------------------------------------------------
+  double CalLineFinder::hitXYSigma(const ComboHit& hit, const CLHEP::Hep3Vector& line_pos) {
+    // const auto hit_dist = (CLHEP::Hep3Vector(hit.pos().x(), hit.pos().y(), 0.) - CLHEP::Hep3Vector(line_pos.x(), line_pos.y(), 0.));
+    const double transVar = hit.transVar();
+    const auto& pos = hit.pos();
+    const double dx = pos.x() - line_pos.x();
+    const double dy = pos.y() - line_pos.y();
+    const auto& vdir = hit.vDir();
+    const double dxn = dx * vdir.x() + dy *vdir.y();
+    const double costh2 = dxn * dxn / (dx * dx + dy * dy);
+    const double sinth2 = 1.f - costh2;
+    const double var = hit.wireVar()*sinth2 + transVar*costh2;
+    const double sigma = (var > 0.f) ? std::sqrt(var) : 0.f;
+    return sigma;
+  }
+
+  //-----------------------------------------------------------------------------
+  // Fit a line accepting any hits nearby the line as it is built
+  //-----------------------------------------------------------------------------
+
+  //-----------------------------------------------------------------------------
+  // Prune the line using the hit position and resolutions
+  //-----------------------------------------------------------------------------
 
   //-----------------------------------------------------------------------------
   // Find lines in a time cluster and add them to the output seed collection
@@ -283,10 +304,10 @@ namespace mu2e {
     cl_pos.setZ(cl_pos.z() + (cl.diskID() == 0 ? calo_d0_offset_ : calo_d1_offset_)); // shift the cluster position to the tracker system
 
     CLHEP::Hep3Vector seed_dir = (downstream) ? cl_pos - target_pos_ : target_pos_ - cl_pos;
-    seed_dir.setX(seed_dir.x()/2.); // assume some slope, but not too steep
-    seed_dir.setY(seed_dir.y()/2.);
+    // seed_dir.setX(seed_dir.x()/2.); // assume some slope, but not too steep
+    // seed_dir.setY(seed_dir.y()/2.);
     const double seed_dir_mag = seed_dir.mag();
-    if(seed_dir_mag <= 0.) return false; // can't define a seed direction, so return false{
+    if(seed_dir_mag <= 0. || std::abs(seed_dir.z()) < 1e-3) return false; // can't define a seed direction, so return false
     seed_dir *= 1./seed_dir_mag; // normalize the seed direction
     if(diag_level_ > 1) {
       printf("[CalLineFinder::%s] TimeCluster %zu: CaloCluster time = %.2f, position = (%.1f, %.1f, %.1f), seed direction = (%.2f, %.2f, %.2f)\n",
@@ -295,11 +316,11 @@ namespace mu2e {
 
     // LsqSums2 line_fitter; // fitter for finding lines
     // Look for hits in the time cluster that are consistent with this seed position and direction, and add them to the seed
-    std::vector<size_t> hit_indices;
+    std::vector<StrawHitIndex> hit_indices;
     hit_indices.reserve(tc.hits().size());
     for(size_t i_hit = 0; i_hit < tc.hits().size(); ++i_hit) {
       const size_t hit_index = tc.hits().at(i_hit);
-      if(hits_used_in_lines_.count(hit_index) > 0) continue; // this hit has already been used in a line, so skip it
+      if(!isGoodHit(hit_index)) continue;
       const auto& hit = combo_hit_col_->at(hit_index);
       const CLHEP::Hep3Vector hit_pos(hit.pos().x(), hit.pos().y(), hit.pos().z());
       const double hit_time = hit.correctedTime();
@@ -312,8 +333,8 @@ namespace mu2e {
       if(time_sigma > hit_time_sigma_thresh_) continue; // hit is not consistent with the seed, so skip it
 
       // next check if the hit is consistent in space
-      const double dz = (seed_dir.z() > 0.) ? hit_pos.z() - cl_pos.z() : cl_pos.z() - hit_pos.z(); // z distance from the cluster to the hit along the seed direction
-      const CLHEP::Hep3Vector pos_at_hit = cl_pos + dz * seed_dir; // position along the seed direction at the same z as the hit
+      const double dz = std::abs(hit_pos.z() - cl_pos.z()); // z distance from the cluster to the hit
+      const CLHEP::Hep3Vector pos_at_hit = cl_pos - (dz/seed_dir.z()) * seed_dir; // position along the seed direction at the same z as the hit
       const double x_y_dist = (hit_pos - pos_at_hit).perp(); // distance in the x-y plane between the hit and the expected position based on the seed
       if(diag_level_ > 2) {
         printf("  Expected position at hit z: (%.1f, %.1f, %.1f), hit position: (%.1f, %.1f, %.1f), x-y distance = %.2f\n",
@@ -343,12 +364,38 @@ namespace mu2e {
              __func__, tc_index, seed_int.x(), seed_int.y(), seed_int.z(), seed_dir.x(), seed_dir.y(), seed_dir.z());
     }
 
+    // // Version using combo hits:
+    // for(size_t hit_index : hit_indices) {
+    //   hits_used_in_lines_.insert(hit_index); // add this hit index to the set of hits used in lines
+    //   ComboHit hit(combo_hit_col_->at(hit_index)); // clone the combo hit
+    //   seed._straw_chits.push_back(std::move(hit));
+    // }
+    // seed._straw_chits.setParent(combo_hit_col_handle_);
+
+    // Version using straw hits:
+
+    // Get the collection at straw level
+    std::vector<StrawHitIndex> shiv;
+    const auto combo_hit_ptrs = combo_hit_col_->fillStrawHitIndices(hit_indices,shiv,StrawIdMask::uniquestraw);
+    const auto combo_hits = *combo_hit_ptrs;
+
     for(size_t hit_index : hit_indices) {
-      hits_used_in_lines_.insert(hit_index); // add this hit index to the set of hits used in lines (for single line search)
-      ComboHit hit(combo_hit_col_->at(hit_index)); // clone the combo hit
-      seed._straw_chits.push_back(std::move(hit));
+      hits_used_in_lines_.insert(hit_index); // add this hit index to the set of hits used in lines
     }
-    seed._straw_chits.setParent(combo_hit_col_->parent());
+    for(const auto& hit : combo_hits) {
+      const size_t hit_index = hit.index();
+      std::vector<StrawHitIndex> hit_shiv;
+      combo_hits.fillStrawHitIndices(hit_index, hit_shiv);
+      for(size_t k=0; k<hit_shiv.size(); ++k) {
+        size_t kloc = hit_shiv[k];
+        const auto& straw_hit = combo_hits.at(kloc);
+        ComboHit combohit;
+        combohit.init(straw_hit, kloc);
+        seed._straw_chits.push_back(std::move(combohit));
+      }
+    }
+    seed._straw_chits.setAsSubset(combo_hit_col_handle_, StrawIdMask::uniquestraw);
+    // seed._straw_chits.setParent(combo_hit_col_->parent(), StrawIdMask::uniquestraw);
 
     // // double avg_t0 = 0.;
     // // int good_hits = 0;
@@ -363,6 +410,8 @@ namespace mu2e {
     //   combohit.init(combo_hit_col_[kloc],kloc);
     //   seed._straw_chits.push_back(std::move(combohit));
     // }
+    // // FIXME: Would this only be if copying the straw hits, not combo hits?
+
 
     // avg_t0 /= good_hits;
 
@@ -401,10 +450,11 @@ namespace mu2e {
     return true; // for now, just add the seed based on the calo cluster position and return false to keep searching for more lines in this time cluster (if single_search_ is false)
   }
 
+  //-----------------------------------------------------------------------------
   void CalLineFinder::fitLine(const CLHEP::Hep3Vector& cluster_pos,
                               CLHEP::Hep3Vector& seed_dir,
                               CLHEP::Hep3Vector& seed_int,
-                              std::vector<size_t>& hit_indices) {
+                              std::vector<StrawHitIndex>& hit_indices) {
     // Fix one end of the line to the cluster position and fit the dx/dz and dy/dz slopes based on the hits
     // x(z) = m_x * (z - z0) + x0 --> z(x) = (x - x0)/m_x + z0
     // y(z) = m_y * (z - z0) + y0 --> y(x) = m_y * ((x - x0)/m_x + z0 - z0) + y0 = (m_y/m_x) * (x - x0) + y0
@@ -416,42 +466,85 @@ namespace mu2e {
     // need at least 2 hits + calo hit
     if(hit_indices.size() < 2) return;
 
+    // sort incices by z position of the hits, highest z to lowest z
+    std::sort(hit_indices.begin(), hit_indices.end(), [this](size_t i1, size_t i2) {
+      return combo_hit_col_->at(i1).pos().z() > combo_hit_col_->at(i2).pos().z();
+    });
+
+    std::vector<StrawHitIndex> used_hit_indices; // keep track of which hits are used in the fit
+    used_hit_indices.reserve(hit_indices.size());
+
     double       m_x = seed_dir.x() / seed_dir.z(); // initial guess for dx/dz based on the seed direction
     double       m_y = seed_dir.y() / seed_dir.z(); // initial guess for dy/dz based on the seed direction
     const double z0  = cluster_pos.z();
     double       x0  = cluster_pos.x();
     double       y0  = cluster_pos.y();
 
+    if(diag_level_ > 1) {
+      printf("[CalLineFinder::%s] Fitting line with initial parameters: seed_dir = (%.3f, %.3f, %.3f), seed_int = (%.1f, %.1f, %.1f), cluster_pos = (%.1f, %.1f, %.1f)\n",
+             __func__, seed_dir.x(), seed_dir.y(), seed_dir.z(), x0 - m_x * z0, y0 - m_y * z0, 0., cluster_pos.x(), cluster_pos.y(), cluster_pos.z());
+    }
+
     LsqSums2 x_z_fitter(z0, x0); // fitter for x vs z
     LsqSums2 y_z_fitter(z0, y0); // fitter for y vs z
     // add the cluster location with a small weight to the fit to help constrain it, but not too much that it dominates over the hits
-    x_z_fitter.addPoint(z0, x0, 0.1);
-    y_z_fitter.addPoint(z0, y0, 0.1);
+    x_z_fitter.addPoint(z0, x0, 100.);
+    y_z_fitter.addPoint(z0, y0, 100.);
+    x_z_fitter.addPoint(target_pos_.z(), target_pos_.x(), 0.5); // add the target position with a small weight to help constrain the fit
+    y_z_fitter.addPoint(target_pos_.z(), target_pos_.y(), 0.5);
     for(size_t hit_index : hit_indices) {
       const auto& hit = combo_hit_col_->at(hit_index);
       const double z = hit.pos().z();
+      const double line_y = m_y * (z - z0) + y0;
+      const double line_x = m_x * (z - z0) + x0;
+      if(diag_level_ > 2) {
+        printf("  Checking hit %zu: hit position = (%.1f, %.1f, %.1f), expected position on line = (%.1f, %.1f, %.1f), m_x = %.3f, m_y = %.3f, sigma = %.1f\n",
+               hit_index, hit.pos().x(), hit.pos().y(), hit.pos().z(), line_x, line_y, z, m_x, m_y, hitXYSigma(hit, CLHEP::Hep3Vector(line_x, line_y, z)));
+      }
+      CLHEP::Hep3Vector line_pos(line_x, line_y, z);
+      if(x_z_fitter.qn() > 20) { // take the first couple hits to seed the line
+        if(hitXYSigma(hit, line_pos) > hit_xy_seed_sigma_) continue; // hit is too far from the seed line, so skip it in the fit
+      } else {
+        const double hit_dist = (CLHEP::Hep3Vector(hit.pos().x(), hit.pos().y(), 0.) - CLHEP::Hep3Vector(line_pos.x(), line_pos.y(), 0.)).mag();
+        if(hit_dist > 300.) continue; // hit is too far from the seed line, so skip it in the fit
+      }
+      if(diag_level_ > 2) {
+        printf("  --> Adding hit %zu to fit: hit position = (%.1f, %.1f, %.1f), expected position on line = (%.1f, %.1f, %.1f), m_x = %.3f, m_y = %.3f\n",
+               hit_index, hit.pos().x(), hit.pos().y(), hit.pos().z(), line_x, line_y, z, m_x, m_y);
+      }
       const double x = hit.pos().x();
       const double y = hit.pos().y();
       x_z_fitter.addPoint(z, x, 1.0);
       y_z_fitter.addPoint(z, y, 1.0);
+      used_hit_indices.push_back(hit_index);
+
+      // if enough points added, start updating the fit as points are added
+      if(x_z_fitter.qn() > 8) {
+        m_x = x_z_fitter.dydx();
+        x0  = x_z_fitter.y0();
+        m_y = y_z_fitter.dydx();
+        y0  = y_z_fitter.y0();
+      }
     }
+
+    // Get the final fit parameters
     if(x_z_fitter.qn() > 1) {
       m_x = x_z_fitter.dydx();
       x0  = x_z_fitter.y0();
-    }
-    if(y_z_fitter.qn() > 1) {
       m_y = y_z_fitter.dydx();
       y0  = y_z_fitter.y0();
     }
+
     seed_dir.setX(m_x * seed_dir.z());
     seed_dir.setY(m_y * seed_dir.z());
     seed_dir *= 1./seed_dir.mag(); // normalize the seed direction after fitting
 
     seed_int.setX(x0 - m_x * z0);
     seed_int.setY(y0 - m_y * z0);
+    hit_indices = used_hit_indices; // update the hit indices to only include those used in the fit
     if(diag_level_ > 1) {
-      printf("[CalLineFinder::%s] Fitted line parameters: seed_int = (%.1f, %.1f, %.1f), seed_dir = (%.2f, %.2f, %.2f)\n",
-             __func__, seed_int.x(), seed_int.y(), seed_int.z(), seed_dir.x(), seed_dir.y(), seed_dir.z());
+      printf("[CalLineFinder::%s] Fitted line parameters: %2zu hits, seed_int = (%.1f, %.1f, %.1f), seed_dir = (%.3f, %.3f, %.3f)\n",
+             __func__, used_hit_indices.size(), seed_int.x(), seed_int.y(), seed_int.z(), seed_dir.x(), seed_dir.y(), seed_dir.z());
     }
   }
 
@@ -510,6 +603,7 @@ namespace mu2e {
     event.put(std::move(out_seeds));
   }
 
+  //-----------------------------------------------------------------------------
   int  CalLineFinder::goodHitsTimeCluster(const TimeCluster& TimeCluster){
     int   nhits         = TimeCluster.nhits();
     int   ngoodhits(0);
@@ -525,6 +619,7 @@ namespace mu2e {
     return ngoodhits;
   }
 
+  //-----------------------------------------------------------------------------
   bool CalLineFinder::isGoodTimeCluster(const TimeCluster& tc) {
     if(!tc.hasCaloCluster()) return false; // must have an associated calorimeter cluster
     const auto& cl = *tc.caloCluster();
@@ -532,8 +627,9 @@ namespace mu2e {
     if(goodHitsTimeCluster(tc) < min_tc_hits_) return false; // must have at least min_tc_hits_ hits
     return true;
   }
+
   //-----------------------------------------------------------------------------
-  //
+  // End job
   //-----------------------------------------------------------------------------
   void CalLineFinder::endJob() {
   }

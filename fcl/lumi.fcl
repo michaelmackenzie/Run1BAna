@@ -3,6 +3,8 @@
 #include "Offline/fcl/minimalMessageService.fcl"
 #include "Offline/fcl/standardServices.fcl"
 
+#include "Offline/CaloMC/fcl/prolog.fcl"
+
 #include "mu2e-trig-config/core/trigProducers.fcl"
 #include "mu2e-trig-config/core/trigFilters.fcl"
 #include "mu2e-trig-config/core/trigRecoSequences.fcl"
@@ -19,7 +21,7 @@ services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v01.txt"
 services.SeedService.baseSeed         :  8
 services.SeedService.maxUniqueEngines :  20
 source: {
-    module_type: RootInput
+  module_type: RootInput
 }
 services.TFileService.fileName : "/dev/null"
 
@@ -27,48 +29,57 @@ services.scheduler.wantSummary: true
 TrigRecoSequences.artFragmentsGen            : [ @nil ]
 
 physics : {
-    @table::TrigSequences
-    producers : {
-        @table::TrigProducers.producers
+  @table::TrigSequences
+  producers : {
+    @table::TrigProducers.producers
+    CaloHitTruthMatch : {
+      @table::CaloMC.CaloHitTruthMatch
+      caloShowerSimCollection : "compressDigiMCs"
+      caloHitCollection       : "CaloHitMakerFast:caphri"
+      diagLevel               : 3
     }
+  }
 
-    filters   : {
-        @table::TrigFilters.filters
-        @table::Trig_noFieldMenuPSConfig
-    }
+  filters   : {
+    @table::TrigFilters.filters
+    @table::Trig_noFieldMenuPSConfig
+  }
 
-    analyzers : {
-        MuonGammaLineAna : {
-            module_type             : MuonGammaLineAna
-            simCollection           : "compressDigiMCs"
-            caloShowerSimCollection : "compressDigiMCs"
-            caloInfo                : "CaloHitMakerFast"
-            trackerHitsInfo         : "TrigMakeSH"
-            timeClusterInfo         : "TrigFlagPH"
-            eventHeaderInfo         : "ProcessCFOData"
-            diagLevel               : 1
-        }
+  analyzers : {
+    MuonGammaLineAna : {
+      module_type             : MuonGammaLineAna
+      simCollection           : "compressDigiMCs"
+      caloShowerSimCollection : "compressDigiMCs"
+      caloHitCollection       : "CaloHitMakerFast:caphri"
+      caloHitMCCollection     : "CaloHitTruthMatch"
+      caloInfo                : "CaloHitMakerFast"
+      trackerHitsInfo         : "TrigMakeSH"
+      timeClusterInfo         : "TrigFlagPH"
+      eventHeaderInfo         : "ProcessCFOData"
+      diagLevel               : 1
     }
+  }
 }
 
 outputs.Output : {
-    module_type : RootOutput
-    SelectEvents: [ ]
-    outputCommands   :   [ "drop *_*_*_*",
-                           "keep mu2e::IntensityInfoCalos_*_*_*",
-                           "keep mu2e::IntensityInfoTimeClusters_*_*_*",
-                           "keep mu2e::IntensityInfoTrackerHitss_*_*_*",
-                           "keep mu2e::EventHeaders_*_*_*",
-                           "keep mu2e::ProtonBunchIntensity_*_*_*"
-                          ]
-    fileName         : "lum.lumi_test.version.sequencer.art"
-    compressionLevel : 0
+  module_type : RootOutput
+  SelectEvents: [ ]
+  outputCommands   :   [ "drop *_*_*_*",
+    "keep mu2e::IntensityInfoCalos_*_*_*",
+    "keep mu2e::IntensityInfoTimeClusters_*_*_*",
+    "keep mu2e::IntensityInfoTrackerHitss_*_*_*",
+    "keep mu2e::EventHeaders_*_*_*",
+    "keep mu2e::ProtonBunchIntensity_*_*_*"
+  ]
+  fileName         : "lum.lumi_test.version.sequencer.art"
+  compressionLevel : 0
 }
 
 physics.filters.LumiStreamPS.eventModeConfig[0].prescale : 1
+physics.filters.LumiBuffer.eventFreq : 1
 physics.e1            : [ Output, MuonGammaLineAna ]
 physics.end_paths     : [ e1 ]
-physics.lumiStream    : [ @sequence::physics.lumiStream ]
+physics.lumiStream    : [ @sequence::physics.lumiStream, CaloHitTruthMatch ]
 physics.trigger_paths : [ lumiStream ]
 
 services.TFileService.fileName : "nts.user.lumi.sequencer.version.root"

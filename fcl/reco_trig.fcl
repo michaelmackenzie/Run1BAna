@@ -87,7 +87,7 @@ physics : {
       ComboHitCollection      : "makePH"
       LineCollection          : "KKLine"
       cosmicSeedCollection    : "LineFinder"
-      timeClusterCollection   : "SimpleTimeCluster"
+      timeClusterCollection   : "CalTimeClusterFinder"
       caloClusterCollection   : "CaloClusterMaker"
       caloClusterMCCollection : "CaloClusterTruthMatch"
       caloShowerSimCollection : "compressDigiMCs"
