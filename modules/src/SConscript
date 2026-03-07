@@ -15,6 +15,8 @@ Import('mu2e_helper')
 helper=mu2e_helper(env);
 
 rootlibs = env['ROOTLIBS']
+if ( not ("TMVA"  in rootlibs)): rootlibs.append("TMVA");
+
 
 mainlib = helper.make_mainlib ( [] )
 

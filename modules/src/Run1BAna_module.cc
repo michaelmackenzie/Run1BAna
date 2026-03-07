@@ -51,7 +51,17 @@
 // ROOT
 #include "TH1.h"
 #include "TH2.h"
+#include "TTree.h"
 #include "TString.h"
+
+// ROOT TMVA
+#if not defined(__CINT__) || defined(__MAKECINT__)
+// needs to be included when makecint runs (ACLIC)
+#include "TMVA/Factory.h"
+#include "TMVA/DataLoader.h"
+#include "TMVA/Tools.h"
+#include "TMVA/Reader.h"
+#endif
 
 // c++
 #include <string>
@@ -70,6 +80,7 @@ using LineHist_t = Run1BAnaStructs::LineHist_t;
 using CosmicSeedHist_t = Run1BAnaStructs::CosmicSeedHist_t;
 using TimeClusterHist_t = Run1BAnaStructs::TimeClusterHist_t;
 using SimHist_t = Run1BAnaStructs::SimHist_t;
+using Tree_t = Run1BAnaStructs::Tree_t;
 // using ChargedTrackHist_t = Run1BAnaStructs::ChargedTrackHist_t;
 
 using EventPar_t = Run1BAnaStructs::EventPar_t;
@@ -109,6 +120,7 @@ namespace mu2e
       fhicl::Atom<art::InputTag>      pbi              { Name("PBI")                    , Comment("ProtonBunchIntensity tag")            };
       fhicl::Atom<art::InputTag>      genCounter       { Name("genCounter")             , Comment("Generator counter tag")              , "genCounter"};
       fhicl::Atom<bool>               fromReco         { Name("fromReco")               , Comment("From reco sample")                   , false};
+      fhicl::Atom<bool>               fillTrees        { Name("fillTrees")              , Comment("Fill trees")                         , false};
       fhicl::Atom<double>             maxGenEnergy     { Name("maxGenEnergy")           , Comment("Cut on the maximum primary energy")  , -1.};
       fhicl::Atom<int>                debugLevel       { Name("debugLevel")             , Comment("debugLevel")                         , 0 };
     };
@@ -116,12 +128,13 @@ namespace mu2e
 
     // Histograms
     struct Hist_t {
-      EventHist_t   event;
-      ClusterHist_t cluster;
-      LineHist_t    line;
-      CosmicSeedHist_t cosmic_seed;
-      TimeClusterHist_t time_cluster;
-      SimHist_t     sim;
+      EventHist_t        event;
+      ClusterHist_t      cluster;
+      LineHist_t         line;
+      CosmicSeedHist_t   cosmic_seed;
+      TimeClusterHist_t  time_cluster;
+      SimHist_t          sim;
+      TTree*             tree = nullptr;
     };
 
     //--------------------------------------------------------------------------------------
@@ -145,7 +158,8 @@ namespace mu2e
     void bookCosmicSeedHistograms (CosmicSeedHist_t*  Hist, const int index, const char* name);
     void bookTimeClusterHistograms(TimeClusterHist_t* Hist, const int index, const char* name);
     void bookSimHistograms        (SimHist_t*         Hist, const int index, const char* name);
-    void bookHistograms           (                         const int index, const char* name);
+    void bookTree                 (                         const int index, const char* name);
+    void bookHistograms           (                         const int index, const char* name, const bool fill_tree = false);
 
     void fillClusterHistograms     (ClusterHist_t*     Hist, double Weight = 1.);
     void fillLineHistograms        (LineHist_t*        Hist, double Weight = 1.);
@@ -153,6 +167,7 @@ namespace mu2e
     void fillTimeClusterHistograms (TimeClusterHist_t* Hist, double Weight = 1.);
     void fillEventHistograms       (EventHist_t*       Hist, double Weight = 1.);
     void fillSimHistograms         (SimHist_t*         Hist, double Weight = 1.);
+    void fillTree                  (TTree*             tree);
     void fillHistograms            (Hist_t*            Hist);
 
     bool isGoodCluster(const CaloCluster* cluster);
@@ -161,6 +176,7 @@ namespace mu2e
     bool isGoodTimeCluster(const TimeCluster* tc);
     CLHEP::HepLorentzVector lineAtCluster(const CaloCluster* cl, const KalSeed* seed);
     CLHEP::HepLorentzVector lineSeedAtCluster(const CaloCluster* cl, const CosmicTrackSeed* seed);
+    void initTree();
     void initClusterPar(ClusterPar_t& par, const CaloCluster* cluster);
     void initLinePar(LinePar_t& par, const KalSeed* line);
     void initCosmicSeedPar(CosmicSeedPar_t& par, const CosmicTrackSeed* seed);
@@ -177,10 +193,17 @@ namespace mu2e
     CLHEP::Hep3Vector getSimParticleHitPosition(const CaloShowerSimCollection* col, const SimParticle* sim) const;
 
     // check if sim 1 or any of its heritage matches sim 2
-    bool isRelated(const SimParticle* sim1, const SimParticle* sim2) const {
+    bool isRelated(const SimParticle* sim1, const SimParticle* sim2, const bool check_cousins = false) const {
       if(!sim1 || !sim2) return false;
       if(&(*sim1) == &(*sim2)) return true; // if they match, return true
-      if(sim1->hasParent() && isRelated(&(*sim1->parent()), sim2)) return true;
+      if(sim1->hasParent() && isRelated(&(*sim1->parent()), sim2, false)) return true;
+      if(check_cousins) { // go up the heirarchy of sim 1 looking for connection to sim 2
+        auto parent = sim1->parent();
+        while(parent.isNonnull()) {
+          if(isRelated(&(*parent), sim2)) return true;
+          parent = parent->parent();
+        }
+      }
       return false;
     }
 
@@ -203,10 +226,12 @@ namespace mu2e
     art::InputTag  pbi_tag_;
     double         max_gen_energy_;
     bool           from_reco_;
+    bool           fill_trees_;
     int            debug_level_;
 
     enum {kMaxHists = 100};
     Hist_t* hist_[kMaxHists];
+    Tree_t tree_;
     TH1* hist_norm_;
     const SimParticleCollection*           sim_col_ = nullptr;
     const PrimaryParticle*                 primary_ = nullptr;
@@ -232,6 +257,7 @@ namespace mu2e
     SimPar_t                               sim_par_;
     Photon_t                               photon_;
     std::map<unsigned, SimUtils::Sim_t>    sim_info_;
+    TMVA::Reader*                          photon_id_reader_ = nullptr;
     mu2e::StopWatch*                       watch_; // for timing
 
     unsigned  long                         nevt_, ngen_;
@@ -255,8 +281,9 @@ namespace mu2e
     , pbi_tag_            (config().pbi())
     , max_gen_energy_     (config().maxGenEnergy())
     , from_reco_          (config().fromReco())
+    , fill_trees_         (config().fillTrees())
     , debug_level_        (config().debugLevel())
-    , nevt_              (0)
+    , nevt_               (0)
   {
     // Normalization histogram
     art::ServiceHandle<art::TFileService> tfs;
@@ -294,15 +321,18 @@ namespace mu2e
     bookHistograms(40, "unmerged_clusters");
     bookHistograms(41, "unmerged_clusters_30MeV");
 
-    bookHistograms(60, "photon_");
+    bookHistograms(60, "photon", true);
     bookHistograms(61, "photon_no_weight");
     bookHistograms(62, "photon_no_tcl");
-    bookHistograms(63, "photon_tcl_50ns");
-    bookHistograms(64, "photon_tcl_50ns_100ns");
+    bookHistograms(63, "photon_tcl_id");
+    bookHistograms(64, "photon_tcl_fail_id");
     bookHistograms(65, "photon_no_csm");
     bookHistograms(66, "photon_no_line");
     bookHistograms(67, "photon_no_tcl_r500");
     bookHistograms(68, "photon_no_tcl_r550");
+    bookHistograms(69, "photon_id");
+    bookHistograms(70, "photon_id_d1");
+    bookHistograms(75, "photon_mva_id");
 
     bookHistograms(80, "all_lines");
     bookHistograms(81, "lines_cluster");
@@ -316,6 +346,22 @@ namespace mu2e
     bookHistograms(95, "all_time_clusters");
     bookHistograms(96, "time_cluster_most_sim_hits");
 
+
+    // photon ID reader
+    photon_id_reader_ = new TMVA::Reader("!Color:!Silent");
+    photon_id_reader_->AddVariable ("cluster_frac_1"        , &tree_.cluster_frac_1);
+    photon_id_reader_->AddVariable ("cluster_frac_2"        , &tree_.cluster_frac_2);
+    photon_id_reader_->AddVariable ("cluster_t_var"         , &tree_.cluster_t_var);
+    photon_id_reader_->AddVariable ("cluster_second_moment" , &tree_.cluster_second_moment);
+    photon_id_reader_->AddVariable ("cluster_radius"        , &tree_.cluster_radius);
+    photon_id_reader_->AddVariable ("cluster_ncr"           , &tree_.cluster_ncr);
+
+    photon_id_reader_->AddSpectator("cluster_energy"        , &tree_.cluster_energy);
+    photon_id_reader_->AddSpectator("cluster_time"          , &tree_.cluster_time);
+    photon_id_reader_->AddSpectator("event_weight"          , &tree_.event_weight);
+    photon_id_reader_->AddSpectator("gen_energy"            , &tree_.gen_energy);
+
+    photon_id_reader_->BookMVA("PhotonID", "Run1BAna/data/photon_id_MLP.weights.xml");
 
     // For timing info
     watch_ = new mu2e::StopWatch();
@@ -375,6 +421,8 @@ namespace mu2e
     Hist->e9            = dir.make<TH1F>("e9", "Cluster E9;E9 (MeV);", 300, 0., 300.);
     Hist->e25           = dir.make<TH1F>("e25", "Cluster E25;E25 (MeV);", 300, 0., 300.);
     Hist->t_var         = dir.make<TH1F>("t_var", "Cluster time variance;#sigma_{t}^{2} (ns^{2});", 200, 0., 10.);
+    Hist->photon_id     = dir.make<TH1F>("photon_id", "Photon ID MVA response;Photon ID;", 100, -1., 1.);
+
     Hist->line_dt       = dir.make<TH1F>("line_dt" , "Line-cluster time diff;dt (ns);"   ,  100, -200.,    200.);
     Hist->line_dr       = dir.make<TH1F>("line_dr" , "Line-cluster distance;dr (mm);"    ,  100,    0.,    500.);
     Hist->nmatched_lines= dir.make<TH1D>("nmatched_lines", "N(lines) matched to the cluster;N(lines)",  40, 0.,    40.);
@@ -483,7 +531,41 @@ namespace mu2e
   }
 
   //--------------------------------------------------------------------------------------
-  void Run1BAna::bookHistograms(const int index, const char* title) {
+  void Run1BAna::bookTree(const int index, const char* title) {
+    art::ServiceHandle<art::TFileService> tfs;
+    art::TFileDirectory dir = tfs->mkdir(std::format("tree_{}", index), title);
+    hist_[index]->tree = dir.make<TTree>("tree", "Analysis tree");
+    hist_[index]->tree->Branch("cluster_energy"          , &tree_.cluster_energy);
+    hist_[index]->tree->Branch("cluster_time"            , &tree_.cluster_time);
+    hist_[index]->tree->Branch("cluster_radius"          , &tree_.cluster_radius);
+    hist_[index]->tree->Branch("cluster_ncr"             , &tree_.cluster_ncr);
+    hist_[index]->tree->Branch("cluster_disk"            , &tree_.cluster_disk);
+    hist_[index]->tree->Branch("cluster_e_per_crystal"   , &tree_.cluster_e_per_crystal);
+    hist_[index]->tree->Branch("cluster_frac_1"          , &tree_.cluster_frac_1);
+    hist_[index]->tree->Branch("cluster_frac_2"          , &tree_.cluster_frac_2);
+    hist_[index]->tree->Branch("cluster_second_moment"   , &tree_.cluster_second_moment);
+    hist_[index]->tree->Branch("cluster_e1"              , &tree_.cluster_e1);
+    hist_[index]->tree->Branch("cluster_e2"              , &tree_.cluster_e2);
+    hist_[index]->tree->Branch("cluster_e9"              , &tree_.cluster_e9);
+    hist_[index]->tree->Branch("cluster_e25"             , &tree_.cluster_e25);
+    hist_[index]->tree->Branch("cluster_t_var"           , &tree_.cluster_t_var);
+    hist_[index]->tree->Branch("line_dt"                 , &tree_.line_dt);
+    hist_[index]->tree->Branch("line_dr"                 , &tree_.line_dr);
+    hist_[index]->tree->Branch("time_cluster_dt"         , &tree_.time_cluster_dt);
+    hist_[index]->tree->Branch("time_cluster_dr"         , &tree_.time_cluster_dr);
+    hist_[index]->tree->Branch("ntcl_hits"               , &tree_.ntcl_hits);
+    hist_[index]->tree->Branch("mc_cluster_energy"       , &tree_.mc_cluster_energy);
+    hist_[index]->tree->Branch("mc_cluster_time"         , &tree_.mc_cluster_time);
+    hist_[index]->tree->Branch("sim_1_edep"              , &tree_.sim_1_edep);
+    hist_[index]->tree->Branch("sim_1_time"              , &tree_.sim_1_time);
+    hist_[index]->tree->Branch("sim_2_edep"              , &tree_.sim_2_edep);
+    hist_[index]->tree->Branch("sim_2_time"              , &tree_.sim_2_time);
+    hist_[index]->tree->Branch("event_weight"            , &tree_.event_weight);
+    hist_[index]->tree->Branch("gen_energy"              , &tree_.gen_energy);
+  }
+
+  //--------------------------------------------------------------------------------------
+  void Run1BAna::bookHistograms(const int index, const char* title, const bool book_tree) {
     if(index >= kMaxHists) throw std::runtime_error("Too many histograms!");
     hist_[index] = new Hist_t;
     auto Hist = hist_[index];
@@ -493,6 +575,7 @@ namespace mu2e
     bookCosmicSeedHistograms (&Hist->cosmic_seed , index, title);
     bookTimeClusterHistograms(&Hist->time_cluster, index, title);
     bookSimHistograms        (&Hist->sim         , index, title);
+    if(fill_trees_ && book_tree) bookTree(index, title);
   }
 
   //--------------------------------------------------------------------------------------
@@ -515,6 +598,7 @@ namespace mu2e
     Hist->e9->Fill(cluster_par_.e9, Weight);
     Hist->e25->Fill(cluster_par_.e25, Weight);
     Hist->t_var->Fill(cluster_par_.t_var, Weight);
+    Hist->photon_id->Fill(cluster_par_.photon_id, Weight);
     if(Line) {
       const auto line_pos = lineAtCluster(Cluster, Line);
       const auto cl_pos = Cluster->cog3Vector();
@@ -814,6 +898,64 @@ namespace mu2e
   }
 
   //--------------------------------------------------------------------------------------
+  void Run1BAna::initTree() {
+    tree_.init();
+    auto Cluster = cluster_par_.cluster;
+    if(Cluster) {
+      tree_.cluster_energy = Cluster->energyDep();
+      tree_.cluster_time = Cluster->time();
+      tree_.cluster_radius = cluster_par_.r;
+      tree_.cluster_ncr = Cluster->caloHitsPtrVector().size();
+      tree_.cluster_disk = Cluster->diskID();
+      tree_.cluster_e_per_crystal = Cluster->energyDep() / static_cast<float>(Cluster->caloHitsPtrVector().size());
+      tree_.cluster_frac_1 = cluster_par_.frac_1();
+      tree_.cluster_frac_2 = cluster_par_.frac_2();
+      tree_.cluster_second_moment = cluster_par_.second_moment;
+      tree_.cluster_e1 = cluster_par_.e1;
+      tree_.cluster_e2 = cluster_par_.e2;
+      tree_.cluster_e9 = cluster_par_.e9;
+      tree_.cluster_e25 = cluster_par_.e25;
+      tree_.cluster_t_var = cluster_par_.t_var;
+    }
+    auto Line = cluster_par_.line;
+    if(Line && Cluster) {
+      const auto line_pos = lineAtCluster(Cluster, Line);
+      const auto cl_pos = Cluster->cog3Vector();
+      const double dx = line_pos.x() - cl_pos.x();
+      const double dy = line_pos.y() - cl_pos.y();
+      tree_.line_dt = line_pos.t() - Cluster->time();
+      tree_.line_dr = std::sqrt(dx*dx + dy*dy);
+    }
+    auto TimeCluster = cluster_par_.time_cluster;
+    if(TimeCluster && Cluster) {
+      const auto tc_pos = TimeCluster->position();
+      const auto cl_pos = Cluster->cog3Vector();
+      const double dx = tc_pos.x() - cl_pos.x();
+      const double dy = tc_pos.y() - cl_pos.y();
+      tree_.time_cluster_dt = TimeCluster->t0().t0() - Cluster->time();
+      tree_.time_cluster_dr = std::sqrt(dx*dx + dy*dy);
+    }
+    tree_.ntcl_hits = (TimeCluster) ? TimeCluster->hits().size() : 0;
+    if(cluster_par_.mc) {
+      tree_.mc_cluster_energy = cluster_par_.mc->totalEnergyDep();
+      tree_.mc_cluster_time = cluster_par_.mc_time;
+      tree_.sim_1_edep = cluster_par_.sim_1_edep;
+      tree_.sim_1_time = cluster_par_.sim_1_time;
+      tree_.sim_2_edep = cluster_par_.sim_2_edep;
+      tree_.sim_2_time = cluster_par_.sim_2_time;
+    }
+    tree_.event_weight = evt_par_.weight;
+    tree_.gen_energy   = evt_par_.gen_energy;
+  }
+
+  //--------------------------------------------------------------------------------------
+  void Run1BAna::fillTree(TTree* tree) {
+    if(!tree) return;
+    initTree();
+    tree->Fill();
+  }
+
+  //--------------------------------------------------------------------------------------
   void Run1BAna::fillHistograms(Hist_t* Hist) {
     if(!Hist) return;
     const double weight = evt_par_.weight;
@@ -824,6 +966,7 @@ namespace mu2e
     fillCosmicSeedHistograms(&Hist->cosmic_seed, weight);
     fillTimeClusterHistograms(&Hist->time_cluster, weight);
     fillSimHistograms(&Hist->sim, weight);
+    if(Hist->tree) fillTree(Hist->tree);
     watch_->StopTime("FillHistogram");
   }
 
@@ -962,7 +1105,7 @@ namespace mu2e
       const SimParticle* top2 = nullptr;
       float top2_energy = 0.f;
       for(const auto& [sim, energy] : sim_energy_map) {
-        if(isRelated(sim, top1) || isRelated(top1, sim)) continue;
+        if(isRelated(sim, top1, true) || isRelated(top1, sim)) continue;
         if(energy > top2_energy) {
           top2 = sim;
           top2_energy = energy;
@@ -996,6 +1139,12 @@ namespace mu2e
         getSimMainCrystal(calo_shower_sim_col_, top2, par.sim_2_main_crystal, par.sim_2_main_crystal_energy);
       }
     }
+
+    // Initialize the MVA tree and fire the MVAs
+    watch_->SetTime("EvaluateMVAs");
+    initTree();
+    par.photon_id = photon_id_reader_->EvaluateMVA("PhotonID");
+    watch_->StopTime("EvaluateMVAs");
   }
 
   //--------------------------------------------------------------------------------------
@@ -1431,6 +1580,7 @@ namespace mu2e
     evt_par_.init((pbiH.isValid()) ? pbiH->intensity() : 0);
     const SimParticle* primary_sim = (primary_ && !primary_->primarySimParticles().empty()) ? &(*primary_->primarySimParticles().front()) : nullptr;
     sim_par_.init((primary_sim) ? primary_sim : nullptr, (primary_sim) ? sim_info_[primary_sim->id().asUint()].nhits_ : 0, 0.);
+    evt_par_.gen_energy = (primary_sim) ? primary_sim->startMomentum().e() : 0.;
 
     // If the first event, initialize the trigger path histogram bins for stability
     if(nevt_ == 1) {
@@ -1554,18 +1704,58 @@ namespace mu2e
           const float edep_1 = cluster_par_.sim_1_edep;
           const float edep_2 = cluster_par_.sim_2_edep;
           if(cluster.energyDep() > 70. && edep_1 > 20. && edep_2 > 20.) {
-            std::cout << "Merged cluster: " << event.id()
-                      << " : E = " << std::setprecision(2) << cluster.energyDep()
-                      << " sim 1: E = " << edep_1
-                      << " t = " << cluster_par_.sim_1_time
-                      << " main crystal = " << cluster_par_.sim_1_main_crystal
-                      << " sim 2: E = " << edep_2
-                      << " t = " << cluster_par_.sim_2_time
-                      << " main crystal = " << cluster_par_.sim_2_main_crystal
-                      << std::endl;
+            if(debug_level_ > 0) {
+              std::cout << "Merged cluster: " << event.id()
+                        << std::setprecision(2)
+                        << " : E = " << cluster.energyDep()
+                        << std::setprecision(5)
+                        << " t = " << cluster.time()
+                        << std::setprecision(2)
+                        << " sim 1: E = " << edep_1
+                        << std::setprecision(5)
+                        << " t = " << cluster_par_.sim_1_time
+                        << " main crystal = " << cluster_par_.sim_1_main_crystal
+                        << std::setprecision(2)
+                        << " sim 2: E = " << edep_2
+                        << std::setprecision(5)
+                        << " t = " << cluster_par_.sim_2_time
+                        << " main crystal = " << cluster_par_.sim_2_main_crystal
+                        << std::endl;
+            }
             fillHistograms(hist_[31]);
-            if(cluster_par_.sim_1_main_crystal == cluster_par_.sim_2_main_crystal) {
-              std::cout << "  --> same main crystal! " << event.id() << std::endl;
+            if(cluster_par_.sim_1_main_crystal >= 0 &&
+               cluster_par_.sim_1_main_crystal == cluster_par_.sim_2_main_crystal) {
+              // print out the sim history related to these sims
+              if(debug_level_ > 0) {
+                std::cout << "  --> same main crystal! " << event.id() << std::endl;
+                std::cout << "  Sim 1: ID = " << sim_1->id() << " PDG = " << sim_1->pdgId() << " edep = " << edep_1 << std::endl;
+                for(const auto& [sim_id, sim] : *sim_col_) {
+                  if(isRelated(sim_1, &sim)) {
+                    std::cout << "    ID = " << sim.id() << " PDG = " << sim.pdgId()
+                              << " t_start = " << sim.startGlobalTime()
+                              << " z_start = " << sim.startPosition().z()
+                              << " e_start = " << sim.startMomentum().e()
+                              << std::endl;
+                  }
+                }
+                std::cout << "  Sim 2: ID = " << sim_2->id() << " PDG = " << sim_2->pdgId() << " edep = " << edep_2 << std::endl;
+                for(const auto& [sim_id, sim] : *sim_col_) {
+                  if(isRelated(sim_2, &sim)) {
+                    std::cout << "    ID = " << sim.id() << " PDG = " << sim.pdgId()
+                              << " t_start = " << sim.startGlobalTime()
+                              << " z_start = " << sim.startPosition().z()
+                              << " e_start = " << sim.startMomentum().e()
+                              << std::endl;
+                  }
+                }
+                if(cluster_par_.mc) {
+                  for(const auto& edep : cluster_par_.mc->energyDeposits()) {
+                    if(edep.sim().isNonnull()) {
+                      std::cout << "    edep = " << edep.energyDep() << " from sim ID = " << edep.sim()->id() << " PDG = " << edep.sim()->pdgId() << std::endl;
+                    }
+                  }
+                }
+              }
               fillHistograms(hist_[32]);
             }
           }
@@ -1713,35 +1903,56 @@ namespace mu2e
       const auto cluster = photon_.cluster;
       const int disk_id = cluster->diskID();
 
-      // Get the RMC weight, if this is a flat photon sample
+      // Get the RMC info, if this is a flat photon sample
       double weight = 1.;
+      bool is_gen_matched = true; // default to true for bkg samples
       if(primary_sim && primary_sim->creationCode() == mu2e::ProcessCode::mu2eFlatPhoton) {
         const double e_gen = primary_sim->startMomentum().e();
         constexpr double kmax = 90.1; // use for reference
         weight = Run1BAnaUtils::closureApprox(e_gen, kmax);
+
+        // Ignore pileup clusters in the signal sample
+        is_gen_matched  = isRelated(cluster_par_.primary_sim  , primary_sim);
+        is_gen_matched |= isRelated(cluster_par_.secondary_sim, primary_sim);
       }
 
-      // Assign the event weight
-      evt_par_.weight = weight;
-      fillHistograms(hist_[60]);
+      if(is_gen_matched) {
+        // Assign the event weight
+        evt_par_.weight = weight;
+        fillHistograms(hist_[60]);
 
-      // Set without weights
-      evt_par_.weight = 1.;
-      fillHistograms(hist_[61]);
-      evt_par_.weight = weight;
+        // Set without weights
+        evt_par_.weight = 1.;
+        fillHistograms(hist_[61]);
+        evt_par_.weight = weight;
 
-      if(!photon_.time_cluster) { // no time cluster selection
-        fillHistograms(hist_[62]);
-        if(disk_id == 0 && radius > 500.) fillHistograms(hist_[67]);
-        if(disk_id == 0 && radius > 550.) fillHistograms(hist_[68]);
-      } else {
-        const float dt = photon_.cluster->time() - photon_.time_cluster->t0().t0();
-        if(std::fabs(dt) < 50.) fillHistograms(hist_[63]);
-        else                    fillHistograms(hist_[64]);
+        if(!photon_.time_cluster) { // no time cluster selection
+          fillHistograms(hist_[62]);
+          if(/*disk_id == 0 &&*/ radius > 500.) fillHistograms(hist_[67]);
+          if(/*disk_id == 0 &&*/ radius > 550.) fillHistograms(hist_[68]);
+        } else {
+          bool signal_id = cluster_par_.time_cluster->nhits() < 50; // FIXME: Depends on intensity and geometry
+          if(signal_id) fillHistograms(hist_[63]);
+          else          fillHistograms(hist_[64]);
+        }
+        // line/seed selections
+        if(!photon_.cosmic_seed) fillHistograms(hist_[65]);
+        if(!photon_.line)        fillHistograms(hist_[66]);
+        // test signal selection
+        bool signal_id = true;
+        signal_id &= cluster_par_.ncr() > 1; // avoid single crystal double DIO/pileup
+        signal_id &= cluster_par_.ncr() < 6;
+        signal_id &= cluster_par_.frac_1() > 0.60;
+        signal_id &= cluster_par_.frac_2() > 0.80;
+        signal_id &= cluster_par_.t_var < 1.0;
+        signal_id &= cluster_par_.second_moment < 1.e5;
+        signal_id &= cluster_par_.photon_id > 0.8;
+        if(signal_id) {
+          fillHistograms(hist_[69]);
+          if(disk_id == 1) fillHistograms(hist_[70]);
+        }
+        if(cluster_par_.photon_id > 0.8) fillHistograms(hist_[75]);
       }
-      // line/seed selections
-      if(!photon_.cosmic_seed) fillHistograms(hist_[65]);
-      if(!photon_.line)        fillHistograms(hist_[66]);
 
       evt_par_.weight = prev_weight;
     }

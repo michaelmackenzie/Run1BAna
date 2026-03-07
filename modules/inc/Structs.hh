@@ -54,6 +54,7 @@ namespace Run1BAnaStructs {
       TH1* e9;
       TH1* e25;
       TH1* t_var;
+      TH1* photon_id;
 
       TH1* line_dt;
       TH1* line_dr;
@@ -159,6 +160,73 @@ namespace Run1BAnaStructs {
       TH2* energy_vs_trig_path;
     };
 
+    // Output tree branches
+    struct Tree_t {
+      float cluster_energy;
+      float cluster_time;
+      float cluster_radius;
+      float cluster_ncr;
+      float cluster_disk;
+      float cluster_e_per_crystal;
+      float cluster_frac_1;
+      float cluster_frac_2;
+      float cluster_second_moment;
+      float cluster_e1;
+      float cluster_e2;
+      float cluster_e9;
+      float cluster_e25;
+      float cluster_t_var;
+      float line_dt;
+      float line_dr;
+      float time_cluster_dt;
+      float time_cluster_dr;
+      float ntcl_hits;
+
+      float mc_cluster_energy;
+      float mc_cluster_time;
+      float sim_1_edep;
+      float sim_1_time;
+      float sim_2_edep;
+      float sim_2_time;
+      float event_weight;
+      float gen_energy;
+
+      Tree_t() {
+        init();
+      }
+
+      void init() {
+        cluster_energy = 0.f;
+        cluster_time = 0.f;
+        cluster_radius = 0.f;
+        cluster_ncr = 0.f;
+        cluster_disk = -1.f;
+        cluster_e_per_crystal = 0.f;
+        cluster_frac_1 = 0.f;
+        cluster_frac_2 = 0.f;
+        cluster_second_moment = 0.f;
+        cluster_e1 = 0.f;
+        cluster_e2 = 0.f;
+        cluster_e9 = 0.f;
+        cluster_e25 = 0.f;
+        cluster_t_var = 0.f;
+        line_dt = 0.f;
+        line_dr = 0.f;
+        time_cluster_dt = 0.f;
+        time_cluster_dr = 0.f;
+        ntcl_hits = 0.f;
+
+        mc_cluster_energy = 0.f;
+        mc_cluster_time = 0.f;
+        sim_1_edep = 0.f;
+        sim_1_time = 0.f;
+        sim_2_edep = 0.f;
+        sim_2_time = 0.f;
+        event_weight = 1.f;
+        gen_energy = 0.f;
+      }
+    };
+
 
     //--------------------------------------------------------------------------------------
     // Internal data structures
@@ -172,6 +240,7 @@ namespace Run1BAnaStructs {
       int n_good_cosmic_seeds;
       int n_good_time_clusters;
       double weight;
+      double gen_energy;
 
       EventPar_t() {
         init();
@@ -184,6 +253,7 @@ namespace Run1BAnaStructs {
         n_good_cosmic_seeds = 0;
         n_good_time_clusters = 0;
         weight = 1.;
+        gen_energy = 0.;
       }
     };
 
@@ -222,6 +292,7 @@ namespace Run1BAnaStructs {
       double e9;
       double e25;
       double t_var;
+      double photon_id;
       int nmatched_lines;
       int nfit_matched_lines;
       int nmatched_cosmic_seeds;
@@ -264,6 +335,7 @@ namespace Run1BAnaStructs {
         e9 = 0.;
         e25 = 0.;
         t_var = 0.;
+        photon_id = 0.;
         nmatched_lines = 0;
         nfit_matched_lines = 0;
         nmatched_cosmic_seeds = 0;

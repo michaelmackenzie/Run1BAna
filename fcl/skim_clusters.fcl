@@ -4,7 +4,6 @@
 
 #include "Offline/fcl/minimalMessageService.fcl"
 #include "Offline/fcl/standardServices.fcl"
-#include "Offline/CaloMC/fcl/prolog.fcl"
 
 process_name : SkimClusters
 source : {
@@ -14,9 +13,6 @@ source : {
 services : @local::Services.Reco
 
 physics : {
-  producers: {
-    CaloHitTruthMatch
-  }
   filters: {
     CaloClusterFilter: {
       module_type           : CaloClusterCounterFilter
@@ -40,8 +36,8 @@ physics : {
     }
   }
   TrigPath : [ CaloClusterFilter ]
-  EndPath  : [ DumpJson ]
-  # EndPath  : [ DumpJson, Output ]
+  # EndPath  : [ DumpJson ]
+  EndPath  : [ DumpJson, Output ]
   trigger_paths : [ TrigPath ]
   end_paths : [ EndPath ]
 }

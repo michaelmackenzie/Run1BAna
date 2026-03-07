@@ -20,7 +20,7 @@ double norm_bkg_ = 0.;
 
 //----- -------------------------------------------------------------------------
 double getNSampled(TFile* f) {
-  TH1* h_norm = (TH1*) f->Get("Run1BAna/evt_0/npot");
+  TH1* h_norm = (TH1*) f->Get("Run1BAna/evt_60/npot");
   if(!h_norm) {
     Error("getNSampled", "Could not retrieve normalization histogram!");
     return 0.;
@@ -52,6 +52,7 @@ void plot(const char* name, const char* type, const int set, const bool normaliz
   TH1* h_bkg = (TH1*) f_bkg->Get(Form("Run1BAna/%s_%i/%s", type, set, name));
   if(!h_sig || !h_bkg) {
     Error("plot", "Could not retrieve histograms! %s/%s/%i", name, type, set);
+    return;
   }
 
   h_sig  = (TH1*) h_sig ->Clone(Form("%s_sig", name));
@@ -59,8 +60,8 @@ void plot(const char* name, const char* type, const int set, const bool normaliz
   const double eff_sig  = h_sig ->GetEntries() / nnt_sig_;
   const double eff_bkg = h_bkg->GetEntries() / nnt_bkg_;
   if(normalize) {
-    h_sig ->Scale(1./normInRange(h_sig, x_min, x_max));
-    h_bkg->Scale(1./normInRange(h_bkg, x_min, x_max));
+    if(eff_sig > 0.) h_sig ->Scale(1./normInRange(h_sig, x_min, x_max));
+    if(eff_bkg > 0.) h_bkg->Scale(1./normInRange(h_bkg, x_min, x_max));
   } else {
     h_sig ->Scale(norm_sig_ );
     h_bkg->Scale(norm_bkg_);
@@ -77,26 +78,31 @@ void plot(const char* name, const char* type, const int set, const bool normaliz
   c.SetLeftMargin(0.08);
   c.SetRightMargin(0.05);
 
-  h_sig ->SetLineColor(kRed);
-  h_bkg->SetLineColor(kBlue);
+  h_sig ->SetLineColor(kBlue);
+  h_bkg->SetLineColor(kRed);
   h_sig ->SetLineWidth(3);
   h_bkg->SetLineWidth(3);
   h_sig ->SetFillStyle(3004);
   h_bkg->SetFillStyle(3005);
-  h_sig ->SetFillColor(kRed);
-  // h_bkg->SetFillColor(kBlue);
+  h_sig ->SetFillColor(kBlue);
+  // h_bkg->SetFillColor(kRed);
   h_sig ->Draw("hist");
   h_bkg->Draw("hist same");
 
   const double max_sig  = h_sig ->GetMaximum();
   const double max_bkg = h_bkg->GetMaximum();
   const double max_val = std::max(max_sig, max_bkg);
-  const double min_max = std::min(max_sig, max_bkg);
+  const double min_max = (max_sig <= 0.) ? max_bkg : (max_bkg <= 0.) ? max_sig : std::min(max_sig, max_bkg);
   h_sig->GetYaxis()->SetRangeUser(0., 1.2*max_val);
 
+  if(min_max < 0.) {
+    cout << "!!! " << name << "/" << type << "/" << set << ": Max(sig) = " << max_sig
+         << " Max(bkg) = " << max_bkg << endl;
+  }
+
   TLegend legend(0.6, 0.75, 0.9, 0.9);
-  legend.AddEntry(h_sig , Form("Signal (eff = %.2g%%)"    , 100.*eff_sig));
-  legend.AddEntry(h_bkg, Form("Background (eff = %.2g%%)", 100.*eff_bkg));
+  legend.AddEntry(h_sig , Form("Signal (eff = %.3g%%)"    , 100.*eff_sig));
+  legend.AddEntry(h_bkg, Form("Background (eff = %.3g%%)", 100.*eff_bkg));
   legend.SetBorderSize(0);
   legend.SetFillStyle(0);
   legend.Draw();
@@ -104,7 +110,11 @@ void plot(const char* name, const char* type, const int set, const bool normaliz
   TString fig_name = Form("%s/%s_%s_%i%s", dir_.Data(), name, type, set, (normalize) ? "_norm" : "");
   c.SaveAs((fig_name + ".png").Data());
 
-  h_sig->GetYaxis()->SetRangeUser(min_max*1.e-3, max_val*5.);
+  double ymin = std::max(min_max*1.e-3, 1.e-6);
+  double r = max_val/ymin;
+  double factor = std::max(2., std::log10(r)*5.); // scale up proportional to orders of magnitude spanned
+  double ymax = max_val*factor;
+  h_sig->GetYaxis()->SetRangeUser(ymin, ymax);
   c.SetLogy();
   c.SaveAs((fig_name + "_log.png").Data());
 
@@ -114,8 +124,10 @@ void plot(const char* name, const char* type, const int set, const bool normaliz
 }
 
 //------------------------------------------------------------------------------
-void plotRMCvsBkg(const char* filename_sig = "nts.mu2e.FlatGammaMixLowTriggerable-KL.Run1Baf_best_v1_4-000.root",
-                  const char* filename_bkg = "nts.mu2e.NoPrimaryMix1BB_skim_trig_clusters.Run1Bah_best_v1_4-000.root",
+void plotRMCvsBkg(const char* filename_sig = "nts.mu2e.FlatGammaMix1BB-KL.Run1Bah_best_v1_4-001.root",
+                  const char* filename_bkg = "nts.mu2e.NoPrimaryMix1BB-KL_skim_clusters.Run1Bah_best_v1_4-001.root",
+                  // const char* filename_sig = "nts.mu2e.FlatGammaMixLowTriggerable-KL.Run1Baf_best_v1_4-000.root",
+                  // const char* filename_bkg = "nts.mu2e.NoPrimaryMix1BB_skim_trig_clusters.Run1Bah_best_v1_4-000.root",
                   const char* tag = "v03") {
 
   // Open the data files
@@ -137,9 +149,13 @@ void plotRMCvsBkg(const char* filename_sig = "nts.mu2e.FlatGammaMixLowTriggerabl
   const double nevents = livetime_week_*duty_cycle_1bb_/1.695e-6; // N(events) in a week
   const double nmuons  = nevents*1.6e7*0.375*nmuons_per_pot_run1b_;
   const double nrmc    = nmuons*muon_capture_fraction_*br_rmc_/rmc_frac_57_; // N(RMC) assuming closure
-  const double norm_c  = (102. - 70.)/90.1 * (1263859. / 1949000000.);
-  norm_sig_ = nrmc*norm_c/nnt_sig_;
-  norm_bkg_ = nevents/nnt_bkg_;
+  // const double norm_g  = (102. - 70.)/90.1 * (1263859. / 1949000000.); // sample selection factors (digi dataset)
+  const double norm_g  = (102. - 70.)/90.1 * (1257537. / 1940000000.); // sample creation + filtering factors (mcs dataset)
+  // const double norm_b  = 3880./100000.; // digi trigger cluster skim
+  const double norm_b = 17551. / 1.e6; // mcs cluster skim
+  norm_sig_ = nrmc*norm_g/nnt_sig_;
+  norm_bkg_ = nevents*norm_b/nnt_bkg_;
+  std::cout << "Norms: RMC = " << norm_sig_ << " Bkg = " << norm_bkg_ << std::endl;
 
   // Set up the figure directory and style
   dir_ = (tag) ? Form("figures/rmc_vs_bkg_%s", tag) : "figures/rmc_vs_bkg";
@@ -147,17 +163,29 @@ void plotRMCvsBkg(const char* filename_sig = "nts.mu2e.FlatGammaMixLowTriggerabl
   gStyle->SetOptStat(0);
 
   // Plot the histograms
-  vector<int> sets = {0, 10, 20, 25};
+  vector<int> sets = {0, 10, 60, 61, 62, 63, 67, 68, 69, 70};
   for(const int set : sets) {
     for(const bool normalize : {false, true}) {
-      plot("energy", "cls", set, normalize, 1, 75., 120., f_sig, f_bkg);
+      plot("energy", "cls", set, normalize, 1, 70., 120., f_sig, f_bkg);
       plot("time", "cls", set, normalize, 2, 400., 2000., f_sig, f_bkg);
+      plot("radius", "cls", set, normalize, 1, 300., 700., f_sig, f_bkg);
+      plot("disk", "cls", set, normalize, 1, 0., 2., f_sig, f_bkg);
       plot("frac_first_crystal", "cls", set, normalize, 1, 1., -1., f_sig, f_bkg);
       plot("frac_first_two_crystals", "cls", set, normalize, 1, 1., -1., f_sig, f_bkg);
       plot("second_moment", "cls", set, normalize, 5, 1., -1., f_sig, f_bkg);
       plot("t_var", "cls", set, normalize, 1, 0., 5., f_sig, f_bkg);
+      plot("time_cluster_dt", "cls", set, normalize, 1, -50., 50., f_sig, f_bkg);
       plot("ncr", "cls", set, normalize, 1, 0., 10., f_sig, f_bkg);
       plot("nhits", "tcls", set, normalize, 4, 1., -1., f_sig, f_bkg);
+      plot("nhits", "csms", set, normalize, 4, 1., -1., f_sig, f_bkg);
+      plot("photon_id", "cls", set, normalize, 1, 0., 1., f_sig, f_bkg);
+      // if(set == 60) {
+      //   plot("A0", "csms", set, normalize, 4, 1., -1., f_sig, f_bkg);
+      //   plot("A1", "csms", set, normalize, 4, 1., -1., f_sig, f_bkg);
+      //   plot("B0", "csms", set, normalize, 4, 1., -1., f_sig, f_bkg);
+      //   plot("B1", "csms", set, normalize, 4, 1., -1., f_sig, f_bkg);
+      //   plot("d0", "csms", set, normalize, 4, 1., -1., f_sig, f_bkg);
+      // }
     }
   }
 
