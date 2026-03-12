@@ -28,7 +28,7 @@ physics.trigger_paths   : [ @sequence::physics.trigger_paths, CaloClusterPath ]
 
 physics.EndPath  : [
   @sequence::Reconstruction.OnSpillEndSequence,
-  HitOriginAna,
+  # HitOriginAna,
   Run1BAna,
   DumpJson
 ]

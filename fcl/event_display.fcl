@@ -43,7 +43,7 @@ physics.analyzers.Mu2eEventDisplay.strawdisplay               : false
 physics.analyzers.Mu2eEventDisplay.specifyTag                 : false
 physics.analyzers.Mu2eEventDisplay.seqMode                    : true
 
-physics.analyzers.Mu2eEventDisplay.filler.ComboHitCollection : ["makeSH", "compressRecoMCs"]
+physics.analyzers.Mu2eEventDisplay.filler.ComboHitCollection : ["makePH", "compressRecoMCs"]
 physics.analyzers.Mu2eEventDisplay.filler.TimeClusterCollection : ["TrigAprHelixMerger", "MHDe", "compressRecoMCs"]
 physics.analyzers.Mu2eEventDisplay.diagLevel : 0
 

@@ -131,6 +131,7 @@ namespace Run1BAnaStructs {
     struct TimeClusterHist_t {
       TH1* nhits;
       TH1* nstraw_hits;
+      TH1* nhigh_z_hits;
       TH1* t0;
       TH1* t0err;
       TH1* z0;
@@ -445,6 +446,8 @@ namespace Run1BAnaStructs {
       int n_primary_hits;
       int n_other_hits;
       int n_total_primary_hits;
+      int n_hits_high_z;
+      int n_primary_hits_high_z;
 
       TimeClusterPar_t() { init(); }
       void init(const TimeCluster* t = nullptr) {
@@ -452,6 +455,8 @@ namespace Run1BAnaStructs {
         n_primary_hits = 0;
         n_other_hits = 0;
         n_total_primary_hits = 0;
+        n_hits_high_z = 0;
+        n_primary_hits_high_z = 0;
         if(!t) return;
       }
 

@@ -1,0 +1,36 @@
+# Count RPC events and evaluate weights
+
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardServices.fcl"
+
+
+process_name : rpcCount
+
+services : @local::Services.Sim
+services.GeometryService.bFieldFile   : "Offline/Mu2eG4/geom/bfgeom_reco_v01.txt"
+services.SeedService.baseSeed         :  8
+services.SeedService.maxUniqueEngines :  20
+source: {
+  module_type: RootInput
+}
+
+physics : {
+  producers : { }
+  filters   : { }
+
+  analyzers : {
+    RPCCounting : {
+      module_type: RPCCounting
+      simCollection : "BeamFilter"
+      genEventCount : "genCounter"
+      diagLevel  : 0
+    }
+  }
+}
+
+
+physics.e1            : [ RPCCounting ]
+physics.end_paths     : [ e1 ]
+physics.trigger_paths : [    ]
+
+services.TFileService.fileName : "nts.user.rpc_count.sequencer.version.root"

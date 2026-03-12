@@ -36,7 +36,7 @@ physics : {
       @table::CaloMC.CaloHitTruthMatch
       caloShowerSimCollection : "compressDigiMCs"
       caloHitCollection       : "CaloHitMakerFast:caphri"
-      diagLevel               : 3
+      diagLevel               : 0
     }
   }
 

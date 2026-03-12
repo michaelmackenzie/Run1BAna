@@ -1,0 +1,71 @@
+#------------------------------------------------------------------------------
+# runs the trigger + Offline reco then displays the results
+#------------------------------------------------------------------------------
+#include "EventDisplay/fcl/prolog.fcl"
+#include "Run1BAna/fcl/reco_trig.fcl"
+
+physics.producers : {
+  @table::REveDis.producers
+  @table::physics.producers
+}
+physics.filters : {
+  @table::REveDis.filters
+  @table::physics.filters
+}
+physics.analyzers: {
+  @table::REveDis.analyzers
+  @table::physics.analyzers
+}
+physics.DisplayEndPath  : [ @sequence::REveDis.seqBase]
+physics.REvePath : @local::REvePath
+physics.RecoPath : [ @sequence::Reconstruction.OnSpillPath ]
+physics.EndPath  : [
+  @sequence::Reconstruction.OnSpillEndSequence
+]
+
+#--------------------------------------------------------------
+# Display
+#--------------------------------------------------------------
+
+physics.analyzers.Mu2eEventDisplay.SelectEvents : ["REvePath" ]
+
+# geometry options
+physics.analyzers.Mu2eEventDisplay.showCrv                    : true
+physics.analyzers.Mu2eEventDisplay.showPS                     : false
+physics.analyzers.Mu2eEventDisplay.showTS                     : false
+physics.analyzers.Mu2eEventDisplay.showDS                     : false
+physics.analyzers.Mu2eEventDisplay.addCrvBars                 : true
+physics.analyzers.Mu2eEventDisplay.addKalInter                : true
+physics.analyzers.Mu2eEventDisplay.addCrystalHits             : true
+physics.analyzers.Mu2eEventDisplay.filler.addHelixSeeds       : false
+physics.analyzers.Mu2eEventDisplay.filler.addKalSeeds         : true
+physics.analyzers.Mu2eEventDisplay.filler.addClusters         : true
+physics.analyzers.Mu2eEventDisplay.filler.addHits             : false #  adds ComboHits
+physics.analyzers.Mu2eEventDisplay.filler.addCrvClusters      : true
+physics.analyzers.Mu2eEventDisplay.filler.addCrvRecoPulse     : false
+physics.analyzers.Mu2eEventDisplay.filler.addTimeClusters     : true
+physics.analyzers.Mu2eEventDisplay.filler.addSimParts         : false
+physics.analyzers.Mu2eEventDisplay.addTrkStrawHits            : true
+physics.analyzers.Mu2eEventDisplay.addTrkCaloHits             : true
+physics.analyzers.Mu2eEventDisplay.filler.addCosmicTrackSeeds : false
+physics.analyzers.Mu2eEventDisplay.filler.addMCTraj           : true
+
+physics.analyzers.Mu2eEventDisplay.strawdisplay               : false
+physics.analyzers.Mu2eEventDisplay.specifyTag                 : false
+physics.analyzers.Mu2eEventDisplay.seqMode                    : true
+
+physics.analyzers.Mu2eEventDisplay.filler.ComboHitCollection : ["makeSH", "makePH"]
+physics.analyzers.Mu2eEventDisplay.filler.TimeClusterCollection : ["TrigAprHelixMerger", "MHDe", "CalTimeClusterFinder"]
+physics.analyzers.Mu2eEventDisplay.filler.CosmicTrackSeedCollection : "LineFinder"
+physics.analyzers.Mu2eEventDisplay.filler.KalSeedPtrCollection : ["MergeKK"]
+physics.producers.MergeKK.KalSeedCollections : [ "KKLine" ]
+physics.analyzers.Mu2eEventDisplay.diagLevel : 0
+
+physics.end_paths : [ EndPath, DisplayEndPath ]
+physics.trigger_paths : [ REvePath, RecoPath, "25:TriggerableCalo", @sequence::Trig_noFieldMenu.trigger_paths ]
+
+services.TFileService.fileName     : "nts.owner.reco_display.Run1B.sequencer.root"
+
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v01.txt"
+physics.analyzers.Mu2eEventDisplay.gdmlname :"Offline/gen/gdml/mu2e_common.gdml"

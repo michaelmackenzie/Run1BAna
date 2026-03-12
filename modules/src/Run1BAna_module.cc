@@ -501,6 +501,7 @@ namespace mu2e
     art::TFileDirectory dir = tfs->mkdir(std::format("tcls_{}", index), title);
     Hist->nhits          = dir.make<TH1F>("nhits",          "Time cluster nhits;N(hits);"                    , 200,    0.,    200.);
     Hist->nstraw_hits    = dir.make<TH1F>("nstraw_hits",    "Time cluster straw hits;N(straw hits);"         , 200,    0.,    200.);
+    Hist->nhigh_z_hits   = dir.make<TH1F>("nhigh_z_hits",    "Time cluster high-z hits;N(high-z hits);"      ,  50,    0.,     50.);
     Hist->t0             = dir.make<TH1F>("t0",             "Time cluster t0;t0 (ns);"                       , 200,    0.,   2000.);
     Hist->t0err          = dir.make<TH1F>("t0err",          "Time cluster t0 error;t0 error (ns);"           , 100,    0.,     10.);
     Hist->z0             = dir.make<TH1F>("z0",             "Time cluster z0;z0 (mm);"                       , 100,-5000.,   5000.);
@@ -806,6 +807,7 @@ namespace mu2e
 
     Hist->nhits->Fill(TimeCluster->hits().size(), Weight);
     Hist->nstraw_hits->Fill(TimeCluster->nStrawHits(), Weight);
+    Hist->nhigh_z_hits->Fill(time_cluster_par_.n_hits_high_z, Weight);
     Hist->t0->Fill(TimeCluster->t0().t0(), Weight);
     Hist->t0err->Fill(TimeCluster->t0().t0Err(), Weight);
     Hist->z0->Fill(TimeCluster->position().z(), Weight);
@@ -1177,6 +1179,23 @@ namespace mu2e
     par.init(tc);
     if(!tc) return;
 
+    // reco info about hits in the time cluster
+    if(!from_reco_) {
+      const auto hit_indices = tc->hits();
+      for(size_t i_hit = 0; i_hit < hit_indices.size(); ++i_hit) {
+        const size_t hit_index = hit_indices.at(i_hit);
+        if(hit_index >= combo_hit_col_->size()) {
+          std::cerr << "[Run1BAna::" << __func__ << "] Warning: hit index " << hit_index << " out of range for combo hit collection of size "
+                    << combo_hit_col_->size()
+                    << " (i_hit = " << i_hit << ", N(hit indices) = " << hit_indices.size() << ")"
+                    << std::endl;
+          continue;
+        }
+        const auto& combo_hit = combo_hit_col_->at(hit_index);
+        if(combo_hit.pos().z() > 1300.) ++par.n_hits_high_z; // Number of hits in the final stations
+      }
+    }
+
     if(sim_par_.sim && mc_digi_col_ && !from_reco_) {
       // Count the number of primary digis in the time cluster
       int n_primary_digis = 0;
@@ -1193,6 +1212,7 @@ namespace mu2e
                     << std::endl;
           continue;
         }
+
         shiv.clear();
         combo_hit_col_->fillStrawHitIndices(hit_index, shiv);
         for(const size_t digi_index : shiv) {
@@ -1849,6 +1869,33 @@ namespace mu2e
     initCosmicSeedPar(cosmic_seed_par_, (line_par_.cosmic_seed) ? line_par_.cosmic_seed : cluster_par_.cosmic_seed);
     initTimeClusterPar(time_cluster_par_, cluster_par_.time_cluster);
     fillHistograms(hist_[0]);
+
+    if(debug_level_ > 1 && max_cluster && max_cluster->energyDep() > 50. && cluster_par_.time_cluster) {
+      std::cout << "Event " << event.id() << ": max cluster:"
+                << " energy = " << max_cluster->energyDep()
+                << " time = " << max_cluster->time()
+                << " position = " << max_cluster->cog3Vector()
+                << " radius = " << cluster_par_.r
+                << " time cluster: "
+                << " N(hits) = " << cluster_par_.time_cluster->nhits()
+                << " N(high z hits) = " << time_cluster_par_.n_hits_high_z
+                << std::endl;
+        if(!from_reco_) {
+          const auto hit_indices = cluster_par_.time_cluster->hits();
+          for(size_t i = 0; i < hit_indices.size(); ++i) {
+            const size_t hit_index = hit_indices.at(i);
+            if(hit_index >= combo_hit_col_->size()) {
+              std::cout << "  --> hit index " << hit_index << " out of range for combo hits collection with size " << combo_hit_col_->size() << std::endl;
+              continue;
+            }
+            const auto& hit = combo_hit_col_->at(hit_index);
+            std::cout << "  hit " << i << ": index = " << hit_index
+                      << " time = " << hit.correctedTime()
+                      << " position = " << hit.pos()
+                      << std::endl;
+        }
+      }
+    }
 
     // above 70 MeV
     if(cluster_par_.cluster && cluster_par_.cluster->energyDep() > 70.) {

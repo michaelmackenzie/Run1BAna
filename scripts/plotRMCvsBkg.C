@@ -13,14 +13,15 @@
 #include <algorithm>
 
 TString dir_; // figure directory
-double nnt_sig_ = 0.;
-double nnt_bkg_ = 0.;
-double norm_sig_ = 0.;
-double norm_bkg_ = 0.;
+double nnt_sig_      = 0.;
+double nnt_bkg_      = 0.;
+double sig_skim_eff_ = 1.;
+double norm_sig_     = 0.;
+double norm_bkg_     = 0.;
 
 //----- -------------------------------------------------------------------------
-double getNSampled(TFile* f) {
-  TH1* h_norm = (TH1*) f->Get("Run1BAna/evt_60/npot");
+double getNSampled(TFile* f, int set = 0) {
+  TH1* h_norm = (TH1*) f->Get(Form("Run1BAna/evt_%i/npot", set));
   if(!h_norm) {
     Error("getNSampled", "Could not retrieve normalization histogram!");
     return 0.;
@@ -57,8 +58,9 @@ void plot(const char* name, const char* type, const int set, const bool normaliz
 
   h_sig  = (TH1*) h_sig ->Clone(Form("%s_sig", name));
   h_bkg = (TH1*) h_bkg->Clone(Form("%s_bkg", name));
-  const double eff_sig  = h_sig ->GetEntries() / nnt_sig_;
-  const double eff_bkg = h_bkg->GetEntries() / nnt_bkg_;
+  const int norm_set = 60; // efficiencies relative to the base photon selection set
+  const double eff_sig  = h_sig ->GetEntries() / getNSampled(f_sig, norm_set);
+  const double eff_bkg = h_bkg->GetEntries() / getNSampled(f_bkg, norm_set);
   if(normalize) {
     if(eff_sig > 0.) h_sig ->Scale(1./normInRange(h_sig, x_min, x_max));
     if(eff_bkg > 0.) h_bkg->Scale(1./normInRange(h_bkg, x_min, x_max));
@@ -123,6 +125,39 @@ void plot(const char* name, const char* type, const int set, const bool normaliz
 
 }
 
+//-----------------------------------------------------------------------------------------------
+void plot_gen_eff(TFile* f, int set) {
+  TH1* h_gen = (TH1*) f->Get(Form("Run1BAna/sim_%i/energy_start", set)); // get generated energy distribution
+  if(!h_gen) {
+    std::cerr << "Cannot find energy_start histogram for set " << set << "\n";
+    return;
+  }
+  h_gen = (TH1*) h_gen->Clone(Form("eff_%i", set));
+  const int nsampled = ((TH1*) f->Get("Run1BAna/evt_0/npot"))->GetEntries();
+
+  // Scale the generated energy histogram by the number of events and the provided scale factor
+  h_gen->Scale(sig_skim_eff_ / nsampled);
+  h_gen->Rebin(5); // Rebin to reduce fluctuations
+
+  // Assume generation was flat between 50 and 110 MeV
+  h_gen->Scale((110. - 50.) / h_gen->GetXaxis()->GetBinWidth(1));
+  h_gen->SetTitle(Form("Generated energy distribution;Energy (MeV);Efficiency / %.1g MeV", h_gen->GetXaxis()->GetBinWidth(1)));
+
+  TCanvas c("c","c", 1000, 800);
+  c.SetLeftMargin(0.13);
+  c.SetRightMargin(0.05);
+
+  h_gen->Draw("E1");
+  h_gen->GetXaxis()->SetRangeUser(50., 110.);
+  h_gen->SetLineWidth(5);
+  h_gen->SetMarkerStyle(20);
+  h_gen->SetMarkerSize(1.);
+  h_gen->SetMarkerColor(kRed);
+  h_gen->SetLineColor(kGray);
+
+  c.SaveAs(Form("%s/photon_eff_%i.png", dir_.Data(), set));
+}
+
 //------------------------------------------------------------------------------
 void plotRMCvsBkg(const char* filename_sig = "nts.mu2e.FlatGammaMix1BB-KL.Run1Bah_best_v1_4-001.root",
                   const char* filename_bkg = "nts.mu2e.NoPrimaryMix1BB-KL_skim_clusters.Run1Bah_best_v1_4-001.root",
@@ -149,8 +184,9 @@ void plotRMCvsBkg(const char* filename_sig = "nts.mu2e.FlatGammaMix1BB-KL.Run1Ba
   const double nevents = livetime_week_*duty_cycle_1bb_/1.695e-6; // N(events) in a week
   const double nmuons  = nevents*1.6e7*0.375*nmuons_per_pot_run1b_;
   const double nrmc    = nmuons*muon_capture_fraction_*br_rmc_/rmc_frac_57_; // N(RMC) assuming closure
-  // const double norm_g  = (102. - 70.)/90.1 * (1263859. / 1949000000.); // sample selection factors (digi dataset)
-  const double norm_g  = (102. - 70.)/90.1 * (1257537. / 1940000000.); // sample creation + filtering factors (mcs dataset)
+  // sig_skim_eff_ = (1263859. / 1949000000.); // digi dataset
+  sig_skim_eff_ = (1257537. / 1940000000.); // mcs dataset
+  const double norm_g  = (110. - 50.)/90.1 * sig_skim_eff_; // sample creation + filtering factors
   // const double norm_b  = 3880./100000.; // digi trigger cluster skim
   const double norm_b = 17551. / 1.e6; // mcs cluster skim
   norm_sig_ = nrmc*norm_g/nnt_sig_;
@@ -165,6 +201,7 @@ void plotRMCvsBkg(const char* filename_sig = "nts.mu2e.FlatGammaMix1BB-KL.Run1Ba
   // Plot the histograms
   vector<int> sets = {0, 10, 60, 61, 62, 63, 67, 68, 69, 70};
   for(const int set : sets) {
+    plot_gen_eff(f_sig, set);
     for(const bool normalize : {false, true}) {
       plot("energy", "cls", set, normalize, 1, 70., 120., f_sig, f_bkg);
       plot("time", "cls", set, normalize, 2, 400., 2000., f_sig, f_bkg);

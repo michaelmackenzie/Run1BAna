@@ -25,8 +25,8 @@ Display.MuHitDisplay: { module_type:MuHitDisplay                 # class name;
     caloHitCollTag               : "CaloHitMaker"
     caloClusterCollTag           : "CaloClusterMaker"
 
-    phiClusterCollTag            : "TZClusterFinder"                 ## "PhiClusterFinder"
-    timeClusterCollTag           : "TZClusterFinder"
+    phiClusterCollTag            : "CalTimeClusterFinder"                 ## "PhiClusterFinder"
+    timeClusterCollTag           : "CalTimeClusterFinder"
     # trackCollTag                 : "KKDe"                           ## need to recover : "KFFDeMHDar"
     kffCollTag                   : "KKDe"                       ## "KSFDeMHDar"
     ksfCollTag                   : "KKDe"

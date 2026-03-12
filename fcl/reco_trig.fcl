@@ -108,7 +108,7 @@ physics : {
   RecoPath : [ @sequence::Reconstruction.OnSpillPath ]
   EndPath  : [
     @sequence::Reconstruction.OnSpillEndSequence, Output, TriggerableOutput, TriggeredOutput,
-    HitOriginAna,
+    # HitOriginAna,
     Run1BAna
   ]
 }
@@ -117,6 +117,13 @@ physics : {
 # CalTimePeak
 #--------------------------------------------------------------
 
+physics.producers.CalTimeClusterFinder.DiagLevel            : 0
+physics.producers.CalTimeClusterFinder.ClusterRadius        : 50.
+physics.producers.CalTimeClusterFinder.MinHitRadius         : 350.
+physics.producers.CalTimeClusterFinder.StoppingTargetRadius : 150.
+physics.producers.CalTimeClusterFinder.HitXYSigmaThresh     : 3.
+physics.producers.CalTimeClusterFinder.HitTimeSigmaThresh   : 3.
+physics.producers.CalTimeClusterFinder.MinTimeClusterHits   : 3
 physics.producers.CalTimeLineFinder : {
   @table::physics.producers.LineFinder
   TimeClusterCollection : "CalTimeClusterFinder"
@@ -132,10 +139,12 @@ physics.producers.CalTimeKKLine : {
 
 
 # Use this by default
-physics.producers.TPhiClusterFinder.ComboHitCollection : "makePH"
-physics.producers.SimpleTimeCluster.ComboHitCollection : "makePH"
-physics.producers.LineFinder.ComboHitCollection        : "makePH"
-physics.producers.TZClusterFinder.chCollLabel          : "makePH"
+physics.producers.TPhiClusterFinder.ComboHitCollection     : "makePH"
+physics.producers.SimpleTimeCluster.ComboHitCollection     : "makePH"
+physics.producers.LineFinder.ComboHitCollection            : "makePH"
+physics.producers.TZClusterFinder.chCollLabel              : "makePH"
+physics.producers.TZClusterFinder.chCollLabel              : "makePH"
+physics.producers.KKLine.ModuleSettings.ComboHitCollection : "makeSH" # LineFinder fills straw hits, not combo hits
 
 physics.producers.LineFinder.TimeClusterCollection : "CalTimeClusterFinder"
 physics.producers.LineFinder.ComboHitCollection    : "makePH"
@@ -172,7 +181,7 @@ physics.producers.KKLine.ModuleSettings.FitParticle : 11
 physics.producers.KKLine.ModuleSettings.SeedMomentum : 105
 
 services.DbService.purpose: "Sim_best"
-services.DbService.version: "v1_1"
+services.DbService.version: "v1_4"
 services.DbService.verbose : 2
 
 outputs.Output.outputCommands : [ @sequence::outputs.Output.outputCommands,
