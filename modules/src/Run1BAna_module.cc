@@ -365,7 +365,13 @@ namespace mu2e
     photon_id_reader_->AddSpectator("event_weight"          , &tree_.event_weight);
     photon_id_reader_->AddSpectator("gen_energy"            , &tree_.gen_energy);
 
-    photon_id_reader_->BookMVA("PhotonID", "Run1BAna/data/photon_id_MLP.weights.xml");
+    try {
+      photon_id_reader_->BookMVA("PhotonID", "Run1BAna/data/photon_id_MLP.weights.xml");
+    } catch (...) {
+      std::cerr << "Error booking MVA for PhotonID" << std::endl;
+      delete photon_id_reader_;
+      photon_id_reader_ = nullptr;
+    }
 
     // For timing info
     watch_ = new mu2e::StopWatch();
@@ -1316,7 +1322,7 @@ namespace mu2e
     // Initialize the MVA tree and fire the MVAs
     watch_->SetTime("EvaluateMVAs");
     initTree();
-    par.photon_id = photon_id_reader_->EvaluateMVA("PhotonID");
+    par.photon_id = (photon_id_reader_) ? photon_id_reader_->EvaluateMVA("PhotonID") : -1.f;
     watch_->StopTime("EvaluateMVAs");
   }
 

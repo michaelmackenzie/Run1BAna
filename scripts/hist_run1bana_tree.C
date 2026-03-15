@@ -165,8 +165,15 @@ struct TreeBranches {
 //--------------------------------------------------------------------------------------
 // Global histogram array
 //--------------------------------------------------------------------------------------
-constexpr int kMaxHists = 20;
+constexpr int kMaxHists = 1000;
 Hist_t* hist_[kMaxHists] = {nullptr};
+
+//--------------------------------------------------------------------------------------
+double getNSampled(TFile* f) {
+  if(!f) return -1.;
+  TH1* h = dynamic_cast<TH1*>(f->Get("Run1BAna/data/norm"));
+  return h ? h->GetEntries() : -1.;
+}
 
 //--------------------------------------------------------------------------------------
 void bookHistograms(const int index, const char* title, TDirectory* outDir) {
@@ -437,36 +444,39 @@ bool sel_signal_id(const TreeBranches& b) {
       && b.cluster_frac_1       > 0.60f
       && b.cluster_frac_2       > 0.80f
       && b.cluster_t_var        < 1.0f
-      && b.cluster_second_moment< 1.e5f
-      && b.photon_id            > 0.8f;
+      && b.cluster_second_moment< 1.e5f;
+      // && b.photon_id            > 0.8f;
 }
 
 //--------------------------------------------------------------------------------------
 // Main entry point
 //--------------------------------------------------------------------------------------
-void analyze_tree(const char* inputFile  = "input.root",
-                  const char* treePath   = "tree_60/tree",
-                  const char* outputFile = "output.root")
-{
-  // Create output file first so booking can create subdirectories immediately
-  TFile* fout = TFile::Open(outputFile, "RECREATE");
-  if(!fout || fout->IsZombie()) {
-    std::cerr << "Cannot create output file: " << outputFile << std::endl;
-    return;
-  }
-
-  // Book histogram sets (each into hist_<index>)
-  bookHistograms(0, "all",          fout);
-  bookHistograms(1, "70MeV",        fout);
-  bookHistograms(2, "70MeV_in_time",fout);
-  bookHistograms(3, "photon_id",    fout);
-  bookHistograms(4, "signal_id",    fout);
+void hist_run1bana_tree(const char* inputFile  = "input.root",
+                        const char* outputFile = "output.root",
+                        const char* treePath   = "Run1BAna/tree_60/tree") {
 
   // Open input file and tree
   TFile* fin = TFile::Open(inputFile, "READ");
   if(!fin || fin->IsZombie()) {
     std::cerr << "Cannot open input file: " << inputFile << std::endl;
-    fout->Close();
+    return;
+  }
+
+  // Get the normalization information
+  const double nsampled = getNSampled(fin);
+  if(nsampled > 0.) {
+    std::cout << "Number of sampled events: " << nsampled << std::endl;
+  } else {
+    std::cerr << "Warning: could not retrieve number of sampled events from input file." << std::endl;
+    return;
+  }
+
+  // Get the tree
+  TTree* tree = dynamic_cast<TTree*>(fin->Get(treePath));
+
+  if(!tree) {
+    std::cerr << "Cannot find tree: " << treePath << std::endl;
+    fin->Close();
     return;
   }
 
@@ -474,12 +484,48 @@ void analyze_tree(const char* inputFile  = "input.root",
   TreeBranches b{};
   setBranchAddresses(tree, b);
 
-  const Long64_t nEntries = tree->GetEntries();
-  std::cout << "Processing " << nEntries << " entries..." << std::endl;
+  // Create output file
+  TFile* fout = TFile::Open(outputFile, "RECREATE");
+  if(!fout || fout->IsZombie()) {
+    std::cerr << "Cannot create output file: " << outputFile << std::endl;
+    fin->Close();
+    return;
+  }
+
+  // Add normalization to the output
+  fout->cd();
+  TH1* hnorm = new TH1D("norm", "Normalization;N;", 1, 0., 1.);
+  hnorm->SetBinContent(1, nsampled);
+  hnorm->Write();
+
+  // Book histogram sets
+  bookHistograms(  0, "all"                                   , fout);
+  bookHistograms(  1, "70MeV"                                 , fout);
+  bookHistograms(  2, "70MeV_in_time"                         , fout);
+  bookHistograms(  3, "photon_id"                             , fout);
+  bookHistograms(  4, "signal_id"                             , fout);
+  bookHistograms(  5, "no_weights"                            , fout);
+  bookHistograms( 10, "r_500"                                 , fout);
+  bookHistograms( 11, "r_550"                                 , fout);
+  bookHistograms( 15, "signal_id_r_500"                       , fout);
+  bookHistograms( 16, "signal_id_r_550"                       , fout);
+  bookHistograms( 20, "no_calo_mu"                            , fout);
+  bookHistograms( 21, "no_calo_mu_70MeV"                      , fout);
+  bookHistograms( 22, "no_calo_mu_70MeV_in_time"              , fout);
+  bookHistograms( 23, "no_calo_mu_photon_id"                  , fout);
+  bookHistograms( 24, "no_calo_mu_signal_id"                  , fout);
+  bookHistograms( 30, "no_calo_mu_r_500"                      , fout);
+  bookHistograms( 31, "no_calo_mu_r_550"                      , fout);
+  bookHistograms( 35, "no_calo_mu_signal_id_r_500"            , fout);
+  bookHistograms( 36, "no_calo_mu_signal_id_r_550"            , fout);
+
 
   //--------------------------------------------------------------------------------------
   // Event loop
   //--------------------------------------------------------------------------------------
+
+  const Long64_t nEntries = tree->GetEntries();
+  std::cout << "Processing " << nEntries << " entries..." << std::endl;
   for(Long64_t i = 0; i < nEntries; ++i) {
     tree->GetEntry(i);
 
@@ -487,20 +533,45 @@ void analyze_tree(const char* inputFile  = "input.root",
       std::cout << "  Entry " << i << " / " << nEntries << std::endl;
 
     // Fill each selection set
-    if(sel_all          (b)) fillHistograms(0, b);
-    if(sel_70MeV        (b)) fillHistograms(1, b);
-    if(sel_70MeV_in_time(b)) fillHistograms(2, b);
-    if(sel_photon_id    (b)) fillHistograms(3, b);
-    if(sel_signal_id    (b)) fillHistograms(4, b);
+    if(sel_all          (b)) fillHistograms(0, b, b.event_weight);
+    if(sel_70MeV        (b)) fillHistograms(1, b, b.event_weight);
+    if(sel_70MeV_in_time(b)) fillHistograms(2, b, b.event_weight);
+    if(sel_photon_id    (b)) fillHistograms(3, b, b.event_weight);
+    if(sel_signal_id    (b)) fillHistograms(4, b, b.event_weight);
+    if(sel_all          (b)) fillHistograms(5, b);
+    if(sel_70MeV_in_time(b)) {
+        if(b.radius > 500.)  fillHistograms(10, b, b.event_weight);
+        if(b.radius > 550.)  fillHistograms(11, b, b.event_weight);
+        if(sel_signal_id(b)) {
+            if(b.radius > 500.)  fillHistograms(15, b, b.event_weight);
+            if(b.radius > 550.)  fillHistograms(16, b, b.event_weight);
+        }
+    }
+
+    // No calorimter muon stops
+    if(b.sim_1_type != 2 && b.sim_2_type != 2) {
+        if(sel_all          (b)) fillHistograms(20, b, b.event_weight);
+        if(sel_70MeV        (b)) fillHistograms(21, b, b.event_weight);
+        if(sel_70MeV_in_time(b)) fillHistograms(22, b, b.event_weight);
+        if(sel_photon_id    (b)) fillHistograms(23, b, b.event_weight);
+        if(sel_signal_id    (b)) fillHistograms(24, b, b.event_weight);
+        if(sel_70MeV_in_time(b)) {
+            if(b.radius > 500.)  fillHistograms(30, b, b.event_weight);
+            if(b.radius > 550.)  fillHistograms(31, b, b.event_weight);
+            if(sel_signal_id(b)) {
+                if(b.radius > 500.)  fillHistograms(35, b, b.event_weight);
+                if(b.radius > 550.)  fillHistograms(36, b, b.event_weight);
+            }
+        }
+    }
   }
 
   //--------------------------------------------------------------------------------------
   // Save output
   //--------------------------------------------------------------------------------------
-  writeHistograms(fout);
   fout->Write();
   fout->Close();
-  fin->Close();
+  fin ->Close();
 
   std::cout << "Done. Output written to " << outputFile << std::endl;
 }
