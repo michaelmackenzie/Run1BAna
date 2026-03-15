@@ -1,0 +1,14 @@
+#include "Run1BAna/fcl/reco_trig.fcl"
+
+physics.analyzers.eventdisplay : {
+      module_type               : EventDisplay
+      g4ModuleLabel             : "compressRecoMCs"
+      kalSeedStepSize           : 0.1
+}
+physics.EndPath : [ eventdisplay ]
+physics.end_paths : [ EndPath ]
+
+services.GeometryService.inputFile                   : "Offline/Mu2eG4/geom/geom_run1_b_v03.txt"
+services.ProditionsService.crvStatus.useDb           : false
+services.ProditionsService.crvCalib.useDb            : false
+services.DbService.textFile : ["Offline/CRVConditions/data/status_run1a_v01.txt","Offline/CRVConditions/data/photonyield_run1a_v01.txt", "Offline/CRVConditions/data/calib_run1a_v01.txt"]

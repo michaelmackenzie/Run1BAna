@@ -324,14 +324,18 @@ namespace mu2e
     bookHistograms(60, "photon", true);
     bookHistograms(61, "photon_no_weight");
     bookHistograms(62, "photon_no_tcl");
-    bookHistograms(63, "photon_tcl_id");
-    bookHistograms(64, "photon_tcl_fail_id");
+    bookHistograms(63, "photon_r500");
+    bookHistograms(64, "photon_r550");
     bookHistograms(65, "photon_no_csm");
     bookHistograms(66, "photon_no_line");
     bookHistograms(67, "photon_no_tcl_r500");
     bookHistograms(68, "photon_no_tcl_r550");
     bookHistograms(69, "photon_id");
     bookHistograms(70, "photon_id_d1");
+    bookHistograms(71, "photon_no_calomu");
+    bookHistograms(72, "photon_no_calomu_id");
+    bookHistograms(73, "photon_no_calomu_r500");
+    bookHistograms(74, "photon_no_calomu_r550");
     bookHistograms(75, "photon_mva_id");
 
     bookHistograms(80, "all_lines");
@@ -442,9 +446,14 @@ namespace mu2e
     Hist->pdg           = dir.make<TH1D>("pdg"       , "Primary sim PDG ID;PDG ID;"                          , 2500, -200.,  2300.);
     Hist->energy_sim    = dir.make<TH1F>("energy_sim", "Primary sim total energy deposited;Energy (MeV);"    ,  300,    0.,    300.);
     Hist->energy_ratio  = dir.make<TH1F>("energy_ratio", "Energy ratio (primary/total);E_sim/E_total;"       ,  110,    0.,    1.1);
+    Hist->sim_1_nhits   = dir.make<TH1F>("sim_1_nhits", "Number of primary sim tracker hits;N(sim tracker hits);", 100, 0., 100.);
+    Hist->sim_1_type    = dir.make<TH1D>("sim_1_type", "Primary sim type;Sim type;", 10, -0.5, 9.5);
     Hist->pdg2          = dir.make<TH1D>("pdg2"      , "Secondary sim PDG ID;PDG ID;"                        , 2500, -200.,  2300.);
     Hist->energy_sim2   = dir.make<TH1F>("energy_sim2", "Secondary sim total energy deposited;Energy (MeV);"  ,  300,    0.,    300.);
     Hist->energy_ratio2 = dir.make<TH1F>("energy_ratio2", "Energy ratio (secondary/total);E_sim/E_total;"     ,  110,    0.,    1.1);
+    Hist->sim_2_nhits   = dir.make<TH1F>("sim_2_nhits", "Number of secondary sim tracker hits;N(sim tracker hits);", 100, 0., 100.);
+    Hist->sim_2_type    = dir.make<TH1D>("sim_2_type", "Secondary sim type;Sim type;", 10, -0.5, 9.5);
+    Hist->sim_1_2_nhits = dir.make<TH1F>("sim_1_2_nhits", "Number of tracker hits in primary and secondary sims;N(sim tracker hits);", 100, 0., 100.);
     Hist->sim_dt        = dir.make<TH1F>("sim_dt", "Primary-secondary sim time diff;#Delta t (ns);", 200, -50., 50.);
     Hist->sim_dr        = dir.make<TH1F>("sim_dr", "Primary-secondary sim position diff;#Delta r (mm);", 200, 0., 200.);
     Hist->sim_dt_dr     = dir.make<TH2F>("sim_dt_dr", "Primary-secondary sim time vs position diff;#Delta t (ns);#Delta r (mm);", 200, -50., 50., 200, 0., 200.);
@@ -536,6 +545,13 @@ namespace mu2e
     art::ServiceHandle<art::TFileService> tfs;
     art::TFileDirectory dir = tfs->mkdir(std::format("tree_{}", index), title);
     hist_[index]->tree = dir.make<TTree>("tree", "Analysis tree");
+    // Event info
+    hist_[index]->tree->Branch("event"                   , &tree_.event);
+    hist_[index]->tree->Branch("subrun"                  , &tree_.subrun);
+    hist_[index]->tree->Branch("run"                     , &tree_.run);
+    hist_[index]->tree->Branch("event_weight"            , &tree_.event_weight);
+
+    // Cluster info
     hist_[index]->tree->Branch("cluster_energy"          , &tree_.cluster_energy);
     hist_[index]->tree->Branch("cluster_time"            , &tree_.cluster_time);
     hist_[index]->tree->Branch("cluster_radius"          , &tree_.cluster_radius);
@@ -555,14 +571,56 @@ namespace mu2e
     hist_[index]->tree->Branch("time_cluster_dt"         , &tree_.time_cluster_dt);
     hist_[index]->tree->Branch("time_cluster_dr"         , &tree_.time_cluster_dr);
     hist_[index]->tree->Branch("ntcl_hits"               , &tree_.ntcl_hits);
+    hist_[index]->tree->Branch("photon_id"               , &tree_.photon_id);
+
+    // Line info
+    hist_[index]->tree->Branch("line_chi2"              , &tree_.line_chi2);
+    hist_[index]->tree->Branch("line_nhits"             , &tree_.line_nhits);
+    hist_[index]->tree->Branch("line_nplanes"           , &tree_.line_nplanes);
+    hist_[index]->tree->Branch("line_nstereo"           , &tree_.line_nstereo);
+    hist_[index]->tree->Branch("line_d0"                , &tree_.line_d0);
+    hist_[index]->tree->Branch("line_tdip"              , &tree_.line_tdip);
+    hist_[index]->tree->Branch("line_cos"              , &tree_.line_cos);
+    hist_[index]->tree->Branch("line_z0"               , &tree_.line_z0);
+    hist_[index]->tree->Branch("line_t0"               , &tree_.line_t0);
+    hist_[index]->tree->Branch("line_phi0"             , &tree_.line_phi0);
+
+    // Cosmic seed info
+    hist_[index]->tree->Branch("cosmic_seed_chi2"      , &tree_.cosmic_seed_chi2);
+    hist_[index]->tree->Branch("cosmic_seed_nhits"       , &tree_.cosmic_seed_nhits);
+    hist_[index]->tree->Branch("cosmic_seed_d0"          , &tree_.cosmic_seed_d0);
+    hist_[index]->tree->Branch("cosmic_seed_tdip"        , &tree_.cosmic_seed_tdip);
+    hist_[index]->tree->Branch("cosmic_seed_cos"         , &tree_.cosmic_seed_cos);
+    hist_[index]->tree->Branch("cosmic_seed_z0"          , &tree_.cosmic_seed_z0);
+    hist_[index]->tree->Branch("cosmic_seed_t0"          , &tree_.cosmic_seed_t0);
+    hist_[index]->tree->Branch("cosmic_seed_phi0"        , &tree_.cosmic_seed_phi0);
+    hist_[index]->tree->Branch("cosmic_seed_A0"          , &tree_.cosmic_seed_A0);
+    hist_[index]->tree->Branch("cosmic_seed_B0"          , &tree_.cosmic_seed_B0);
+    hist_[index]->tree->Branch("cosmic_seed_A1"          , &tree_.cosmic_seed_A1);
+    hist_[index]->tree->Branch("cosmic_seed_B1"          , &tree_.cosmic_seed_B1);
+
+    // Time cluster info
+    hist_[index]->tree->Branch("time_cluster_nhits"        , &tree_.time_cluster_nhits);
+    hist_[index]->tree->Branch("time_cluster_nstraw_hits"  , &tree_.time_cluster_nstraw_hits);
+    hist_[index]->tree->Branch("time_cluster_nhigh_z_hits" , &tree_.time_cluster_nhigh_z_hits);
+    hist_[index]->tree->Branch("time_cluster_t0"           , &tree_.time_cluster_t0);
+    hist_[index]->tree->Branch("time_cluster_t0err"        , &tree_.time_cluster_t0err);
+    hist_[index]->tree->Branch("time_cluster_z0"           , &tree_.time_cluster_z0);
+    hist_[index]->tree->Branch("time_cluster_phi0"         , &tree_.time_cluster_phi0);
+
+    // MC truth branches
     hist_[index]->tree->Branch("mc_cluster_energy"       , &tree_.mc_cluster_energy);
     hist_[index]->tree->Branch("mc_cluster_time"         , &tree_.mc_cluster_time);
     hist_[index]->tree->Branch("sim_1_edep"              , &tree_.sim_1_edep);
     hist_[index]->tree->Branch("sim_1_time"              , &tree_.sim_1_time);
+    hist_[index]->tree->Branch("sim_1_nhits"            , &tree_.sim_1_nhits);
+    hist_[index]->tree->Branch("sim_1_type"              , &tree_.sim_1_type);
     hist_[index]->tree->Branch("sim_2_edep"              , &tree_.sim_2_edep);
     hist_[index]->tree->Branch("sim_2_time"              , &tree_.sim_2_time);
-    hist_[index]->tree->Branch("event_weight"            , &tree_.event_weight);
+    hist_[index]->tree->Branch("sim_2_nhits"            , &tree_.sim_2_nhits);
+    hist_[index]->tree->Branch("sim_2_type"              , &tree_.sim_2_type);
     hist_[index]->tree->Branch("gen_energy"              , &tree_.gen_energy);
+    hist_[index]->tree->Branch("npot"                    , &tree_.npot);
   }
 
   //--------------------------------------------------------------------------------------
@@ -672,10 +730,16 @@ namespace mu2e
       Hist->pdg->Fill(sim_pdg_1, Weight);
       Hist->energy_sim->Fill(sim_edep_1, Weight);
       Hist->energy_ratio->Fill(sim_edep_1 / mc_energy, Weight);
+      Hist->sim_1_nhits->Fill(cluster_par_.sim_1_nhits, Weight);
+      Hist->sim_1_type->Fill(cluster_par_.sim_1_type, Weight);
 
       Hist->pdg2->Fill(sim_pdg_2, Weight);
       Hist->energy_sim2->Fill(sim_edep_2, Weight);
       Hist->energy_ratio2->Fill(sim_edep_2 / mc_energy, Weight);
+      Hist->sim_2_nhits->Fill(cluster_par_.sim_2_nhits, Weight);
+      Hist->sim_2_type->Fill(cluster_par_.sim_2_type, Weight);
+
+      Hist->sim_1_2_nhits->Fill(cluster_par_.sim_1_nhits + cluster_par_.sim_2_nhits, Weight);
 
       if((sim_edep_1 + sim_edep_2)/mc_energy > 1.01) {
         std::cout << "[Run1BAna::" << __func__ << "] " << event_->id()
@@ -902,6 +966,10 @@ namespace mu2e
   //--------------------------------------------------------------------------------------
   void Run1BAna::initTree() {
     tree_.init();
+    tree_.event = event_->event();
+    tree_.subrun = event_->subRun();
+    tree_.run = event_->run();
+    tree_.npot = static_cast<float>(evt_par_.npot);
     auto Cluster = cluster_par_.cluster;
     if(Cluster) {
       tree_.cluster_energy = Cluster->energyDep();
@@ -918,7 +986,10 @@ namespace mu2e
       tree_.cluster_e9 = cluster_par_.e9;
       tree_.cluster_e25 = cluster_par_.e25;
       tree_.cluster_t_var = cluster_par_.t_var;
+      tree_.photon_id = cluster_par_.photon_id;
     }
+
+    // Line info
     auto Line = cluster_par_.line;
     if(Line && Cluster) {
       const auto line_pos = lineAtCluster(Cluster, Line);
@@ -927,7 +998,59 @@ namespace mu2e
       const double dy = line_pos.y() - cl_pos.y();
       tree_.line_dt = line_pos.t() - Cluster->time();
       tree_.line_dr = std::sqrt(dx*dx + dy*dy);
+      // Also fill line parameters
+      double t0 = -1000.;
+      try {
+        const auto t0seg = Line->t0Segment(t0);
+        if(t0seg != Line->segments().end()) {
+          auto momvec = t0seg->momentum3();
+          auto posvec = t0seg->position3();
+          double theta = momvec.Theta();
+          double phi = momvec.Phi();
+          double td = 1.0 / tan(theta);
+
+          tree_.line_chi2 = Line->chisquared() / Line->nDOF();
+          tree_.line_nhits = Line->nHits(true);
+          // Count planes and stereo panels
+          std::set<unsigned> stcount;
+          std::set<unsigned> pcount;
+          for(const auto& hit : Line->hits()) {
+            if(hit._flag.hasAllProperties(StrawHitFlag::active)) {
+              stcount.insert(hit._sid.stereoPanel());
+              pcount.insert(hit._sid.plane());
+            }
+          }
+          tree_.line_nplanes = pcount.size();
+          tree_.line_nstereo = stcount.size();
+          auto kltraj = t0seg->kinematicLine();
+          tree_.line_d0 = kltraj.d0();
+          tree_.line_tdip = td;
+          tree_.line_cos = std::cos(theta);
+          tree_.line_z0 = posvec.Z();
+          tree_.line_t0 = t0;
+          tree_.line_phi0 = phi;
+        }
+      } catch(...) {}
     }
+
+    // Cosmic seed info
+    if(cosmic_seed_par_.seed) {
+      const auto& Track = cosmic_seed_par_.seed->track();
+      // tree_.cosmic_seed_chi2 = Track.chisq();
+      tree_.cosmic_seed_nhits = cosmic_seed_par_.seed->hits().size();
+      tree_.cosmic_seed_d0 = Track.d0();
+      // tree_.cosmic_seed_tdip = 1.0 / tan(Track.theta());
+      tree_.cosmic_seed_cos = Track.cost();
+      tree_.cosmic_seed_z0 = Track.z0();
+      tree_.cosmic_seed_t0 = cosmic_seed_par_.seed->t0().t0();
+      tree_.cosmic_seed_phi0 = Track.phi0();
+      tree_.cosmic_seed_A0 = Track.FitParams.A0;
+      tree_.cosmic_seed_B0 = Track.FitParams.B0;
+      tree_.cosmic_seed_A1 = Track.FitParams.A1;
+      tree_.cosmic_seed_B1 = Track.FitParams.B1;
+    }
+
+    // Time cluster info
     auto TimeCluster = cluster_par_.time_cluster;
     if(TimeCluster && Cluster) {
       const auto tc_pos = TimeCluster->position();
@@ -936,6 +1059,15 @@ namespace mu2e
       const double dy = tc_pos.y() - cl_pos.y();
       tree_.time_cluster_dt = TimeCluster->t0().t0() - Cluster->time();
       tree_.time_cluster_dr = std::sqrt(dx*dx + dy*dy);
+
+      // also fill time cluster parameters
+      tree_.time_cluster_t0 = TimeCluster->t0().t0();
+      tree_.time_cluster_t0err = TimeCluster->t0().t0Err();
+      tree_.time_cluster_z0 = TimeCluster->position().z();
+      tree_.time_cluster_phi0 = TimeCluster->position().phi();
+      tree_.time_cluster_nhits = TimeCluster->nhits();
+      tree_.time_cluster_nstraw_hits = TimeCluster->nStrawHits();
+      tree_.time_cluster_nhigh_z_hits = time_cluster_par_.n_hits_high_z;
     }
     tree_.ntcl_hits = (TimeCluster) ? TimeCluster->hits().size() : 0;
     if(cluster_par_.mc) {
@@ -943,8 +1075,12 @@ namespace mu2e
       tree_.mc_cluster_time = cluster_par_.mc_time;
       tree_.sim_1_edep = cluster_par_.sim_1_edep;
       tree_.sim_1_time = cluster_par_.sim_1_time;
+      tree_.sim_1_nhits = cluster_par_.sim_1_nhits;
+      tree_.sim_1_type = cluster_par_.sim_1_type;
       tree_.sim_2_edep = cluster_par_.sim_2_edep;
       tree_.sim_2_time = cluster_par_.sim_2_time;
+      tree_.sim_2_nhits = cluster_par_.sim_2_nhits;
+      tree_.sim_2_type = cluster_par_.sim_2_type;
     }
     tree_.event_weight = evt_par_.weight;
     tree_.gen_energy   = evt_par_.gen_energy;
@@ -1042,13 +1178,17 @@ namespace mu2e
   //--------------------------------------------------------------------------------------
   void Run1BAna::initClusterPar(ClusterPar_t& par, const CaloCluster* cluster) {
     par.init(cluster);
+
+    if(!cluster) return;
+
+    watch_->SetTime("initClusterPar-matching");
     matchLineToCluster(par, line_col_);
     matchSeedToCluster(par, cosmic_seed_col_);
     matchTimeClusterToCluster(par, time_cluster_col_);
+    watch_->StopTime("initClusterPar-matching");
 
     // Match reconstructed cluster to MC cluster using the CaloClusterMCTruthAssn
-    if(!cluster) return;
-
+    watch_->SetTime("initClusterPar-MC");
     if(calo_cluster_mc_assn_) {
       for(const auto& ent : *calo_cluster_mc_assn_) {
         const art::Ptr<CaloCluster>& recoPtr = ent.first;
@@ -1124,6 +1264,21 @@ namespace mu2e
         par.sim_1_x = pos.x();
         par.sim_1_y = pos.y();
         getSimMainCrystal(calo_shower_sim_col_, top1, par.sim_1_main_crystal, par.sim_1_main_crystal_energy);
+        par.sim_1_nhits = sim_info_[top1->id().asInt()].nhits_;
+        auto parent = top1->parent();
+        while(parent.isNonnull()) {
+          par.sim_1_nhits += sim_info_[parent->id().asInt()].nhits_;
+          if(par.sim_1_type < 0) { // only set if not already set
+            if(parent->pdgId() == 13) {
+              if(parent->endPosition().z() < 10000.) { // before the tracker
+                par.sim_1_type = 1;
+              } else if(parent->endPosition().z() > 10000.) {
+                par.sim_1_type = 2;
+              }
+            }
+          }
+          parent = parent->parent();
+        }
         if(debug_level_ > 2) std::cout << "[Run1BAna::" << __func__ << "] Primary sim: PDG = " << top1->pdgId()
                                        << " E = " << par.sim_1_edep << " Time = " << par.sim_1_time
                                        << " x = " << par.sim_1_x << " y = " << par.sim_1_y
@@ -1139,8 +1294,24 @@ namespace mu2e
         par.sim_2_x = pos.x();
         par.sim_2_y = pos.y();
         getSimMainCrystal(calo_shower_sim_col_, top2, par.sim_2_main_crystal, par.sim_2_main_crystal_energy);
+        par.sim_2_nhits = sim_info_[top2->id().asInt()].nhits_;
+        auto parent = top2->parent();
+        while(parent.isNonnull()) {
+          par.sim_2_nhits += sim_info_[parent->id().asInt()].nhits_;
+          if(par.sim_2_type < 0) { // only set if not already set
+            if(parent->pdgId() == 13) {
+              if(parent->endPosition().z() < 10000.) { // before the tracker
+                par.sim_2_type = 1;
+              } else if(parent->endPosition().z() > 10000.) {
+                par.sim_2_type = 2;
+              }
+            }
+          }
+          parent = parent->parent();
+        }
       }
     }
+    watch_->StopTime("initClusterPar-MC");
 
     // Initialize the MVA tree and fire the MVAs
     watch_->SetTime("EvaluateMVAs");
@@ -1591,7 +1762,9 @@ namespace mu2e
     // Initialize fields
     //--------------------------------------------------------------------------------------
 
+    watch_->SetTime("FillSimInfo");
     SimUtils::fillSimInfo(sim_info_, sim_col_, mc_digi_col_);
+    watch_->StopTime("FillSimInfo");
     cluster_par_.init();
     line_par_.init();
     cosmic_seed_par_.init();
@@ -1977,11 +2150,10 @@ namespace mu2e
           fillHistograms(hist_[62]);
           if(/*disk_id == 0 &&*/ radius > 500.) fillHistograms(hist_[67]);
           if(/*disk_id == 0 &&*/ radius > 550.) fillHistograms(hist_[68]);
-        } else {
-          bool signal_id = cluster_par_.time_cluster->nhits() < 50; // FIXME: Depends on intensity and geometry
-          if(signal_id) fillHistograms(hist_[63]);
-          else          fillHistograms(hist_[64]);
         }
+        // radius selections
+        if(radius > 500.) fillHistograms(hist_[63]);
+        if(radius > 550.) fillHistograms(hist_[64]);
         // line/seed selections
         if(!photon_.cosmic_seed) fillHistograms(hist_[65]);
         if(!photon_.line)        fillHistograms(hist_[66]);
@@ -1997,6 +2169,12 @@ namespace mu2e
         if(signal_id) {
           fillHistograms(hist_[69]);
           if(disk_id == 1) fillHistograms(hist_[70]);
+        }
+        if(cluster_par_.sim_1_type != 2 && cluster_par_.sim_2_type != 2) { // not from a calo muon stop
+          fillHistograms(hist_[71]);
+          if(signal_id) fillHistograms(hist_[72]);
+          if(radius > 500.) fillHistograms(hist_[73]);
+          if(radius > 550.) fillHistograms(hist_[74]);
         }
         if(cluster_par_.photon_id > 0.8) fillHistograms(hist_[75]);
       }

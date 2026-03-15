@@ -27,6 +27,31 @@ Reconstruction.OnSpillPath : [
   # KLFilter,
   @sequence::Reconstruction.MCReco
 ]
+
+Run1BRecoPath : [
+      "CaloRecoDigiMaker",
+      "CaloHitMaker",
+      "CaloProtoClusterMaker",
+      "CaloClusterMaker",
+      "PBTFSD",
+      "makeSH",
+      "makePH",
+      "makeSTH",
+      # "flagPH",
+      "CrvRecoPulses",
+      "CrvCoincidenceClusterFinder",
+      "CalTimeClusterFinder",
+      # "TimeAndPhiClusterFinder",
+      "LineFinder",
+      "KKLine",
+      # "KLFilter",
+      "SelectReco",
+      "CaloHitTruthMatch",
+      "CaloClusterTruthMatch",
+      "CrvCoincidenceClusterMatchMC",
+      "compressRecoMCs",
+      "CrvCoincidenceClusterMCAssns"
+]
 END_PROLOG
 
 process_name : Reconstruct
@@ -93,6 +118,7 @@ physics : {
       caloShowerSimCollection : "compressDigiMCs"
       triggerProcess          : "Reconstruct"
       PBI                     : "PBISim"
+      fillTrees               : true
       debugLevel              : 0
     }
     CaloExample : {
@@ -105,9 +131,10 @@ physics : {
     }
   }
   TriggerableCalo : [ TriggerableCalo ]
-  RecoPath : [ @sequence::Reconstruction.OnSpillPath ]
+  RecoPath : [ @sequence::Run1BRecoPath ]
   EndPath  : [
-    @sequence::Reconstruction.OnSpillEndSequence, Output, TriggerableOutput, TriggeredOutput,
+    @sequence::Reconstruction.OnSpillEndSequence, Output,
+    # TriggerableOutput, TriggeredOutput,
     # HitOriginAna,
     Run1BAna
   ]
@@ -173,22 +200,32 @@ physics.analyzers.LHCompressionCheck.SelectEvents : [ "RecoPath" ]
 physics.end_paths : [ EndPath ]
 physics.trigger_paths : [ RecoPath, "25:TriggerableCalo", @sequence::Trig_noFieldMenu.trigger_paths ]
 
+
+physics.producers.SelectReco.TimeClusterCollections : [ "CalTimeClusterFinder" ]
 physics.producers.SelectReco.SaveAllUnusedDigiMCs : true
 # physics.producers.KLFilter : { module_type : NullProducer }
 # physics.filters.KLFilter : @erase
 
-physics.producers.KKLine.ModuleSettings.FitParticle : 11
-physics.producers.KKLine.ModuleSettings.SeedMomentum : 105
+physics.producers.LineFinder.minPeak : 3 # Minimum hits in a seed
+physics.producers.LineFinder.diag : 0 # Minimum hits in a seed
+physics.producers.KKLine.ModuleSettings.FitParticle   : 11
+physics.producers.KKLine.ModuleSettings.SeedMomentum  : 105
+physics.producers.KKLine.KKFitSettings.MinNStrawHits  : 3
+physics.producers.KKLine.ModuleSettings.SaveAllFits   : true
+physics.producers.KKLine.ModuleSettings.PrintLevel    : 0
 
 services.DbService.purpose: "Sim_best"
 services.DbService.version: "v1_4"
 services.DbService.verbose : 2
 
-outputs.Output.outputCommands : [ @sequence::outputs.Output.outputCommands,
-  "keep mu2e::KalSeeds_*_*_*",
-  "keep mu2e::HelixSeed*_*_*_*",
-  "keep mu2e::CosmicTrackSeed*_*_*_*",
-  "keep mu2e::TimeCluster*_*_*_*"
+outputs.Output.outputCommands : [
+  @sequence::outputs.Output.outputCommands,
+  "keep mu2e::CosmicTrackSeeds_*_*_*",
+  "keep mu2e::TimeClusters_*_*_*",
+  "keep mu2e::StrawDigiMCs_*_*_*",
+  "keep mu2e::StrawDigis_*_*_*",
+  "keep mu2e::StrawHitCollection_makeSH_*_*",
+  "keep mu2e::ComboHitCollection_makePH_*_*"
 ]
 outputs.TriggeredOutput.outputCommands   : [ @sequence::outputs.Output.outputCommands ]
 outputs.TriggerableOutput.outputCommands : [ @sequence::outputs.Output.outputCommands ]
@@ -200,4 +237,5 @@ outputs.TriggerableOutput.fileName : "mcs.owner.reco_trig.Triggerable.Run1B.art"
 services.TFileService.fileName     : "nts.owner.reco_trig.Run1B.sequencer.root"
 
 services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
-services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v01.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v03.txt"
+# services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v01.txt"

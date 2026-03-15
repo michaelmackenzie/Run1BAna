@@ -74,9 +74,14 @@ namespace Run1BAnaStructs {
       TH1* pdg;
       TH1* energy_sim;
       TH1* energy_ratio;
+      TH1* sim_1_nhits;
+      TH1* sim_1_type;
       TH1* pdg2;
       TH1* energy_sim2;
       TH1* energy_ratio2;
+      TH1* sim_2_nhits;
+      TH1* sim_2_type;
+      TH1* sim_1_2_nhits;
       TH1* sim_dt;
       TH1* sim_dr;
       TH2* sim_dt_dr;
@@ -163,6 +168,14 @@ namespace Run1BAnaStructs {
 
     // Output tree branches
     struct Tree_t {
+
+      // Event info
+      int   event;
+      int   subrun;
+      int   run;
+      float event_weight;
+
+      // Cluster info
       float cluster_energy;
       float cluster_time;
       float cluster_radius;
@@ -182,21 +195,67 @@ namespace Run1BAnaStructs {
       float time_cluster_dt;
       float time_cluster_dr;
       float ntcl_hits;
+      float photon_id;
 
+      // Line info
+      float line_chi2;
+      float line_nhits;
+      float line_nplanes;
+      float line_nstereo;
+      float line_d0;
+      float line_tdip;
+      float line_cos;
+      float line_z0;
+      float line_t0;
+      float line_phi0;
+
+      // Cosmic seed info
+      float cosmic_seed_chi2;
+      float cosmic_seed_nhits;
+      float cosmic_seed_d0;
+      float cosmic_seed_tdip;
+      float cosmic_seed_cos;
+      float cosmic_seed_z0;
+      float cosmic_seed_t0;
+      float cosmic_seed_phi0;
+      float cosmic_seed_A0;
+      float cosmic_seed_A1;
+      float cosmic_seed_B0;
+      float cosmic_seed_B1;
+
+      // Time cluster info
+      float time_cluster_nhits;
+      float time_cluster_nstraw_hits;
+      float time_cluster_nhigh_z_hits;
+      float time_cluster_t0;
+      float time_cluster_t0err;
+      float time_cluster_z0;
+      float time_cluster_phi0;
+
+      // MC truth info
       float mc_cluster_energy;
       float mc_cluster_time;
       float sim_1_edep;
       float sim_1_time;
+      int   sim_1_nhits;
+      int   sim_1_type;
       float sim_2_edep;
       float sim_2_time;
-      float event_weight;
+      int   sim_2_nhits;
+      int   sim_2_type;
       float gen_energy;
+      float npot;
 
       Tree_t() {
         init();
       }
 
       void init() {
+        event_weight = 1.f;
+        event = 0;
+        subrun = 0;
+        run = 0;
+
         cluster_energy = 0.f;
         cluster_time = 0.f;
         cluster_radius = 0.f;
@@ -216,15 +275,52 @@ namespace Run1BAnaStructs {
         time_cluster_dt = 0.f;
         time_cluster_dr = 0.f;
         ntcl_hits = 0.f;
+        photon_id = 0.f;
+
+        line_chi2 = 0.f;
+        line_nhits = 0.f;
+        line_nplanes = 0.f;
+        line_nstereo = 0.f;
+        line_d0 = 0.f;
+        line_tdip = 0.f;
+        line_cos = 0.f;
+        line_z0 = 0.f;
+        line_t0 = 0.f;
+        line_phi0 = 0.f;
+
+        cosmic_seed_chi2 = 0.f;
+        cosmic_seed_nhits = 0.f;
+        cosmic_seed_d0 = 0.f;
+        cosmic_seed_tdip = 0.f;
+        cosmic_seed_cos = 0.f;
+        cosmic_seed_z0 = 0.f;
+        cosmic_seed_t0 = 0.f;
+        cosmic_seed_phi0 = 0.f;
+        cosmic_seed_A0 = 0.f;
+        cosmic_seed_A1 = 0.f;
+        cosmic_seed_B0 = 0.f;
+        cosmic_seed_B1 = 0.f;
+
+        time_cluster_nhits = 0.f;
+        time_cluster_nstraw_hits = 0.f;
+        time_cluster_nhigh_z_hits = 0.f;
+        time_cluster_t0 = 0.f;
+        time_cluster_t0err = 0.f;
+        time_cluster_z0 = 0.f;
+        time_cluster_phi0 = 0.f;
 
         mc_cluster_energy = 0.f;
         mc_cluster_time = 0.f;
         sim_1_edep = 0.f;
         sim_1_time = 0.f;
+        sim_1_nhits = 0;
+        sim_1_type = -1;
         sim_2_edep = 0.f;
         sim_2_time = 0.f;
-        event_weight = 1.f;
+        sim_2_nhits = 0;
+        sim_2_type = -1;
         gen_energy = 0.f;
+        npot = 0.f;
       }
     };
 
@@ -308,12 +404,16 @@ namespace Run1BAnaStructs {
       float sim_1_y;
       int   sim_1_main_crystal;
       float sim_1_main_crystal_energy;
+      int   sim_1_nhits;
+      int   sim_1_type;
       float sim_2_edep;
       float sim_2_time;
       float sim_2_x;
       float sim_2_y;
       int   sim_2_main_crystal;
       float sim_2_main_crystal_energy;
+      int   sim_2_nhits;
+      int   sim_2_type;
 
       ClusterPar_t() {
         init();
@@ -350,12 +450,16 @@ namespace Run1BAnaStructs {
         sim_1_y = 0.f;
         sim_1_main_crystal = -1;
         sim_1_main_crystal_energy = 0.f;
+        sim_1_nhits = 0;
+        sim_1_type = -1;
         sim_2_edep = 0.f;
         sim_2_time = 0.f;
         sim_2_x = 0.f;
         sim_2_y = 0.f;
         sim_2_main_crystal = -1;
         sim_2_main_crystal_energy = 0.f;
+        sim_2_nhits = 0;
+        sim_2_type = -1;
         if(!cl) return;
 
         const float x = cluster->cog3Vector().x();

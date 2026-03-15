@@ -23,6 +23,7 @@ physics.filters.CaloClusterFilter: {
   diagLevel             : 0
 }
 
+physics.TriggerableCalo : []
 physics.CaloClusterPath : [ @sequence::Reconstruction.CaloReco, CaloClusterFilter ]
 physics.trigger_paths   : [ @sequence::physics.trigger_paths, CaloClusterPath ]
 

@@ -6,10 +6,4 @@ services.DbService.purpose: "Sim_best"
 services.DbService.version: "v1_4"
 services.DbService.verbose : 2
 
-# physics.EndPath  : [
-#   @sequence::Reconstruction.OnSpillEndSequence,
-#   Run1BAna,
-#   DumpJson
-# ]
-
 services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v03.txt"
