@@ -1,5 +1,6 @@
 #include "TFile.h"
 #include "TTree.h"
+#include "TChain.h"
 #include "TH1F.h"
 #include "TH1I.h"
 #include "TString.h"
@@ -84,6 +85,7 @@ struct Hist_t {
   TH1F* sim_2_time;
   TH1I* sim_2_nhits;
   TH1I* sim_2_type;
+  TH1I* sim_1_2_nhits;
   TH1F* event_weight;
   TH1F* gen_energy;
 
@@ -95,6 +97,9 @@ struct Hist_t {
 // Branch variables (mirrors Tree_t in Structs.hh)
 //--------------------------------------------------------------------------------------
 struct TreeBranches {
+  int   event;
+  int   subrun;
+  int   run;
   float cluster_energy;
   float cluster_time;
   float cluster_radius;
@@ -169,10 +174,24 @@ constexpr int kMaxHists = 1000;
 Hist_t* hist_[kMaxHists] = {nullptr};
 
 //--------------------------------------------------------------------------------------
-double getNSampled(TFile* f) {
-  if(!f) return -1.;
-  TH1* h = dynamic_cast<TH1*>(f->Get("Run1BAna/data/norm"));
-  return h ? h->GetEntries() : -1.;
+double getNSampled(TChain* chain) {
+  double total = 0.;
+  const TObjArray* files = chain->GetListOfFiles();
+  for(int i = 0; i < files->GetEntries(); ++i) {
+    const char* fname = files->At(i)->GetTitle();
+    TFile* f = TFile::Open(fname, "READ");
+    if(!f || f->IsZombie()) {
+      std::cerr << "Warning: could not open file " << fname << " for normalization." << std::endl;
+      if(f) delete f;
+      continue;
+    }
+    TH1* h = dynamic_cast<TH1*>(f->Get("Run1BAna/data/norm"));
+    if(h) total += h->GetEntries();
+    else   std::cerr << "Warning: could not retrieve norm histogram from " << fname << std::endl;
+    f->Close();
+    delete f;
+  }
+  return total;
 }
 
 //--------------------------------------------------------------------------------------
@@ -190,7 +209,7 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   auto* H = hist_[index];
 
   const TString setDirName = TString::Format("hist_%d", index);
-  H->dir = outDir->mkdir(setDirName);
+  H->dir = outDir->mkdir(setDirName, title);
   if(!H->dir) {
     std::cerr << "bookHistograms: failed to create directory " << setDirName << std::endl;
     return;
@@ -268,6 +287,7 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->sim_2_time            = new TH1F("sim_2_time"           , "Sim 2 time;t (ns);"                    , 200,   0., 2000.);
   H->sim_2_nhits           = new TH1I("sim_2_nhits"          , "Sim 2 N(tracker hits);N;"              , 100,   0,   100);
   H->sim_2_type            = new TH1I("sim_2_type"           , "Sim 2 type;Type;"                      ,  10,  -1,     9);
+  H->sim_1_2_nhits         = new TH1I("sim_1_2_nhits"        , "Sim 1-2 N(tracker hits);N;"            , 200,   0,   200);
   H->event_weight          = new TH1F("event_weight"         , "Event weight;Weight;"                  , 100,   0.,    5.);
   H->gen_energy            = new TH1F("gen_energy"           , "Generated energy;E (MeV);"             ,  60,  50.,  110.);
 }
@@ -277,7 +297,7 @@ void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) 
   if(index < 0 || index >= kMaxHists || !hist_[index]) return;
   auto* H = hist_[index];
 
-  const double w = b.event_weight * weight;
+  const double w = weight;
 
   // Cluster
   H->cluster_energy       ->Fill(b.cluster_energy,        w);
@@ -349,12 +369,16 @@ void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) 
   H->sim_2_time           ->Fill(b.sim_2_time,            w);
   H->sim_2_nhits          ->Fill(b.sim_2_nhits,           w);
   H->sim_2_type           ->Fill(b.sim_2_type,            w);
+  H->sim_1_2_nhits        ->Fill(b.sim_1_nhits + b.sim_2_nhits, w);
   H->event_weight         ->Fill(b.event_weight,          w);
   H->gen_energy           ->Fill(b.gen_energy,            w);
 }
 
 //--------------------------------------------------------------------------------------
 void setBranchAddresses(TTree* tree, TreeBranches& b) {
+  tree->SetBranchAddress("event"                   , &b.event);
+  tree->SetBranchAddress("subrun"                  , &b.subrun);
+  tree->SetBranchAddress("run"                     , &b.run);
   tree->SetBranchAddress("cluster_energy"          , &b.cluster_energy);
   tree->SetBranchAddress("cluster_time"            , &b.cluster_time);
   tree->SetBranchAddress("cluster_radius"          , &b.cluster_radius);
@@ -421,74 +445,75 @@ void setBranchAddresses(TTree* tree, TreeBranches& b) {
 //--------------------------------------------------------------------------------------
 // Selection functions
 //--------------------------------------------------------------------------------------
-bool sel_all(const TreeBranches& /*b*/) {
-  return true;
-}
 
-bool sel_70MeV(const TreeBranches& b) {
+bool sel_energy(const TreeBranches& b) {
   return b.cluster_energy > 70.;
 }
 
-bool sel_70MeV_in_time(const TreeBranches& b) {
+bool sel_energy_time(const TreeBranches& b) {
   return b.cluster_energy > 70. && b.cluster_time > 600. && b.cluster_time < 1650.;
 }
 
 bool sel_photon_id(const TreeBranches& b) {
-  return sel_70MeV_in_time(b) && b.photon_id > 0.8;
+  return sel_energy_time(b) && b.photon_id > 0.8;
 }
 
 bool sel_signal_id(const TreeBranches& b) {
-  return sel_70MeV_in_time(b)
-      && b.cluster_ncr  > 1
-      && b.cluster_ncr  < 6
-      && b.cluster_frac_1       > 0.60f
-      && b.cluster_frac_2       > 0.80f
-      && b.cluster_t_var        < 1.0f
-      && b.cluster_second_moment< 1.e5f;
-      // && b.photon_id            > 0.8f;
+  return sel_energy_time(b)
+    && b.cluster_ncr  > 1
+    && b.cluster_ncr  < 6
+                        && b.cluster_frac_1       > 0.60f
+    && b.cluster_frac_2       > 0.80f
+    && b.cluster_t_var        < 1.0f
+    && b.cluster_second_moment< 1.e5f;
+  // && b.photon_id            > 0.8f;
 }
 
 //--------------------------------------------------------------------------------------
 // Main entry point
 //--------------------------------------------------------------------------------------
-void hist_run1bana_tree(const char* inputFile  = "input.root",
+void hist_run1bana_tree(const char* inputFiles = "input.root",  // comma- or space-separated, or a glob
                         const char* outputFile = "output.root",
                         const char* treePath   = "Run1BAna/tree_60/tree") {
 
-  // Open input file and tree
-  TFile* fin = TFile::Open(inputFile, "READ");
-  if(!fin || fin->IsZombie()) {
-    std::cerr << "Cannot open input file: " << inputFile << std::endl;
+  // Build TChain
+  TChain* chain = new TChain(treePath);
+
+  // Allow comma-separated list of files or wildcards
+  TString fileList(inputFiles);
+  TObjArray* tokens = fileList.Tokenize(",");
+  for(int i = 0; i < tokens->GetEntries(); ++i) {
+    TString fname = dynamic_cast<TObjString*>(tokens->At(i))->GetString().Strip(TString::kBoth);
+    const int added = chain->Add(fname);
+    std::cout << "Added " << added << " file(s) matching: " << fname << std::endl;
+  }
+  delete tokens;
+
+  if(chain->GetNtrees() == 0) {
+    std::cerr << "No files added to chain, exiting." << std::endl;
+    delete chain;
     return;
   }
 
-  // Get the normalization information
-  const double nsampled = getNSampled(fin);
+  // Get normalization by scanning input files before the event loop
+  const double nsampled = getNSampled(chain);
   if(nsampled > 0.) {
-    std::cout << "Number of sampled events: " << nsampled << std::endl;
+    std::cout << "Total number of sampled events: " << nsampled << std::endl;
   } else {
-    std::cerr << "Warning: could not retrieve number of sampled events from input file." << std::endl;
-    return;
-  }
-
-  // Get the tree
-  TTree* tree = dynamic_cast<TTree*>(fin->Get(treePath));
-
-  if(!tree) {
-    std::cerr << "Cannot find tree: " << treePath << std::endl;
-    fin->Close();
+    std::cerr << "Warning: could not retrieve number of sampled events from input files." << std::endl;
+    delete chain;
     return;
   }
 
   // Initialise branch addresses
   TreeBranches b{};
-  setBranchAddresses(tree, b);
+  setBranchAddresses(chain, b);
 
   // Create output file
   TFile* fout = TFile::Open(outputFile, "RECREATE");
   if(!fout || fout->IsZombie()) {
     std::cerr << "Cannot create output file: " << outputFile << std::endl;
-    fin->Close();
+    delete chain;
     return;
   }
 
@@ -500,69 +525,113 @@ void hist_run1bana_tree(const char* inputFile  = "input.root",
 
   // Book histogram sets
   bookHistograms(  0, "all"                                   , fout);
-  bookHistograms(  1, "70MeV"                                 , fout);
-  bookHistograms(  2, "70MeV_in_time"                         , fout);
-  bookHistograms(  3, "photon_id"                             , fout);
-  bookHistograms(  4, "signal_id"                             , fout);
-  bookHistograms(  5, "no_weights"                            , fout);
+  bookHistograms(  1, "no_weights"                            , fout);
+  bookHistograms(  2, "photon_id"                             , fout);
+  bookHistograms(  3, "signal_id"                             , fout);
+  bookHistograms(  4, "id_high_z_hits"                        , fout);
   bookHistograms( 10, "r_500"                                 , fout);
   bookHistograms( 11, "r_550"                                 , fout);
-  bookHistograms( 15, "signal_id_r_500"                       , fout);
-  bookHistograms( 16, "signal_id_r_550"                       , fout);
+  bookHistograms( 15, "id_r_500"                              , fout);
+  bookHistograms( 16, "id_r_550"                              , fout);
+  bookHistograms( 17, "id_no_hits"                            , fout);
+  bookHistograms( 18, "id_r_500_high_z_hits"                  , fout);
+  bookHistograms( 19, "id_high_z_hits"                        , fout);
   bookHistograms( 20, "no_calo_mu"                            , fout);
-  bookHistograms( 21, "no_calo_mu_70MeV"                      , fout);
-  bookHistograms( 22, "no_calo_mu_70MeV_in_time"              , fout);
-  bookHistograms( 23, "no_calo_mu_photon_id"                  , fout);
-  bookHistograms( 24, "no_calo_mu_signal_id"                  , fout);
+  bookHistograms( 22, "no_calo_mu_photon_id"                  , fout);
+  bookHistograms( 23, "no_calo_mu_id"                         , fout);
+  bookHistograms( 24, "no_calo_mu_id_high_z_hits"             , fout);
   bookHistograms( 30, "no_calo_mu_r_500"                      , fout);
   bookHistograms( 31, "no_calo_mu_r_550"                      , fout);
-  bookHistograms( 35, "no_calo_mu_signal_id_r_500"            , fout);
-  bookHistograms( 36, "no_calo_mu_signal_id_r_550"            , fout);
+  bookHistograms( 32, "n_calo_mu_no_hits"                     , fout);
+  bookHistograms( 35, "no_calo_mu_id_r_500"                   , fout);
+  bookHistograms( 36, "no_calo_mu_id_r_550"                   , fout);
+  bookHistograms( 37, "no_calo_mu_id_no_hits"                 , fout);
+  bookHistograms( 38, "no_calo_mu_id_r_500_high_z_hits"       , fout);
+
+  // Sets with offsets
+  for(int offset = 0; offset < 3; ++offset) {
+    bookHistograms( 70 + offset*100, "base"             , fout);
+    bookHistograms( 71 + offset*100, "id"               , fout);
+    bookHistograms( 72 + offset*100, "id_r_500"         , fout);
+    bookHistograms( 73 + offset*100, "id_tcl_hits"      , fout);
+    bookHistograms( 74 + offset*100, "id_r_500_tcl_hits", fout);
+  }
 
 
   //--------------------------------------------------------------------------------------
   // Event loop
   //--------------------------------------------------------------------------------------
+  const Long64_t nEntries = chain->GetEntries();
+  std::cout << "Processing " << nEntries << " entries across "
+            << chain->GetNtrees() << " file(s)..." << std::endl;
 
-  const Long64_t nEntries = tree->GetEntries();
-  std::cout << "Processing " << nEntries << " entries..." << std::endl;
+  const bool is_pu = TString(inputFiles).Contains("mnbs");
+
   for(Long64_t i = 0; i < nEntries; ++i) {
-    tree->GetEntry(i);
+    chain->GetEntry(i);
 
     if(i % 10000 == 0)
       std::cout << "  Entry " << i << " / " << nEntries << std::endl;
 
+    int offset = 0;
+    if(b.sim_1_type == 2 || b.sim_2_type == 2) offset = 200; // calo muon stop
+    else if(b.sim_1_edep / b.cluster_energy < 0.75) offset = 100; // pileup or misreconstructed
+
     // Fill each selection set
-    if(sel_all          (b)) fillHistograms(0, b, b.event_weight);
-    if(sel_70MeV        (b)) fillHistograms(1, b, b.event_weight);
-    if(sel_70MeV_in_time(b)) fillHistograms(2, b, b.event_weight);
-    if(sel_photon_id    (b)) fillHistograms(3, b, b.event_weight);
-    if(sel_signal_id    (b)) fillHistograms(4, b, b.event_weight);
-    if(sel_all          (b)) fillHistograms(5, b);
-    if(sel_70MeV_in_time(b)) {
-        if(b.radius > 500.)  fillHistograms(10, b, b.event_weight);
-        if(b.radius > 550.)  fillHistograms(11, b, b.event_weight);
-        if(sel_signal_id(b)) {
-            if(b.radius > 500.)  fillHistograms(15, b, b.event_weight);
-            if(b.radius > 550.)  fillHistograms(16, b, b.event_weight);
+    fillHistograms(0, b, b.event_weight);
+    fillHistograms(1, b);
+    if(sel_photon_id    (b)) fillHistograms(2, b, b.event_weight);
+    if(sel_signal_id    (b)) {
+      fillHistograms(3, b, b.event_weight);
+      if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(4, b, b.event_weight);
+    }
+    if(sel_energy_time(b)) {
+      if(b.cluster_radius > 500.)  fillHistograms(10, b, b.event_weight);
+      if(b.cluster_radius > 550.)  fillHistograms(11, b, b.event_weight);
+      if(sel_signal_id(b)) {
+        if(b.cluster_radius > 500.) {
+          fillHistograms(15, b, b.event_weight);
+          if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(18, b, b.event_weight);
         }
+        if(b.cluster_radius > 550.)  fillHistograms(16, b, b.event_weight);
+        if(b.sim_1_nhits + b.sim_2_nhits <= 0) fillHistograms(17, b, b.event_weight);
+        if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(19, b, b.event_weight);
+      }
     }
 
     // No calorimter muon stops
     if(b.sim_1_type != 2 && b.sim_2_type != 2) {
-        if(sel_all          (b)) fillHistograms(20, b, b.event_weight);
-        if(sel_70MeV        (b)) fillHistograms(21, b, b.event_weight);
-        if(sel_70MeV_in_time(b)) fillHistograms(22, b, b.event_weight);
-        if(sel_photon_id    (b)) fillHistograms(23, b, b.event_weight);
-        if(sel_signal_id    (b)) fillHistograms(24, b, b.event_weight);
-        if(sel_70MeV_in_time(b)) {
-            if(b.radius > 500.)  fillHistograms(30, b, b.event_weight);
-            if(b.radius > 550.)  fillHistograms(31, b, b.event_weight);
-            if(sel_signal_id(b)) {
-                if(b.radius > 500.)  fillHistograms(35, b, b.event_weight);
-                if(b.radius > 550.)  fillHistograms(36, b, b.event_weight);
-            }
+      fillHistograms(20, b, b.event_weight);
+      if(sel_photon_id    (b)) fillHistograms(22, b, b.event_weight);
+      if(sel_signal_id    (b)) {
+        fillHistograms(23, b, b.event_weight);
+        if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(24, b, b.event_weight);
+      }
+      if(sel_energy_time(b)) {
+        if(b.cluster_radius > 500.)  fillHistograms(30, b, b.event_weight);
+        if(b.cluster_radius > 550.)  fillHistograms(31, b, b.event_weight);
+        if(b.sim_1_nhits + b.sim_2_nhits <= 0) fillHistograms(32, b, b.event_weight);
+        if(sel_signal_id(b)) {
+          if(b.cluster_radius > 500.)  {
+            fillHistograms(35, b, b.event_weight);
+            if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(38, b, b.event_weight);
+          }
+          if(b.cluster_radius > 550.)  fillHistograms(36, b, b.event_weight);
+          if(b.sim_1_nhits + b.sim_2_nhits <= 0) fillHistograms(37, b, b.event_weight);
         }
+      }
+    }
+
+    // Offset selections
+    fillHistograms(70 + offset, b, b.event_weight);
+    if(sel_signal_id(b)) {
+      fillHistograms(71 + offset, b, b.event_weight);
+      if(b.cluster_radius > 500.) fillHistograms(72 + offset, b, b.event_weight);
+      if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(73 + offset, b, b.event_weight);
+      if(b.cluster_radius > 500. && b.time_cluster_nhigh_z_hits < 3) fillHistograms(74 + offset, b, b.event_weight);
+    }
+    if(offset == 0 && is_pu) { // report relevant event IDs
+      std::cout << "PU DIO: " << b.run << " " << b.subrun << " " << b.event << std::endl;
     }
   }
 
@@ -571,7 +640,7 @@ void hist_run1bana_tree(const char* inputFile  = "input.root",
   //--------------------------------------------------------------------------------------
   fout->Write();
   fout->Close();
-  fin ->Close();
+  delete chain;
 
   std::cout << "Done. Output written to " << outputFile << std::endl;
 }

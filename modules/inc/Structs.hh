@@ -239,10 +239,16 @@ namespace Run1BAnaStructs {
       float sim_1_time;
       int   sim_1_nhits;
       int   sim_1_type;
+      int   sim_1_pdg;
+      int   sim_1_main_crystal;
+      float sim_1_main_crystal_energy;
       float sim_2_edep;
       float sim_2_time;
       int   sim_2_nhits;
       int   sim_2_type;
+      int   sim_2_pdg;
+      int   sim_2_main_crystal;
+      float sim_2_main_crystal_energy;
       float gen_energy;
       float npot;
 
@@ -315,10 +321,16 @@ namespace Run1BAnaStructs {
         sim_1_time = 0.f;
         sim_1_nhits = 0;
         sim_1_type = -1;
+        sim_1_pdg = 0;
+        sim_1_main_crystal = -1;
+        sim_1_main_crystal_energy = 0.f;
         sim_2_edep = 0.f;
         sim_2_time = 0.f;
         sim_2_nhits = 0;
         sim_2_type = -1;
+        sim_2_pdg = 0;
+        sim_2_main_crystal = -1;
+        sim_2_main_crystal_energy = 0.f;
         gen_energy = 0.f;
         npot = 0.f;
       }
@@ -406,6 +418,7 @@ namespace Run1BAnaStructs {
       float sim_1_main_crystal_energy;
       int   sim_1_nhits;
       int   sim_1_type;
+      int   sim_1_pdg;
       float sim_2_edep;
       float sim_2_time;
       float sim_2_x;
@@ -414,6 +427,7 @@ namespace Run1BAnaStructs {
       float sim_2_main_crystal_energy;
       int   sim_2_nhits;
       int   sim_2_type;
+      int   sim_2_pdg;
 
       ClusterPar_t() {
         init();
@@ -452,6 +466,7 @@ namespace Run1BAnaStructs {
         sim_1_main_crystal_energy = 0.f;
         sim_1_nhits = 0;
         sim_1_type = -1;
+        sim_1_pdg = 0;
         sim_2_edep = 0.f;
         sim_2_time = 0.f;
         sim_2_x = 0.f;
@@ -460,6 +475,7 @@ namespace Run1BAnaStructs {
         sim_2_main_crystal_energy = 0.f;
         sim_2_nhits = 0;
         sim_2_type = -1;
+        sim_2_pdg = 0;
         if(!cl) return;
 
         const float x = cluster->cog3Vector().x();

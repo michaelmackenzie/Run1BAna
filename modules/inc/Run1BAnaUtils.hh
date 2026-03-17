@@ -149,6 +149,50 @@ namespace mu2e
       }
     }
 
+    //--------------------------------------------------------------------------------------
+    // Rough identification of sim particle type based on lineage
+    enum {
+      kUnknown = -1,
+      kMuStop = 0,
+      kMuStop_before_tracker = 1,
+      kMuStop_after_tracker = 2,
+      kMuStop_before_target = 3,
+      kPrimary = 4,
+      kNeutral = 5,
+      kEleBeam = 6
+    };
+    static int getSimType(const SimParticle* sim) {
+      if(!sim) return -1;
+      int type = kUnknown;
+      auto parent = sim->parent();
+      while(parent.isNonnull()) {
+        if(parent->pdgId() == 13) {
+          if(sim->creationCode() == ProcessCode::mu2eMuonCaptureAtRest
+             || sim->creationCode() == ProcessCode::mu2eMuonDecayAtRest) {
+            type = kMuStop; // from a target muon stop
+          } else if(parent->endPosition().z() < 4000.) { // before the target
+            type = kMuStop_before_tracker;
+          } else if(parent->endPosition().z() < 10000.) { // before the tracker
+            type = kMuStop_before_tracker;
+          } else if(parent->endPosition().z() > 10000.) { // after the tracker
+            type = kMuStop_after_tracker;
+          }
+        } else if(!parent->hasParent()) { // last in the chain
+          if(parent->creationCode() == ProcessCode::mu2ePrimary) {
+            type = kPrimary;
+          } else if(parent->creationCode() == ProcessCode::neutronInelastic) {
+            type = kNeutral;
+          } else if(std::abs(sim->pdgId()) != 13) {
+            type = kEleBeam; // likely an electron from the beam, but could be something else
+          }
+        }
+        if(type >= 0) break;
+        sim = &*parent;
+        parent = parent->parent();
+      }
+      return type;
+    }
   };
+
 } // namespace mu2e
 #endif /* Run1BAnaUtils_hh */

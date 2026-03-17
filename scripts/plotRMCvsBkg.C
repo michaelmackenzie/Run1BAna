@@ -20,6 +20,20 @@ double norm_sig_     = 0.;
 double norm_bkg_     = 0.;
 
 //----- -------------------------------------------------------------------------
+double getIntegral(TFile* f, int set = 0) {
+  TH1* h_norm = (TH1*) f->Get(Form("Run1BAna/evt_%i/npot", set));
+  if(!h_norm) {
+    Error(__func__, "Could not retrieve normalization histogram!");
+    return 0.;
+  }
+  const double integral = h_norm->Integral(0, h_norm->GetNbinsX()+1);
+  if(integral <= 0.) {
+    Error(__func__, "Normalization histogram has non-positive integral!");
+  }
+  return integral;
+}
+
+//----- -------------------------------------------------------------------------
 double getNSampled(TFile* f, int set = 0) {
   TH1* h_norm = (TH1*) f->Get(Form("Run1BAna/evt_%i/npot", set));
   if(!h_norm) {
@@ -175,14 +189,15 @@ void plotRMCvsBkg(const char* filename_sig = "nts.mu2e.FlatGammaMix1BB-KL.Run1Ba
   }
 
   // Get the normalization information
-  nnt_sig_  = getNSampled(f_sig );
+  nnt_sig_ = getNSampled(f_sig);
   nnt_bkg_ = getNSampled(f_bkg);
   if(nnt_sig_ <= 0. || nnt_bkg_ <= 0.) {
     Error("plotRMCvsBkg", "Invalid normalization!");
     return;
   }
   const double nevents = livetime_week_*duty_cycle_1bb_/1.695e-6; // N(events) in a week
-  const double nmuons  = nevents*1.6e7*0.375*nmuons_per_pot_run1b_;
+  const double npot    = nevents*1.6e7*0.375;
+  const double nmuons  = npot*nmuons_per_pot_run1b_;
   const double nrmc    = nmuons*muon_capture_fraction_*br_rmc_/rmc_frac_57_; // N(RMC) assuming closure
   // sig_skim_eff_ = (1263859. / 1949000000.); // digi dataset
   sig_skim_eff_ = (1257537. / 1940000000.); // mcs dataset
@@ -191,7 +206,13 @@ void plotRMCvsBkg(const char* filename_sig = "nts.mu2e.FlatGammaMix1BB-KL.Run1Ba
   const double norm_b = 17551. / 1.e6; // mcs cluster skim
   norm_sig_ = nrmc*norm_g/nnt_sig_;
   norm_bkg_ = nevents*norm_b/nnt_bkg_;
+  std::cout << "N(sampled): RMC = " << nnt_sig_ << " Bkg = " << nnt_bkg_ << std::endl;
+  std::cout << "Eff(dataset): RMC = " << sig_skim_eff_ << " Bkg = " << norm_b << std::endl;
+  std::cout << "N(POT) = " << npot << " N(muons) = " << nmuons << " N(RMC) = " << nrmc << std::endl;
   std::cout << "Norms: RMC = " << norm_sig_ << " Bkg = " << norm_bkg_ << std::endl;
+  std::cout << "N(RMC | 60) = " << getNSampled(f_sig, 60)*norm_sig_ << " N(Bkg | 60) = " << getNSampled(f_bkg, 60)*norm_bkg_ << std::endl;
+  std::cout << "I(RMC | 60) = " << getIntegral(f_sig, 60)*norm_sig_ << " N(Bkg | 60) = " << getIntegral(f_bkg, 60)*norm_bkg_ << std::endl;
+  return;
 
   // Set up the figure directory and style
   dir_ = (tag) ? Form("figures/rmc_vs_bkg_%s", tag) : "figures/rmc_vs_bkg";

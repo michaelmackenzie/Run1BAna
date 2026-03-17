@@ -615,18 +615,24 @@ namespace mu2e
     hist_[index]->tree->Branch("time_cluster_phi0"         , &tree_.time_cluster_phi0);
 
     // MC truth branches
-    hist_[index]->tree->Branch("mc_cluster_energy"       , &tree_.mc_cluster_energy);
-    hist_[index]->tree->Branch("mc_cluster_time"         , &tree_.mc_cluster_time);
-    hist_[index]->tree->Branch("sim_1_edep"              , &tree_.sim_1_edep);
-    hist_[index]->tree->Branch("sim_1_time"              , &tree_.sim_1_time);
-    hist_[index]->tree->Branch("sim_1_nhits"            , &tree_.sim_1_nhits);
-    hist_[index]->tree->Branch("sim_1_type"              , &tree_.sim_1_type);
-    hist_[index]->tree->Branch("sim_2_edep"              , &tree_.sim_2_edep);
-    hist_[index]->tree->Branch("sim_2_time"              , &tree_.sim_2_time);
-    hist_[index]->tree->Branch("sim_2_nhits"            , &tree_.sim_2_nhits);
-    hist_[index]->tree->Branch("sim_2_type"              , &tree_.sim_2_type);
-    hist_[index]->tree->Branch("gen_energy"              , &tree_.gen_energy);
-    hist_[index]->tree->Branch("npot"                    , &tree_.npot);
+    hist_[index]->tree->Branch("mc_cluster_energy"        , &tree_.mc_cluster_energy);
+    hist_[index]->tree->Branch("mc_cluster_time"          , &tree_.mc_cluster_time);
+    hist_[index]->tree->Branch("sim_1_edep"               , &tree_.sim_1_edep);
+    hist_[index]->tree->Branch("sim_1_time"               , &tree_.sim_1_time);
+    hist_[index]->tree->Branch("sim_1_nhits"              , &tree_.sim_1_nhits);
+    hist_[index]->tree->Branch("sim_1_type"               , &tree_.sim_1_type);
+    hist_[index]->tree->Branch("sim_1_pdg"                , &tree_.sim_1_pdg);
+    hist_[index]->tree->Branch("sim_1_main_crystal"       , &tree_.sim_1_main_crystal);
+    hist_[index]->tree->Branch("sim_1_main_crystal_energy", &tree_.sim_1_main_crystal_energy);
+    hist_[index]->tree->Branch("sim_2_edep"               , &tree_.sim_2_edep);
+    hist_[index]->tree->Branch("sim_2_time"               , &tree_.sim_2_time);
+    hist_[index]->tree->Branch("sim_2_nhits"              , &tree_.sim_2_nhits);
+    hist_[index]->tree->Branch("sim_2_type"               , &tree_.sim_2_type);
+    hist_[index]->tree->Branch("sim_2_pdg"                , &tree_.sim_2_pdg);
+    hist_[index]->tree->Branch("sim_2_main_crystal"       , &tree_.sim_2_main_crystal);
+    hist_[index]->tree->Branch("sim_2_main_crystal_energy", &tree_.sim_2_main_crystal_energy);
+    hist_[index]->tree->Branch("gen_energy"               , &tree_.gen_energy);
+    hist_[index]->tree->Branch("npot"                     , &tree_.npot);
   }
 
   //--------------------------------------------------------------------------------------
@@ -1083,10 +1089,16 @@ namespace mu2e
       tree_.sim_1_time = cluster_par_.sim_1_time;
       tree_.sim_1_nhits = cluster_par_.sim_1_nhits;
       tree_.sim_1_type = cluster_par_.sim_1_type;
+      tree_.sim_1_pdg = cluster_par_.sim_1_pdg;
+      tree_.sim_1_main_crystal = cluster_par_.sim_1_main_crystal;
+      tree_.sim_1_main_crystal_energy = cluster_par_.sim_1_main_crystal_energy;
       tree_.sim_2_edep = cluster_par_.sim_2_edep;
       tree_.sim_2_time = cluster_par_.sim_2_time;
       tree_.sim_2_nhits = cluster_par_.sim_2_nhits;
       tree_.sim_2_type = cluster_par_.sim_2_type;
+      tree_.sim_2_pdg = cluster_par_.sim_2_pdg;
+      tree_.sim_2_main_crystal = cluster_par_.sim_2_main_crystal;
+      tree_.sim_2_main_crystal_energy = cluster_par_.sim_2_main_crystal_energy;
     }
     tree_.event_weight = evt_par_.weight;
     tree_.gen_energy   = evt_par_.gen_energy;
@@ -1265,6 +1277,7 @@ namespace mu2e
       if(top1) {
         par.sim_1_edep = getTotalEnergyDepositedBySim(par.mc, top1);
         par.sim_1_time = getAverageTimeDepositedBySim(par.mc, top1);
+        par.sim_1_pdg  = top1->pdgId();
         // getShowerSimEnergyAndAvgTime(calo_shower_sim_col_, top1, par.sim_1_edep, par.sim_1_time);
         const auto pos = getSimParticleHitPosition(calo_shower_sim_col_, top1);
         par.sim_1_x = pos.x();
@@ -1274,16 +1287,20 @@ namespace mu2e
         auto parent = top1->parent();
         while(parent.isNonnull()) {
           par.sim_1_nhits += sim_info_[parent->id().asInt()].nhits_;
-          if(par.sim_1_type < 0) { // only set if not already set
-            if(parent->pdgId() == 13) {
-              if(parent->endPosition().z() < 10000.) { // before the tracker
-                par.sim_1_type = 1;
-              } else if(parent->endPosition().z() > 10000.) {
-                par.sim_1_type = 2;
-              }
-            }
-          }
           parent = parent->parent();
+        }
+        par.sim_1_type = Run1BAnaUtils::getSimType(top1);
+        if(par.sim_1_type == -1) {
+          std::cout << "[Run1BAna::" << __func__ << "] Warning: unclassified sim type for primary sim with PDG "
+                    << top1->pdgId() << " and creation code " << top1->creationCode() << std::endl;
+          parent = top1->parent();
+          while(parent.isNonnull()) {
+            std::cout << "  Parent PDG = " << parent->pdgId()
+                      << " end z = " << parent->endPosition().z()
+                      << " creation code = " << parent->creationCode()
+                      << std::endl;
+            parent = parent->parent();
+          }
         }
         if(debug_level_ > 2) std::cout << "[Run1BAna::" << __func__ << "] Primary sim: PDG = " << top1->pdgId()
                                        << " E = " << par.sim_1_edep << " Time = " << par.sim_1_time
@@ -1295,6 +1312,7 @@ namespace mu2e
       if(top2) {
         par.sim_2_edep = getTotalEnergyDepositedBySim(par.mc, top2);
         par.sim_2_time = getAverageTimeDepositedBySim(par.mc, top2);
+        par.sim_2_pdg  = top2->pdgId();
         // getShowerSimEnergyAndAvgTime(calo_shower_sim_col_, top2, par.sim_2_edep, par.sim_2_time);
         const auto pos = getSimParticleHitPosition(calo_shower_sim_col_, top2);
         par.sim_2_x = pos.x();
@@ -1304,16 +1322,20 @@ namespace mu2e
         auto parent = top2->parent();
         while(parent.isNonnull()) {
           par.sim_2_nhits += sim_info_[parent->id().asInt()].nhits_;
-          if(par.sim_2_type < 0) { // only set if not already set
-            if(parent->pdgId() == 13) {
-              if(parent->endPosition().z() < 10000.) { // before the tracker
-                par.sim_2_type = 1;
-              } else if(parent->endPosition().z() > 10000.) {
-                par.sim_2_type = 2;
-              }
-            }
-          }
           parent = parent->parent();
+        }
+        par.sim_2_type = Run1BAnaUtils::getSimType(top2);
+        if(par.sim_2_type == -1) {
+          std::cout << "[Run1BAna::" << __func__ << "] Warning: unclassified sim type for secondary sim with PDG "
+                    << top2->pdgId() << " and creation code " << top2->creationCode() << std::endl;
+          parent = top2->parent();
+          while(parent.isNonnull()) {
+            std::cout << "  Parent PDG = " << parent->pdgId()
+                      << " end z = " << parent->endPosition().z()
+                      << " creation code = " << parent->creationCode()
+                      << std::endl;
+            parent = parent->parent();
+          }
         }
       }
     }
@@ -1806,7 +1828,7 @@ namespace mu2e
       // initClusterPar(cluster_par_, &cluster);
       // line_par_.init(cluster_par_.line);
 
-      const bool cluster_time = (cluster.time() > 600. && cluster.time() < 1650.);
+      const bool cluster_time = (cluster.time() > 400. && cluster.time() < 1650.);
       const bool cluster_id = isGoodCluster(&cluster) && (cluster.energyDep() > 70. && cluster_time);
 
       if(cluster_id) {
