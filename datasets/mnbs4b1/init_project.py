@@ -31,11 +31,11 @@ class Project(ProjectBase):
         # job.fNEventsPerSegment       =  -1                    # defined by the input dataset
         job.fResample                = 'no'                     # yes/no
         job.fMaxMemory               = '3000MB'
-        job.fRequestedTime           = '12h'
+        job.fRequestedTime           = '24h'
         job.fIfdh                    = 'xrootd'                 # ifdh/xrootd
         job.fOutputPath              = [ 'out' ]
 
-        reco_version                 = 'r0000'
+        reco_version                 = 'r0001'
         job.fOutputStream            = [ 'defaultOutput'                    ]
         job.fOutputDsID              = [ familyID+s.name()+'1'+reco_version ]
         job.fOutputFnPattern         = [ 'nts.'+user+'.'+job.fOutputDsID[0] ]
