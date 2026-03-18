@@ -10,7 +10,7 @@ void draw_cal_time_peaks() {
     geom->SetTopVolume(top);
 
     // Parameters
-    const double dz_target(0.05), offset_trk(1.), dz_trk(2.), dz_calo(0.2), offset_calo(0.2);
+    const double dz_target(0.05), offset_trk(4.5), dz_trk(3.), dz_calo(0.2), offset_calo(0.2);
     const double z0_trk(dz_target/2. + dz_trk/2. + offset_trk);
     const double z0_calo(z0_trk + dz_trk/2. + dz_calo/2. + offset_calo);
     const double r_target(0.2), r_1_trk(0.35), r_2_trk(0.8);
@@ -37,12 +37,12 @@ void draw_cal_time_peaks() {
     top->AddNode(calo_vol, 3, new TGeoTranslation(0, 0, z0_calo));
 
     // Create cone from the calo to the target
-    TGeoCone *cone = new TGeoCone("cone", z0_calo/2., 0., 0.2, 0., 0.);
+    TGeoCone *cone = new TGeoCone("cone", z0_calo/2., 0., r_target, 0., 0.05);
     TGeoVolume *cone_vol = new TGeoVolume("conevol", cone, medVac);
     cone_vol->SetLineColor(kRed);
     cone_vol->SetTransparency(0);
     TGeoRotation *rot = new TGeoRotation();
-    rot->RotateX(-10.);
+    rot->RotateX(-4);
     TGeoTranslation *trans = new TGeoTranslation(0., (r_1_trk + r_2_trk)/4., z0_calo/2.);
     TGeoCombiTrans *combi = new TGeoCombiTrans(*trans, *rot);
     top->AddNode(cone_vol, 4, combi);

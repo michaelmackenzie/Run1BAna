@@ -160,7 +160,9 @@ namespace Run1BAnaStructs {
       TH1* origin_type;
       TH1* nhits;
       TH1* energy_start;
+      TH1* time_start;
       TH1* mom_cz_start;
+      TH1* time_end;
       TH1* edep;
       TH2* start_x_y;
       TH2* energy_vs_trig_path;

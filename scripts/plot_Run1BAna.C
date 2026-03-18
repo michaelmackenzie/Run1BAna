@@ -86,11 +86,11 @@ void plot_Run1BAna(const char* infile = "run1b.root", const char* outdir = "plot
   }
 
   printPlot(f, "Run1BAna/evt_0"         , "nmc_digis"   , outdir,  "nmc_digis"   , 5,     1.,   -1., "N(MC digis)"              );
-  printPlot(f, "Run1BAna/evt_0"         , "ncombo_hits" , outdir,  "ncombo_hits" , 5,     1.,   -1., "N(combo hits)"            );
+  printPlot(f, "Run1BAna/evt_0"         , "ncombo_hits" , outdir,  "ncombo_hits" , 5,     0.,10000., "N(combo hits)"            );
   printPlot(f, "Run1BAna/evt_0"         , "ncalo_hits"  , outdir,  "ncalo_hits"  , 1,     0.,  500., "N(calo hits)"             );
   printPlot(f, "Run1BAna/evt_0"         , "nclusters"   , outdir,  "nclusters"   , 1,     1.,   -1., "N(calo clusters)"         );
   printPlot(f, "Run1BAna/evt_0"         , "npot"        , outdir,  "npot"        , 5,     1.,   -1., "N(POT)"                   );
-  printPlot(f, "HitOriginAna/All events", "hit_z"       , outdir,  "hit_z"       , 1, -6000., 2000., "Straw digi z;z (mm)"      );
+  printPlot(f, "HitOriginAna/All events", "hit_z"       , outdir,  "hit_z"       , 1, -2000., 2000., "Straw digi z;z (mm)"      );
   printPlot(f, "HitOriginAna/All events", "hit_t"       , outdir,  "hit_t"       , 1,     1.,   -1., "Straw digi time;time (ns)");
   printPlot(f, "HitOriginAna/All events", "origin_type" , outdir,  "origin_type" , 1,     1.,   -1., "Hit origin"               );
 

@@ -17,6 +17,7 @@
 
 // Mu2e
 #include "Offline/CaloCluster/inc/ClusterUtils.hh"
+#include "Offline/DataProducts/inc/PDGCode.hh"
 #include "Offline/RecoDataProducts/inc/CaloHit.hh"
 #include "Offline/RecoDataProducts/inc/CaloCluster.hh"
 #include "Offline/RecoDataProducts/inc/ComboHit.hh"
@@ -36,11 +37,13 @@
 #include "Offline/MCDataProducts/inc/ProtonBunchIntensity.hh"
 #include "Offline/MCDataProducts/inc/SimParticle.hh"
 #include "Offline/MCDataProducts/inc/StrawDigiMC.hh"
+#include "Offline/Mu2eUtilities/inc/SimParticleGetTau.hh"
 #include "Offline/Mu2eUtilities/inc/StopWatch.hh"
 #include "Offline/Mu2eUtilities/inc/TriggerResultsNavigator.hh"
 #include "Offline/GeometryService/inc/GeomHandle.hh"
 #include "Offline/GlobalConstantsService/inc/GlobalConstantsHandle.hh"
 #include "Offline/GlobalConstantsService/inc/ParticleDataList.hh"
+#include "Offline/GlobalConstantsService/inc/PhysicsParams.hh"
 #include "Offline/CalorimeterGeom/inc/Calorimeter.hh"
 #include "Offline/CalorimeterGeom/inc/CaloGeomUtil.hh"
 #include "Offline/TrackerGeom/inc/Tracker.hh"
@@ -542,6 +545,8 @@ namespace mu2e
     Hist->parent_type  = dir.make<TH1D>("parent_type" , "Sim parent type;;"             ,   10,    0.,    10.);
     Hist->origin_type  = dir.make<TH1D>("origin_type" , "Sim origin type;;"             ,   10,    0.,    10.);
     Hist->energy_start = dir.make<TH1D>("energy_start", "Sim start energy;;"            ,  150,    0.,   150.);
+    Hist->time_start   = dir.make<TH1F>("time_start"  , "Sim start time;t (ns);"       , 200,    0.,  2000.);
+    Hist->time_end     = dir.make<TH1F>("time_end"    , "Sim end time;t (ns);"         , 200,    0.,  2000.);
     Hist->start_x_y    = dir.make<TH2F>("start_x_y"   , "Sim origin;x (mm);y (mm)"      ,   80, -200., 200., 80, -200., 200.);
     Hist->energy_vs_trig_path = dir.make<TH2F>("energy_vs_trig_path", "Trigger path vs. gen energy;;E_{gen} (MeV)", 20., 0., 20., 60, 50., 110.);
   }
@@ -963,6 +968,8 @@ namespace mu2e
     Hist->parent_type ->Fill(SimUtils::getSimType((sim->hasParent()) ? &(*sim->parent()) : nullptr), Weight);
     Hist->origin_type ->Fill(SimUtils::getSimOriginType(sim), Weight);
     Hist->energy_start->Fill(sim->startMomentum().e(), Weight);
+    Hist->time_start  ->Fill(sim->startGlobalTime(), Weight);
+    Hist->time_end    ->Fill(sim->endGlobalTime(), Weight);
     Hist->nhits       ->Fill(sim_par_.nhits, Weight);
     Hist->start_x_y   ->Fill(sim->startPosition().x() + 3904., sim->startPosition().y(), Weight);
 
@@ -1829,7 +1836,7 @@ namespace mu2e
       // line_par_.init(cluster_par_.line);
 
       const bool cluster_time = (cluster.time() > 400. && cluster.time() < 1650.);
-      const bool cluster_id = isGoodCluster(&cluster) && (cluster.energyDep() > 70. && cluster_time);
+      const bool cluster_id = isGoodCluster(&cluster) && (cluster.energyDep() > 60. && cluster_time);
 
       if(cluster_id) {
         // Count good clusters
@@ -2151,15 +2158,22 @@ namespace mu2e
       const auto cluster = photon_.cluster;
       const int disk_id = cluster->diskID();
 
-      // Get the RMC info, if this is a flat photon sample
+      // Get the RMC/RPC info, if this is a flat photon or infinite pion lifetime sample
       double weight = 1.;
       bool is_gen_matched = true; // default to true for bkg samples
-      if(primary_sim && primary_sim->creationCode() == mu2e::ProcessCode::mu2eFlatPhoton) {
+      if(primary_sim && primary_sim->creationCode() == mu2e::ProcessCode::mu2eFlatPhoton) { // RMC
         const double e_gen = primary_sim->startMomentum().e();
         constexpr double kmax = 90.1; // use for reference
         weight = Run1BAnaUtils::closureApprox(e_gen, kmax);
-
-        // Ignore pileup clusters in the signal sample
+      } else if(primary_sim && (primary_sim->creationCode() == mu2e::ProcessCode::mu2eExternalRPC ||
+                                primary_sim->creationCode() == mu2e::ProcessCode::mu2eInternalRPC)) { // RPC
+        const PhysicsParams& gc = *GlobalConstantsHandle<PhysicsParams>();
+        const std::vector<int> decayOffCodes = {PDGCode::pi_plus, PDGCode::pi_minus};
+        const double tau = SimParticleGetTau::calculate(primary_sim->parent(), decayOffCodes, gc);
+        weight = std::exp(-tau);
+      }
+      // Ignore pileup clusters in the signal samples
+      if(primary_sim) {
         is_gen_matched  = isRelated(cluster_par_.primary_sim  , primary_sim);
         is_gen_matched |= isRelated(cluster_par_.secondary_sim, primary_sim);
       }
