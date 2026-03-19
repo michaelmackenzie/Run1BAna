@@ -13,6 +13,7 @@
 #include "Offline/RecoDataProducts/inc/KalSeed.hh"
 #include "Offline/MCDataProducts/inc/CaloClusterMC.hh"
 #include "Offline/MCDataProducts/inc/CaloHitMC.hh"
+#include "Offline/MCDataProducts/inc/CaloShowerSim.hh"
 #include "Offline/MCDataProducts/inc/KalSeedMC.hh"
 #include "Offline/MCDataProducts/inc/SimParticle.hh"
 #include "Offline/MCDataProducts/inc/StrawDigiMC.hh"
@@ -140,12 +141,32 @@ namespace mu2e
       size_t index = 0;
       for(const auto& sim_pair : *(sim_col)) {
         const auto& sim = sim_pair.second;
-        out << std::format("{:8} {:8} {:8} {:8} {:10f} {:10f} {:10f} {:10f} {:10f} {:10f} {:10f} {:10f} {:20s}\n",
-                           index, int(sim_pair.first.asUint()), (sim.hasParent()) ? sim.parent().key() : -1, int(sim.pdgId()),
+        out << std::format("{:8} {:8} {:8} {:8} {:10.1f} {:10.1f} {:10.1f} {:10.1f} {:10.1f} {:10.1f} {:10.1f} {:10.1f} {:20s}\n",
+                           index, int(sim_pair.first.asUint()), (sim.hasParent()) ? int(sim.parent().key()) : -1, int(sim.pdgId()),
                            sim.startMomentum().x(), sim.startMomentum().y(), sim.startMomentum().z(), sim.startMomentum().t(),
                            sim.startPosition().x(), sim.startPosition().y(), sim.startPosition().z(), sim.startGlobalTime(),
                            sim.creationCode().name().c_str());
         ++index;
+      }
+    }
+
+    //--------------------------------------------------------------------------------
+    // Print sim shower collection
+    static void printCaloShowerSimCollection(const CaloShowerSimCollection* shower_col, std::ostream& out = std::cout) {
+      if(!shower_col) return;
+      out << "Printing sim shower collection of size " << shower_col->size() << ":\n"
+          << std::format("{:8s} {:8s} {:8s} {:8s} {:8s}\n",
+                         "Sim ID", "Pdg ID", "Energy", "Time", "Crystal");
+      std::map<unsigned, double> energy_by_sim;
+      for(const auto& shower : *(shower_col)) {
+        const auto& sim = shower.sim();
+        energy_by_sim[sim->id().asInt()] += shower.energyDep();
+        out << std::format("{:8} {:8} {:.3f} {:.1f} {:5}\n",
+                           int(sim->id().asInt()), int(sim->pdgId()),
+                           shower.energyDep(), shower.time(), shower.crystalID());
+      }
+      for(const auto& [sim_id, energy] : energy_by_sim) {
+        out << std::format("Sim ID {:4} total energy deposited = {:.2f} MeV\n", int(sim_id), energy);
       }
     }
 

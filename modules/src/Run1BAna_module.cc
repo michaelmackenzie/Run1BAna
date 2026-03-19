@@ -1778,6 +1778,11 @@ namespace mu2e
         }
       }
     }
+
+    if(debug_level_ > 2 && calo_shower_sim_col_) {
+      Run1BAnaUtils::printSimCollection(sim_col_);
+      Run1BAnaUtils::printCaloShowerSimCollection(calo_shower_sim_col_);
+    }
     //--------------------------------------------------------------------------------------
     // Event filtering
     //--------------------------------------------------------------------------------------

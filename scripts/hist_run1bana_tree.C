@@ -289,7 +289,7 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->sim_2_type            = new TH1I("sim_2_type"           , "Sim 2 type;Type;"                      ,  10,  -1,     9);
   H->sim_1_2_nhits         = new TH1I("sim_1_2_nhits"        , "Sim 1-2 N(tracker hits);N;"            , 200,   0,   200);
   H->event_weight          = new TH1F("event_weight"         , "Event weight;Weight;"                  , 100,   0.,    5.);
-  H->gen_energy            = new TH1F("gen_energy"           , "Generated energy;E (MeV);"             ,  60,  50.,  110.);
+  H->gen_energy            = new TH1F("gen_energy"           , "Generated energy;E (MeV);"             ,  90,  50.,  140.);
 }
 
 //--------------------------------------------------------------------------------------
@@ -447,11 +447,11 @@ void setBranchAddresses(TTree* tree, TreeBranches& b) {
 //--------------------------------------------------------------------------------------
 
 bool sel_energy(const TreeBranches& b) {
-  return b.cluster_energy > 70.;
+  return b.cluster_energy > 60.;
 }
 
 bool sel_energy_time(const TreeBranches& b) {
-  return b.cluster_energy > 70. && b.cluster_time > 600. && b.cluster_time < 1650.;
+  return b.cluster_energy > 60. && b.cluster_time > 400. && b.cluster_time < 1650.;
 }
 
 bool sel_photon_id(const TreeBranches& b) {
@@ -535,7 +535,6 @@ void hist_run1bana_tree(const char* inputFiles = "input.root",  // comma- or spa
   bookHistograms( 16, "id_r_550"                              , fout);
   bookHistograms( 17, "id_no_hits"                            , fout);
   bookHistograms( 18, "id_r_500_high_z_hits"                  , fout);
-  bookHistograms( 19, "id_high_z_hits"                        , fout);
   bookHistograms( 20, "no_calo_mu"                            , fout);
   bookHistograms( 22, "no_calo_mu_photon_id"                  , fout);
   bookHistograms( 23, "no_calo_mu_id"                         , fout);
@@ -550,11 +549,24 @@ void hist_run1bana_tree(const char* inputFiles = "input.root",  // comma- or spa
 
   // Sets with offsets
   for(int offset = 0; offset < 3; ++offset) {
+
+    // RMC sets
     bookHistograms( 70 + offset*100, "base"             , fout);
     bookHistograms( 71 + offset*100, "id"               , fout);
     bookHistograms( 72 + offset*100, "id_r_500"         , fout);
     bookHistograms( 73 + offset*100, "id_tcl_hits"      , fout);
     bookHistograms( 74 + offset*100, "id_r_500_tcl_hits", fout);
+
+    // RPC sets
+    bookHistograms( 90 + offset*100, "base"             , fout);
+    bookHistograms( 91 + offset*100, "id"               , fout);
+    bookHistograms( 92 + offset*100, "id_r_500"         , fout);
+    bookHistograms( 93 + offset*100, "id_tcl_hits"      , fout);
+    bookHistograms( 94 + offset*100, "id_r_500_tcl_hits", fout);
+
+    bookHistograms( 95 + offset*100, "t_500", fout);
+    bookHistograms( 96 + offset*100, "id_t_500", fout);
+    bookHistograms( 97 + offset*100, "sim_t_500", fout);
   }
 
 
@@ -595,7 +607,6 @@ void hist_run1bana_tree(const char* inputFiles = "input.root",  // comma- or spa
         }
         if(b.cluster_radius > 550.)  fillHistograms(16, b, b.event_weight);
         if(b.sim_1_nhits + b.sim_2_nhits <= 0) fillHistograms(17, b, b.event_weight);
-        if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(19, b, b.event_weight);
       }
     }
 
@@ -623,16 +634,45 @@ void hist_run1bana_tree(const char* inputFiles = "input.root",  // comma- or spa
     }
 
     // Offset selections
-    fillHistograms(70 + offset, b, b.event_weight);
-    if(sel_signal_id(b)) {
-      fillHistograms(71 + offset, b, b.event_weight);
-      if(b.cluster_radius > 500.) fillHistograms(72 + offset, b, b.event_weight);
-      if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(73 + offset, b, b.event_weight);
-      if(b.cluster_radius > 500. && b.time_cluster_nhigh_z_hits < 3) fillHistograms(74 + offset, b, b.event_weight);
+
+    // RMC
+    if(b.cluster_time > 600.) {
+      fillHistograms(70 + offset, b, b.event_weight);
+      if(sel_signal_id(b)) {
+        fillHistograms(71 + offset, b, b.event_weight);
+        if(b.cluster_radius > 500.) fillHistograms(72 + offset, b, b.event_weight);
+        if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(73 + offset, b, b.event_weight);
+        if(b.cluster_radius > 500. && b.time_cluster_nhigh_z_hits < 3) fillHistograms(74 + offset, b, b.event_weight);
+      }
     }
-    if(offset == 0 && is_pu) { // report relevant event IDs
-      std::cout << "PU DIO: " << b.run << " " << b.subrun << " " << b.event << std::endl;
+
+    // Low time selection
+    if(b.cluster_time > 400. && b.cluster_time < 550.) {
+      fillHistograms(90 + offset, b, b.event_weight);
+      const bool signal_id = (   b.cluster_energy > 60.
+                              && b.cluster_ncr  > 2
+                              && b.cluster_ncr  < 8
+                              // && b.cluster_frac_1       > 0.60f
+                              // && b.cluster_frac_2       > 0.80f
+                              && b.cluster_t_var        < 1.f
+                              && b.cluster_second_moment< 2.e5f
+                              );
+      if(signal_id) {
+        fillHistograms(91 + offset, b, b.event_weight);
+        if(b.cluster_radius > 500.) fillHistograms(92 + offset, b, b.event_weight);
+        if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(93 + offset, b, b.event_weight);
+        if(b.cluster_radius > 500. && b.time_cluster_nhigh_z_hits < 3) fillHistograms(94 + offset, b, b.event_weight);
+      }
+      if(b.cluster_time > 500.) {
+        fillHistograms(95 + offset, b, b.event_weight);
+        if(signal_id) fillHistograms(96 + offset, b, b.event_weight);
+      }
+      if(b.sim_1_time > 500.) fillHistograms(97 + offset, b, b.event_weight);
     }
+
+    // if(offset == 0 && is_pu) { // report relevant event IDs
+    //   std::cout << "PU DIO: " << b.run << " " << b.subrun << " " << b.event << std::endl;
+    // }
   }
 
   //--------------------------------------------------------------------------------------

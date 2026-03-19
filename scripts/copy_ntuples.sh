@@ -74,7 +74,12 @@ for dir in `ls -d ${INDIR}*/*/`; do
     fi
     if [[ "${RETURNLINE}" != *"status 0"* ]]; then
         echo ">>> Error: ${RETURNLINE}: ${dir}"
-        continue;
+        FILEOPENERROR=`grep "FileOpenError" ${LOGFILE} | head -n 1`
+        if [[ "${FILEOPENERROR}" != "" ]]; then
+            echo "--> Continuing processing given a file open error"
+        else
+            continue;
+        fi
     fi
     # Copy over data
     for f in `ls -d ${dir}*.root* ${dir}jsn*.json 2>/dev/null`; do

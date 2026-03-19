@@ -18,7 +18,7 @@ double nmuons_su2020_          = npot_su2020_*nmuons_per_pot_su2020_;
 double nmuons_per_pot_run1b_   = 9.561e-04;
 double npot_per_s_1bb_         = duty_cycle_1bb_ * 1.6e7 / 1695.e-9; // duty factor * POT/cycle/1695.e-9 (1BB: 0.323 duty cycle, 1.6e7 POT / cycle)
 double livetime_month_         = 2.6166667e6; // appox 1/12th of a year * duty factor: 3.14e7/12 (1BB)
-double livetime_week_          = 6.0384616e5; // appox 1/12th of a year * duty factor: 3.14e7/12 (1BB)
+double livetime_week_          = 603420.0; // 7x24x60x60
 
 // One month, 1BB
 double npot_month_1bb_         = npot_per_s_1bb_*livetime_month_;
