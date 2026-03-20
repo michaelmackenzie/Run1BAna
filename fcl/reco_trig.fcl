@@ -113,6 +113,7 @@ physics : {
       LineCollection          : "KKLine"
       cosmicSeedCollection    : "LineFinder"
       timeClusterCollection   : "CalTimeClusterFinder"
+      crvClusterCollection    : "CrvCoincidenceClusterFinder"
       caloClusterCollection   : "CaloClusterMaker"
       caloClusterMCCollection : "CaloClusterTruthMatch"
       caloShowerSimCollection : "compressDigiMCs"

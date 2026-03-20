@@ -1,0 +1,4 @@
+#include "Run1BAna/fcl/reco_trig_nt_v06.fcl"
+
+physics.analyzers.DumpJson.fileName : "jsn.owner.mnbs6b1s51r0002.Run1BAna.reco_trig_skim_clusters.json"
+services.TFileService.fileName      : "nts.owner.mnbs6b1s51r0002.Run1BAna.sequencer.root"

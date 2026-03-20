@@ -2,8 +2,15 @@
 
 // Offline
 #include "Offline/CaloCluster/inc/ClusterUtils.hh"
+#include "Offline/CalorimeterGeom/inc/Calorimeter.hh"
 #include "Offline/RecoDataProducts/inc/CaloHit.hh"
 #include "Offline/RecoDataProducts/inc/CaloCluster.hh"
+#include "Offline/RecoDataProducts/inc/CrvCoincidenceCluster.hh"
+#include "Offline/RecoDataProducts/inc/CosmicTrackSeed.hh"
+#include "Offline/RecoDataProducts/inc/KalSeed.hh"
+#include "Offline/RecoDataProducts/inc/TimeCluster.hh"
+#include "Offline/MCDataProducts/inc/CaloClusterMC.hh"
+#include "Offline/MCDataProducts/inc/SimParticle.hh"
 
 // ROOT
 #include "TH1.h"
@@ -31,6 +38,8 @@ namespace Run1BAnaStructs {
     TH1* ngood_cosmic_seeds;
     TH1* ntime_clusters;
     TH1* ngood_time_clusters;
+    TH1* ncrv_clusters;
+    TH1* ngood_crv_clusters;
     TH1* trig_bits;
     TH1* trig_paths;
     TH2* sim_dr_dt;
@@ -65,6 +74,11 @@ namespace Run1BAnaStructs {
       TH1* time_cluster_dr;
       TH1* nmatched_time_clusters;
       TH1* nfit_matched_time_clusters;
+
+      TH1* crv_dt;
+      TH1* crv_dt_corrected;
+      TH1* crv_dr;
+      TH1* nmatched_crv_clusters;
 
       TH1* esum;
       TH1* dt;
@@ -152,6 +166,14 @@ namespace Run1BAnaStructs {
       TH1* efficiency;
     };
 
+    // Per CRV cluster
+    struct CRVClusterHist_t {
+      TH1* nhits;
+      TH1* npe;
+      TH1* t0;
+      TH2* z_x;
+    };
+
     // Per sim
     struct SimHist_t {
       TH1* pdg;
@@ -196,6 +218,8 @@ namespace Run1BAnaStructs {
       float line_dr;
       float time_cluster_dt;
       float time_cluster_dr;
+      float crv_dt;
+      float crv_dt_corrected;
       float ntcl_hits;
       float photon_id;
 
@@ -233,6 +257,14 @@ namespace Run1BAnaStructs {
       float time_cluster_t0err;
       float time_cluster_z0;
       float time_cluster_phi0;
+
+      // CRV cluster info
+      int   crv_cluster_nhits;
+      float crv_cluster_npe;
+      float crv_cluster_t0;
+      float crv_cluster_x;
+      float crv_cluster_y;
+      float crv_cluster_z;
 
       // MC truth info
       float mc_cluster_energy;
@@ -350,6 +382,7 @@ namespace Run1BAnaStructs {
       int n_good_lines;
       int n_good_cosmic_seeds;
       int n_good_time_clusters;
+      int n_good_crv_clusters;
       double weight;
       double gen_energy;
 
@@ -363,6 +396,7 @@ namespace Run1BAnaStructs {
         n_good_lines = 0;
         n_good_cosmic_seeds = 0;
         n_good_time_clusters = 0;
+        n_good_crv_clusters = 0;
         weight = 1.;
         gen_energy = 0.;
       }
@@ -391,6 +425,7 @@ namespace Run1BAnaStructs {
       const KalSeed*         line;
       const CosmicTrackSeed* cosmic_seed;
       const TimeCluster*     time_cluster;
+      const CrvCoincidenceCluster* crv_cluster;
       const CaloClusterMC*   mc;
       const SimParticle*     primary_sim;
       const SimParticle*     secondary_sim;
@@ -410,6 +445,7 @@ namespace Run1BAnaStructs {
       int nfit_matched_cosmic_seeds;
       int nmatched_time_clusters;
       int nfit_matched_time_clusters;
+      int nmatched_crv_clusters;
 
       float mc_time;
       float sim_1_edep;
@@ -442,6 +478,7 @@ namespace Run1BAnaStructs {
         line = ln;
         cosmic_seed = cs;
         time_cluster = tc;
+        crv_cluster = nullptr;
         mc = nullptr;
         primary_sim = nullptr;
         secondary_sim = nullptr;
@@ -459,6 +496,7 @@ namespace Run1BAnaStructs {
         nfit_matched_cosmic_seeds = 0;
         nmatched_time_clusters = 0;
         nfit_matched_time_clusters = 0;
+        nmatched_crv_clusters = 0;
         mc_time = 0.f;
         sim_1_edep = 0.f;
         sim_1_time = 0.f;
@@ -590,6 +628,17 @@ namespace Run1BAnaStructs {
       double efficiency() const {
         if(n_total_primary_hits == 0) return 0.;
         return static_cast<double>(n_primary_hits) / n_total_primary_hits;
+      }
+    };
+
+    //--------------------------------------------------------------------------------------
+    struct CRVClusterPar_t {
+      const CrvCoincidenceCluster* crv_cluster;
+
+      CRVClusterPar_t() { init(); }
+      void init(const CrvCoincidenceCluster* c = nullptr) {
+        crv_cluster = c;
+        if(!c) return;
       }
     };
 

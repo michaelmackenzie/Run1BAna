@@ -36,6 +36,7 @@ fi
 
 BASE=`basename ${REFERENCE}`
 ${HEAD} cp -r ${REFERENCE} ${DIR}/${DATASET}
+${HEAD} rm ${DIR}/${DATASET}/*~
 
 ${HEAD} sed -i "s/${BASE}/${DATASET}/g" ${DIR}/${DATASET}/*.*
 ${HEAD} rename ${BASE} ${DATASET} ${DIR}/${DATASET}/*.*

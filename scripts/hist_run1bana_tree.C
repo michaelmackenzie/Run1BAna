@@ -30,6 +30,12 @@ struct Hist_t {
   TH1F* cluster_e9;
   TH1F* cluster_e25;
   TH1F* cluster_t_var;
+  TH1*  cluster_e1_over_e;
+  TH1*  cluster_e2_over_e;
+  TH1*  cluster_e9_over_e;
+  TH1*  cluster_e25_over_e;
+  TH1*  cluster_e8_over_e;
+  TH1*  cluster_e24_over_e;
 
   // Line-cluster matching
   TH1F* line_dt;
@@ -78,13 +84,21 @@ struct Hist_t {
   TH1F* mc_cluster_energy;
   TH1F* mc_cluster_time;
   TH1F* sim_1_edep;
+  TH1F* sim_1_edep_frac;
   TH1F* sim_1_time;
   TH1I* sim_1_nhits;
   TH1I* sim_1_type;
+  TH1I* sim_1_pdg;
+  TH1I* sim_1_main_crystal;
+  TH1F* sim_1_main_crystal_energy;
   TH1F* sim_2_edep;
+  TH1F* sim_2_edep_frac;
   TH1F* sim_2_time;
   TH1I* sim_2_nhits;
   TH1I* sim_2_type;
+  TH1I* sim_2_pdg;
+  TH1I* sim_2_main_crystal;
+  TH1F* sim_2_main_crystal_energy;
   TH1I* sim_1_2_nhits;
   TH1F* event_weight;
   TH1F* gen_energy;
@@ -159,10 +173,16 @@ struct TreeBranches {
   float sim_1_time;
   int   sim_1_nhits;
   int   sim_1_type;
+  int   sim_1_pdg;
+  int   sim_1_main_crystal;
+  float sim_1_main_crystal_energy;
   float sim_2_edep;
   float sim_2_time;
   int   sim_2_nhits;
   int   sim_2_type;
+  int   sim_2_pdg;
+  int   sim_2_main_crystal;
+  float sim_2_main_crystal_energy;
   float event_weight;
   float gen_energy;
 };
@@ -232,6 +252,12 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->cluster_e9            = new TH1F("cluster_e9"           , "E9;E9 (MeV);"                          , 300,   0.,  300.);
   H->cluster_e25           = new TH1F("cluster_e25"          , "E25;E25 (MeV);"                        , 300,   0.,  300.);
   H->cluster_t_var         = new TH1F("cluster_t_var"        , "Time variance;#sigma_{t}^{2} (ns^{2});", 200,   0.,   10.);
+  H->cluster_e1_over_e     = new TH1F("cluster_e1_over_e"    , "E1/E;E1/E;"                            , 110,   0.,  1.1);
+  H->cluster_e2_over_e     = new TH1F("cluster_e2_over_e"    , "E2/E;E2/E;"                            , 110,   0.,  1.1);
+  H->cluster_e9_over_e     = new TH1F("cluster_e9_over_e"    , "E9/E;E9/E;"                            , 110,   0.,  1.1);
+  H->cluster_e25_over_e    = new TH1F("cluster_e25_over_e"   , "E25/E;E25/E;"                          , 110,   0.,  1.1);
+  H->cluster_e8_over_e     = new TH1F("cluster_e8_over_e"    , "(E9 - E1)/E;(E9-E1)/E;"                , 110,   0.,  1.1);
+  H->cluster_e24_over_e    = new TH1F("cluster_e24_over_e"   , "(E25 - E1)/E;(E25-E1)/E;"              , 110,   0.,  1.1);
 
   // Line-cluster matching
   H->line_dt               = new TH1F("line_dt"              , "Line-cluster #Delta t;#Delta t (ns);"  , 200,-200.,  200.);
@@ -280,13 +306,19 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->mc_cluster_energy     = new TH1F("mc_cluster_energy"    , "MC cluster energy;E (MeV);"            , 300,   0.,  300.);
   H->mc_cluster_time       = new TH1F("mc_cluster_time"      , "MC cluster time;t (ns);"               , 200,   0., 2000.);
   H->sim_1_edep            = new TH1F("sim_1_edep"           , "Sim 1 E dep;E (MeV);"                  , 300,   0.,  300.);
+  H->sim_1_edep_frac       = new TH1F("sim_1_edep_frac"      , "Sim 1 E dep / total E dep;Sim E_{dep}/total E_{dep};", 110,   0.,  1.1);
   H->sim_1_time            = new TH1F("sim_1_time"           , "Sim 1 time;t (ns);"                    , 200,   0., 2000.);
   H->sim_1_nhits           = new TH1I("sim_1_nhits"          , "Sim 1 N(tracker hits);N;"              , 100,   0,   100);
   H->sim_1_type            = new TH1I("sim_1_type"           , "Sim 1 type;Type;"                      ,  10,  -1,     9);
+  H->sim_1_pdg             = new TH1I("sim_1_pdg"            , "Sim 1 PDG;PDG ID;"                    ,   30,  -15,   15);
+  H->sim_1_main_crystal_energy = new TH1F("sim_1_main_crystal_energy", "Sim 1 main crystal energy;E (MeV);", 300,   0.,  300.);
   H->sim_2_edep            = new TH1F("sim_2_edep"           , "Sim 2 E dep;E (MeV);"                  , 300,   0.,  300.);
+  H->sim_2_edep_frac       = new TH1F("sim_2_edep_frac"      , "Sim 2 E dep / total E dep;Sim E_{dep}/total E_{dep};", 110,   0.,  1.1);
   H->sim_2_time            = new TH1F("sim_2_time"           , "Sim 2 time;t (ns);"                    , 200,   0., 2000.);
   H->sim_2_nhits           = new TH1I("sim_2_nhits"          , "Sim 2 N(tracker hits);N;"              , 100,   0,   100);
   H->sim_2_type            = new TH1I("sim_2_type"           , "Sim 2 type;Type;"                      ,  10,  -1,     9);
+  H->sim_2_pdg             = new TH1I("sim_2_pdg"            , "Sim 2 PDG;PDG ID;"                    ,   30,  -15,   15);
+  H->sim_2_main_crystal_energy = new TH1F("sim_2_main_crystal_energy", "Sim 2 main crystal energy;E (MeV);", 300,   0.,  300.);
   H->sim_1_2_nhits         = new TH1I("sim_1_2_nhits"        , "Sim 1-2 N(tracker hits);N;"            , 200,   0,   200);
   H->event_weight          = new TH1F("event_weight"         , "Event weight;Weight;"                  , 100,   0.,    5.);
   H->gen_energy            = new TH1F("gen_energy"           , "Generated energy;E (MeV);"             ,  90,  50.,  140.);
@@ -314,6 +346,12 @@ void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) 
   H->cluster_e9           ->Fill(b.cluster_e9,            w);
   H->cluster_e25          ->Fill(b.cluster_e25,           w);
   H->cluster_t_var        ->Fill(b.cluster_t_var,         w);
+  H->cluster_e1_over_e    ->Fill(b.cluster_e1 / b.cluster_energy, w);
+  H->cluster_e2_over_e    ->Fill(b.cluster_e2 / b.cluster_energy, w);
+  H->cluster_e9_over_e    ->Fill(b.cluster_e9 / b.cluster_energy, w);
+  H->cluster_e25_over_e   ->Fill(b.cluster_e25 / b.cluster_energy, w);
+  H->cluster_e8_over_e    ->Fill((b.cluster_e9 - b.cluster_e1) / b.cluster_energy, w);
+  H->cluster_e24_over_e   ->Fill((b.cluster_e25 - b.cluster_e1) / b.cluster_energy, w);
 
   // Line-cluster matching
   H->line_dt              ->Fill(b.line_dt,               w);
@@ -362,13 +400,19 @@ void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) 
   H->mc_cluster_energy    ->Fill(b.mc_cluster_energy,     w);
   H->mc_cluster_time      ->Fill(b.mc_cluster_time,       w);
   H->sim_1_edep           ->Fill(b.sim_1_edep,            w);
+  H->sim_1_edep_frac      ->Fill(b.sim_1_edep / b.mc_cluster_energy, w);
   H->sim_1_time           ->Fill(b.sim_1_time,            w);
   H->sim_1_nhits          ->Fill(b.sim_1_nhits,           w);
   H->sim_1_type           ->Fill(b.sim_1_type,            w);
+  H->sim_1_pdg            ->Fill(b.sim_1_pdg,             w);
+  H->sim_1_main_crystal_energy->Fill(b.sim_1_main_crystal_energy, w);
   H->sim_2_edep           ->Fill(b.sim_2_edep,            w);
+  H->sim_2_edep_frac      ->Fill(b.sim_1_edep / b.mc_cluster_energy, w);
   H->sim_2_time           ->Fill(b.sim_2_time,            w);
   H->sim_2_nhits          ->Fill(b.sim_2_nhits,           w);
   H->sim_2_type           ->Fill(b.sim_2_type,            w);
+  H->sim_2_pdg            ->Fill(b.sim_2_pdg,             w);
+  H->sim_2_main_crystal_energy->Fill(b.sim_2_main_crystal_energy, w);
   H->sim_1_2_nhits        ->Fill(b.sim_1_nhits + b.sim_2_nhits, w);
   H->event_weight         ->Fill(b.event_weight,          w);
   H->gen_energy           ->Fill(b.gen_energy,            w);
@@ -434,10 +478,16 @@ void setBranchAddresses(TTree* tree, TreeBranches& b) {
   tree->SetBranchAddress("sim_1_time"              , &b.sim_1_time);
   tree->SetBranchAddress("sim_1_nhits"             , &b.sim_1_nhits);
   tree->SetBranchAddress("sim_1_type"              , &b.sim_1_type);
+  tree->SetBranchAddress("sim_1_pdg"               , &b.sim_1_pdg);
+  tree->SetBranchAddress("sim_1_main_crystal"      , &b.sim_1_main_crystal);
+  tree->SetBranchAddress("sim_1_main_crystal_energy", &b.sim_1_main_crystal_energy);
   tree->SetBranchAddress("sim_2_edep"              , &b.sim_2_edep);
   tree->SetBranchAddress("sim_2_time"              , &b.sim_2_time);
   tree->SetBranchAddress("sim_2_nhits"             , &b.sim_2_nhits);
   tree->SetBranchAddress("sim_2_type"              , &b.sim_2_type);
+  tree->SetBranchAddress("sim_2_pdg"               , &b.sim_2_pdg);
+  tree->SetBranchAddress("sim_2_main_crystal"      , &b.sim_2_main_crystal);
+  tree->SetBranchAddress("sim_2_main_crystal_energy", &b.sim_2_main_crystal_energy);
   tree->SetBranchAddress("event_weight"            , &b.event_weight);
   tree->SetBranchAddress("gen_energy"              , &b.gen_energy);
 }
@@ -465,16 +515,18 @@ bool sel_signal_id(const TreeBranches& b) {
                         && b.cluster_frac_1       > 0.60f
     && b.cluster_frac_2       > 0.80f
     && b.cluster_t_var        < 1.0f
-    && b.cluster_second_moment< 1.e5f;
+    && b.cluster_second_moment< 1.e5f
+    && b.cluster_disk == 0;
   // && b.photon_id            > 0.8f;
 }
 
 //--------------------------------------------------------------------------------------
 // Main entry point
 //--------------------------------------------------------------------------------------
-void hist_run1bana_tree(const char* inputFiles = "input.root",  // comma- or space-separated, or a glob
-                        const char* outputFile = "output.root",
-                        const char* treePath   = "Run1BAna/tree_60/tree") {
+void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or space-separated, or a glob
+                        const char* outputFile    = "output.root",
+                        const Long64_t max_events = 2e6,
+                        const char* treePath      = "Run1BAna/tree_60/tree") {
 
   // Build TChain
   TChain* chain = new TChain(treePath);
@@ -517,10 +569,22 @@ void hist_run1bana_tree(const char* inputFiles = "input.root",  // comma- or spa
     return;
   }
 
+  Long64_t nEntries = chain->GetEntries();
+  double norm_scale = 1.;
+  if(max_events < 0 || nEntries < max_events)
+    std::cout << "Processing " << nEntries << " entries across "
+              << chain->GetNtrees() << " file(s)..." << std::endl;
+  else {
+    std::cout << "Processing " << max_events << " / " << nEntries << " entries across "
+              << chain->GetNtrees() << " file(s)..." << std::endl;
+    norm_scale = max_events * 1. / nEntries;
+    nEntries = max_events;
+  }
+
   // Add normalization to the output
   fout->cd();
   TH1* hnorm = new TH1D("norm", "Normalization;N;", 1, 0., 1.);
-  hnorm->SetBinContent(1, nsampled);
+  hnorm->SetBinContent(1, nsampled*norm_scale);
   hnorm->Write();
 
   // Book histogram sets
@@ -573,9 +637,6 @@ void hist_run1bana_tree(const char* inputFiles = "input.root",  // comma- or spa
   //--------------------------------------------------------------------------------------
   // Event loop
   //--------------------------------------------------------------------------------------
-  const Long64_t nEntries = chain->GetEntries();
-  std::cout << "Processing " << nEntries << " entries across "
-            << chain->GetNtrees() << " file(s)..." << std::endl;
 
   const bool is_pu = TString(inputFiles).Contains("mnbs");
 
@@ -587,7 +648,7 @@ void hist_run1bana_tree(const char* inputFiles = "input.root",  // comma- or spa
 
     int offset = 0;
     if(b.sim_1_type == 2 || b.sim_2_type == 2) offset = 200; // calo muon stop
-    else if(b.sim_1_edep / b.cluster_energy < 0.75) offset = 100; // pileup or misreconstructed
+    else if(b.sim_1_edep / b.mc_cluster_energy < 0.90) offset = 100; // pileup or misreconstructed
 
     // Fill each selection set
     fillHistograms(0, b, b.event_weight);
