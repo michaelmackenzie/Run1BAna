@@ -158,6 +158,7 @@ namespace mu2e {
   void MuonGammaLineAna::beginJob() {
     bookHistograms(0, "All events");
     bookHistograms(1, "Signal-like events");
+    bookHistograms(2, "Signal events, edep > 1.5 MeV");
   }
 
   //--------------------------------------------------------------------------------
@@ -326,6 +327,12 @@ namespace mu2e {
         hists_[1]->_hHitRes->Fill(hit.energyDep() - mc_edep);
         hists_[1]->_hSigFrac->Fill(signal_edep / mc_edep);
       }
+      if(signal_edep > 1.5) { // Large deposit by the signal
+        hists_[2]->_hApproxResp->Fill(approximateResponse(mc_edep));
+        hists_[2]->_hHitMCEDep->Fill(mc_edep);
+        hists_[2]->_hHitRes->Fill(hit.energyDep() - mc_edep);
+        hists_[2]->_hSigFrac->Fill(signal_edep / mc_edep);
+      }
     }
 
     // Loop through shower edep
@@ -395,6 +402,13 @@ namespace mu2e {
             hists_[1]->_hGammaEDep->Fill(shower.energyDep());
             // hists_[1]->_hHitRes->Fill(energy - shower.energyDep());
             // hists_[1]->_hApproxResp->Fill(approximateResponse(shower.energyDep()));
+            if(shower.energyDep() > 1.5) {
+              fillCalo        (caloInfo  , hists_[2]);
+              fillTrackerHits (trkInfo   , hists_[2]);
+              fillTimeClusters(tcInfo    , hists_[2]);
+              fillEventHeaders(headerInfo, hists_[2]);
+              hists_[2]->_hGammaEDep->Fill(shower.energyDep());
+            }
           }
         }
         if(crystal_found) {

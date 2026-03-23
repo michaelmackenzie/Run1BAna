@@ -2,13 +2,15 @@
 #include "Production/JobConfig/digitize/OnSpill.fcl"
 
 services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
-services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v03.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
 
 services.DbService.purpose: Sim_best
 services.DbService.version: v1_4
 services.DbService.verbose : 2
 
-outputs.Output.fileName   : "dig.user.dataset.Run1BAna.sequencer.art"
+
+outputs.Output.fileName   : "dig.user.dataset_v06.Run1BAna.sequencer.art"
 
 #include "Production/JobConfig/digitize/OnSpill_run1b_epilog.fcl"
 # outputs.Output.SelectEvents : []
+physics.filters.TriggerableCalo.MinParticleEnergy : 30.

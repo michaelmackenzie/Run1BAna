@@ -5,11 +5,15 @@
 //------------------------------------------------------------------------------
 void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
 
+  TString csm_file = "Run1BAna.csms4b0s51r0001.hist";
+
   // Open the data files
-  TFile* f_sig = TFile::Open("Run1BAna.rpce4b0s51r0001.hist", "READ");
-  TFile* f_bkg = TFile::Open("Run1BAna.mnbs4b1s51r0001.hist", "READ");
+  TFile* f_sig = TFile::Open("Run1BAna.rpce4b0s51r0002.hist", "READ");
+  TFile* f_bkg = TFile::Open("Run1BAna.mnbs4b1s51r0002.hist", "READ");
+  TFile* f_csm = TFile::Open(csm_file, "READ");
   if (!f_bkg || f_bkg->IsZombie() ||
-      !f_sig || f_sig->IsZombie()
+      !f_sig || f_sig->IsZombie() ||
+      !f_csm || f_csm->IsZombie()
       ) {
     Error(__func__, "Could not open files!");
     return;
@@ -18,24 +22,43 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
   // Get the normalization information
   nnt_sig_ = getNSampled(f_sig, -1); // N(events) in the input dataset
   nnt_bkg_ = getNSampled(f_bkg, -1);
+  const int nnt_csm = getNSampled(f_csm, -1);
   const int n_saved_sig = getNSampled(f_sig, 0); // N(events) in the ntuples
   const int n_saved_bkg = getNSampled(f_bkg, 0);
+  const int n_saved_csm = getNSampled(f_csm, 0);
   if(nnt_sig_ <= 0. || nnt_bkg_ <= 0.) {
     Error(__func__, "Invalid normalization!");
     return;
   }
-  const double nevents = livetime_week_*duty_cycle_1bb_/1.695e-6; // N(events) in a week
-  const double npot    = nevents*1.6e7*(1.5/3.8);
-  const double nmuons  = npot*nmuons_per_pot_run1b_;
-  const double rpc_skim_eff = (1645309. / 519723527.); // digi dataset
+
+  // General info
+  const double onspill_time = livetime_week_*duty_cycle_1bb_;
+  const double nevents      = onspill_time/1.695e-6; // N(events) in a week
+  const double npot         = nevents*1.6e7*(1.5/3.8);
+  const double nmuons       = npot*nmuons_per_pot_run1b_;
+  plot_npot_     = npot;
+  plot_livetime_ = livetime_week_;
+  plot_nmuons_   = nmuons;
+
+  // RPC info
+  const double rpc_skim_eff = (28757. / 1002530508.) * (9487. / 28757.); // dts dataset * (digi / dts)
   const double rpc_stops = (16096977. /  100000000.); // PiTargetStops eff
   const double rpc_beam  = (11978542. / 1000000000.); // PiBeam eff
-  const double norm_b = 1.;
   const double nrpc = npot * rpc_beam * rpc_stops * rpc_br_; // N(infinite lifetime RPC)
   const double norm_rpc = nrpc*rpc_skim_eff/nnt_sig_;
   sig_skim_eff_ = rpc_skim_eff;
   norm_sig_ = norm_rpc;
+
+  // Cosmic info
+  const double livetime_digi = (2377000000. / 2585823777.) * 556000.; // N(gen digi) / N(gen sim) * livetime (sim)
+  const double ndigi = 55369216.; // N(events) in the digi dataset
+  const double norm_csm = onspill_time / livetime_digi * (ndigi / nnt_csm);
+
+  // Pileup info
+  const double norm_b = 1.;
   norm_bkg_ = nevents*norm_b/nnt_bkg_;
+
+  // Print info
   std::cout << "N(sampled): RPC = " << nnt_sig_ << " Bkg = " << nnt_bkg_ << std::endl;
   std::cout << "N(saved): RPC = " << n_saved_sig << " Bkg = " << n_saved_bkg << std::endl;
   std::cout << "Eff(dataset): RPC = " << sig_skim_eff_ << " Bkg = " << norm_b << std::endl;
@@ -50,7 +73,7 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
   std::cout << "Eff(PiBeam) = " << rpc_beam << std::endl;
   std::cout << "Eff(PiStops) = " << rpc_stops << std::endl;
   std::cout << "N(RPC infinite lifetime) = " << nrpc << std::endl;
-  std::cout << "Eff(HitCalo) = " << rpc_skim_eff << std::endl;
+  std::cout << "Eff(Stop time + HitCalo + digi time) = " << rpc_skim_eff << std::endl;
   std::cout << "Eff(cluster) = " << getNSampled(f_sig,0) * 1./nnt_sig_ << std::endl;
   std::cout << "N(RPC cluster) = " << getNSampled(f_sig, 0) * norm_rpc << std::endl;
   std::cout << "N(RPC cluster | time weights) = " << getIntegral(f_sig, 0) * norm_rpc << std::endl;
@@ -62,6 +85,7 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
     {"RPC_pu" , f_sig, norm_sig_, 100, true , kBlue},
     {"RPC_cpu", f_sig, norm_sig_, 200, true , kBlue},
     {"DIO-pu" , f_bkg, norm_bkg_,   0, false, kPink},
+    {"Cosmics", f_csm, norm_csm ,   0, false, kGreen-6},
     {"Pileup" , f_bkg, norm_bkg_, 100, false, kViolet},
     {"CaloMu" , f_bkg, norm_bkg_, 200, false, kOrange}
   };
@@ -76,7 +100,7 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
   vector<int> proc_sets = {90, 91, 92, 93, 94, 95, 97};
   for(const int set : proc_sets) {
     for(const bool normalize : {false, true}) {
-      plot("cluster_energy"                 , set, normalize, 1,  60.,  140.);
+      plot("cluster_energy"                 , set, normalize, 2,  60.,  140.);
       plot("cluster_time"                   , set, normalize, 2, 400., 2000.);
       plot("cluster_radius"                 , set, normalize, 1, 300.,  700.);
       plot("cluster_disk"                   , set, normalize, 1,   0.,    2.);
@@ -93,6 +117,7 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
       plot("sim_2_edep"                     , set, normalize, 1,   0.,  100.);
       plot("sim_1_time"                     , set, normalize, 1, 300., 2000.);
       plot("sim_2_time"                     , set, normalize, 1, 300., 2000.);
+      plot("sim_1_type"                     , set, normalize, 1,  -1.,   10.);
     }
   }
 
@@ -100,8 +125,10 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
   vector<int> sets = {0};
   for(const int set : sets) {
     plot_gen_eff(f_sig, set);
+    plot_signal(f_sig, "cluster_energy", set, 2,  60.,  140.);
+    plot_signal(f_sig, "cluster_time"  , set, 5, 400., 1650.);
     for(const bool normalize : {false, true}) {
-      plot("cluster_energy"                 , set, normalize, 1,  60.,  140., f_sig, f_bkg);
+      plot("cluster_energy"                 , set, normalize, 2,  60.,  140., f_sig, f_bkg);
       plot("cluster_time"                   , set, normalize, 2, 400., 2000., f_sig, f_bkg);
       plot("cluster_radius"                 , set, normalize, 1, 300.,  700., f_sig, f_bkg);
       plot("cluster_disk"                   , set, normalize, 1,   0.,    2., f_sig, f_bkg);
@@ -116,6 +143,7 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
       plot("sim_1_2_nhits"                  , set, normalize, 1,   1.,   -1., f_sig, f_bkg);
       plot("sim_1_edep"                     , set, normalize, 1,   0.,  100., f_sig, f_bkg);
       plot("sim_2_edep"                     , set, normalize, 1,   0.,  100., f_sig, f_bkg);
+      plot("sim_1_type"                     , set, normalize, 1,  -1.,   10., f_sig, f_bkg);
     }
   }
 

@@ -8,23 +8,23 @@ class Project(ProjectBase):
 #------------------------------------------------------------------------------
 # init datasets - for stage 4, the input is a dataset produced at stage 3
 #------------------------------------------------------------------------------
-        self.add_dataset(Dataset('dig.mu2e.rpce4b0s41r0000.Run1BAna.art','rpce4b0s41r0000','local'));
+        self.add_dataset(Dataset('dig.mu2e.csms6b0s41r0000.Run1BAna.art','csms6b0s41r0000','local'));
 
 
     def __init__(self,idsid=None):
-        familyID  = 'rpce4b0'
+        familyID  = 'csms6b0'
         user      = os.getenv('USER')
 
-        ProjectBase.__init__(self,project='Run1BAna',family_id='rpce4b0',idsid=idsid);
+        ProjectBase.__init__(self,project='Run1BAna',family_id='csms6b0',idsid=idsid);
         self.init_datasets();
 
 #------------------------------------------------------------------------------
 # s5:reco_trig_nt
 #------------------------------------------------------------------------------
         s                            = self.new_stage('s5');
-        job                          = s.new_job('reco_trig_nt','rpce4b0s41r0000'); #idsid);
+        job                          = s.new_job('reco_trig_nt','csms6b0s41r0000'); #idsid);
 
-        job.fNInputFiles             = 22                       # number of the job segments
+        job.fNInputFiles             = 48                       # number of the job segments
 
         job.fMaxInputFilesPerSegment =  1                       # MC generator
         job.fMaxSegments             = 1000

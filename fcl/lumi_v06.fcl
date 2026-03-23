@@ -1,0 +1,12 @@
+#include "Run1BAna/fcl/lumi.fcl"
+
+services.DbService.purpose: "Sim_best"
+services.DbService.version: "v1_4"
+services.DbService.verbose : 2
+services.DbService.nearestMatch: true
+
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+
+outputs.Output.fileName        : "lum.user.lumi_v06.version.sequencer.art"
+services.TFileService.fileName : "nts.user.lumi_v06.version.sequencer.root"
+

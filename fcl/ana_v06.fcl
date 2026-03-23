@@ -1,7 +1,6 @@
-#include "Run1BAna/fcl/reco_trig_nt.fcl"
+#include "Run1BAna/fcl/ana.fcl"
 services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
 services.DbService.nearestMatch: true
 
-physics.analyzers.Run1BAna.simVersion : 1
 physics.filters.CaloClusterFilter.MinClusterEnergy : 45.
 physics.producers.CalTimeClusterFinder.MinCaloClusterEnergy : 40.

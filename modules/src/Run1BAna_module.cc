@@ -118,6 +118,7 @@ namespace mu2e
       fhicl::Atom<art::InputTag>      pbi              { Name("PBI")                    , Comment("ProtonBunchIntensity tag")            };
       fhicl::Atom<art::InputTag>      genCounter       { Name("genCounter")             , Comment("Generator counter tag")              , "genCounter"};
       fhicl::Atom<bool>               fromReco         { Name("fromReco")               , Comment("From reco sample")                   , false};
+      fhicl::Atom<int>                simVersion       { Name("simVersion")             , Comment("Simulation version (for cuts)")      , 0};
       fhicl::Atom<bool>               fillTrees        { Name("fillTrees")              , Comment("Fill trees")                         , false};
       fhicl::Atom<double>             maxGenEnergy     { Name("maxGenEnergy")           , Comment("Cut on the maximum primary energy")  , -1.};
       fhicl::Atom<int>                debugLevel       { Name("debugLevel")             , Comment("debugLevel")                         , 0 };
@@ -238,6 +239,7 @@ namespace mu2e
     art::InputTag  pbi_tag_;
     double         max_gen_energy_;
     bool           from_reco_;
+    int            sim_version_;
     bool           fill_trees_;
     int            debug_level_;
 
@@ -296,6 +298,7 @@ namespace mu2e
     , pbi_tag_            (config().pbi())
     , max_gen_energy_     (config().maxGenEnergy())
     , from_reco_          (config().fromReco())
+    , sim_version_        (config().simVersion())
     , fill_trees_         (config().fillTrees())
     , debug_level_        (config().debugLevel())
     , nevt_               (0)
@@ -665,6 +668,8 @@ namespace mu2e
     hist_[index]->tree->Branch("sim_1_nhits"              , &tree_.sim_1_nhits);
     hist_[index]->tree->Branch("sim_1_type"               , &tree_.sim_1_type);
     hist_[index]->tree->Branch("sim_1_pdg"                , &tree_.sim_1_pdg);
+    hist_[index]->tree->Branch("sim_1_proc"               , &tree_.sim_1_proc);
+    hist_[index]->tree->Branch("sim_1_z_start"            , &tree_.sim_1_z_start);
     hist_[index]->tree->Branch("sim_1_main_crystal"       , &tree_.sim_1_main_crystal);
     hist_[index]->tree->Branch("sim_1_main_crystal_energy", &tree_.sim_1_main_crystal_energy);
     hist_[index]->tree->Branch("sim_2_edep"               , &tree_.sim_2_edep);
@@ -672,6 +677,8 @@ namespace mu2e
     hist_[index]->tree->Branch("sim_2_nhits"              , &tree_.sim_2_nhits);
     hist_[index]->tree->Branch("sim_2_type"               , &tree_.sim_2_type);
     hist_[index]->tree->Branch("sim_2_pdg"                , &tree_.sim_2_pdg);
+    hist_[index]->tree->Branch("sim_2_proc"               , &tree_.sim_2_proc);
+    hist_[index]->tree->Branch("sim_2_z_start"            , &tree_.sim_2_z_start);
     hist_[index]->tree->Branch("sim_2_main_crystal"       , &tree_.sim_2_main_crystal);
     hist_[index]->tree->Branch("sim_2_main_crystal_energy", &tree_.sim_2_main_crystal_energy);
     hist_[index]->tree->Branch("gen_energy"               , &tree_.gen_energy);
@@ -1186,6 +1193,8 @@ namespace mu2e
       tree_.sim_1_nhits = cluster_par_.sim_1_nhits;
       tree_.sim_1_type = cluster_par_.sim_1_type;
       tree_.sim_1_pdg = cluster_par_.sim_1_pdg;
+      tree_.sim_1_proc = cluster_par_.sim_1_proc;
+      tree_.sim_1_z_start = cluster_par_.sim_1_z_start;
       tree_.sim_1_main_crystal = cluster_par_.sim_1_main_crystal;
       tree_.sim_1_main_crystal_energy = cluster_par_.sim_1_main_crystal_energy;
       tree_.sim_2_edep = cluster_par_.sim_2_edep;
@@ -1193,6 +1202,8 @@ namespace mu2e
       tree_.sim_2_nhits = cluster_par_.sim_2_nhits;
       tree_.sim_2_type = cluster_par_.sim_2_type;
       tree_.sim_2_pdg = cluster_par_.sim_2_pdg;
+      tree_.sim_2_proc = cluster_par_.sim_2_proc;
+      tree_.sim_2_z_start = cluster_par_.sim_2_z_start;
       tree_.sim_2_main_crystal = cluster_par_.sim_2_main_crystal;
       tree_.sim_2_main_crystal_energy = cluster_par_.sim_2_main_crystal_energy;
     }
@@ -1396,6 +1407,8 @@ namespace mu2e
           par.sim_1_nhits += sim_info_[parent->id().asInt()].nhits_;
           parent = parent->parent();
         }
+        par.sim_1_proc = top1->creationCode();
+        par.sim_1_z_start = top1->startPosition().z();
         par.sim_1_type = Run1BAnaUtils::getSimType(top1);
         if(par.sim_1_type == -1) {
           std::cout << "[Run1BAna::" << __func__ << "] Warning: unclassified sim type for primary sim with PDG "
@@ -1431,6 +1444,8 @@ namespace mu2e
           par.sim_2_nhits += sim_info_[parent->id().asInt()].nhits_;
           parent = parent->parent();
         }
+        par.sim_2_proc = top2->creationCode();
+        par.sim_2_z_start = top2->startPosition().z();
         par.sim_2_type = Run1BAnaUtils::getSimType(top2);
         if(par.sim_2_type == -1) {
           std::cout << "[Run1BAna::" << __func__ << "] Warning: unclassified sim type for secondary sim with PDG "
@@ -1984,6 +1999,9 @@ namespace mu2e
     //--------------------------------------------------------------------------------------
 
     watch_->SetTime("CountObjects");
+
+    const double min_energy = (sim_version_ == 0) ? 60. : 40.; // later version have an abosrber
+
     // Clusters
     const CaloCluster* max_cluster = nullptr;
     const CaloCluster* best_cluster = nullptr;
@@ -1992,7 +2010,7 @@ namespace mu2e
       // line_par_.init(cluster_par_.line);
 
       const bool cluster_time = (cluster.time() > 400. && cluster.time() < 1650.);
-      const bool cluster_id = isGoodCluster(&cluster) && (cluster.energyDep() > 40. && cluster_time);
+      const bool cluster_id = isGoodCluster(&cluster) && (cluster.energyDep() > min_energy && cluster_time);
 
       if(cluster_id) {
         // Count good clusters
@@ -2069,7 +2087,7 @@ namespace mu2e
 
       // Find the "best" cluster in the event
       bool cluster_time = (cluster.time() > 600. && cluster.time() < 1650.);
-      bool cluster_id = (cluster.energyDep() > 70. && cluster_time);
+      bool cluster_id = (cluster.energyDep() > (min_energy + 10.) && cluster_time);
 
       // Two sims merged into one cluster
       const auto cl_mc = cluster_par_.mc;
@@ -2083,7 +2101,7 @@ namespace mu2e
       fillHistograms(hist_[1]);
 
       // Clusters above 70 MeV
-      if(cluster.energyDep() > 70.) {
+      if(cluster.energyDep() > (min_energy + 10.)) {
         fillHistograms(hist_[2]);
         if(cluster.diskID() == 0) fillHistograms(hist_[3]);
         else                      fillHistograms(hist_[4]);
@@ -2098,7 +2116,7 @@ namespace mu2e
           fillHistograms(hist_[30]);
           const float edep_1 = cluster_par_.sim_1_edep;
           const float edep_2 = cluster_par_.sim_2_edep;
-          if(cluster.energyDep() > 70. && edep_1 > 20. && edep_2 > 20.) {
+          if(cluster.energyDep() > (min_energy + 10.) && edep_1 > 20. && edep_2 > 20.) {
             if(debug_level_ > 0) {
               std::cout << "Merged cluster: " << event.id()
                         << std::setprecision(2)
@@ -2201,7 +2219,7 @@ namespace mu2e
           fillHistograms(hist_[91]);
           if(cluster_par_.cluster) {
             fillHistograms(hist_[92]);
-            if(cluster_par_.cluster->energyDep() > 70.) {
+            if(cluster_par_.cluster->energyDep() > (min_energy + 10.)) {
               fillHistograms(hist_[93]);
             }
           }
@@ -2274,7 +2292,7 @@ namespace mu2e
     }
 
     // above 70 MeV
-    if(cluster_par_.cluster && cluster_par_.cluster->energyDep() > 70.) {
+    if(cluster_par_.cluster && cluster_par_.cluster->energyDep() > (min_energy + 10.)) {
       fillHistograms(hist_[10]);
       const float dt = cluster_par_.cluster->time() - lineAtCluster(cluster_par_.cluster, cluster_par_.line).t();
       if(std::fabs(dt) < 50.) fillHistograms(hist_[11]);
@@ -2284,7 +2302,7 @@ namespace mu2e
     // at least 10 sim hits
     if(sim_par_.nhits >= 10) {
       fillHistograms(hist_[8]);
-      if(cluster_par_.cluster && cluster_par_.cluster->energyDep() > 70.) fillHistograms(hist_[9]);
+      if(cluster_par_.cluster && cluster_par_.cluster->energyDep() > (min_energy + 10.)) fillHistograms(hist_[9]);
     }
 
     // "best" cluster in the event, passing the cluster ID
@@ -2298,7 +2316,7 @@ namespace mu2e
       const float dt = cluster_par_.cluster->time() - lineAtCluster(cluster_par_.cluster, cluster_par_.line).t();
       if(std::fabs(dt) < 50.) fillHistograms(hist_[21]);
       else                    fillHistograms(hist_[22]);
-      if(best_cluster->energyDep() > 80.) fillHistograms(hist_[23]);
+      if(best_cluster->energyDep() > (min_energy + 20.)) fillHistograms(hist_[23]);
 
       // Signal selection
       bool signal_id = true;

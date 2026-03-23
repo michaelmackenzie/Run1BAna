@@ -117,6 +117,7 @@ physics : {
       caloClusterCollection   : "CaloClusterMaker"
       caloClusterMCCollection : "CaloClusterTruthMatch"
       caloShowerSimCollection : "compressDigiMCs"
+      simVersion              : 0
       triggerProcess          : "Reconstruct"
       PBI                     : "PBISim"
       fillTrees               : true

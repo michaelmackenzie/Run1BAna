@@ -102,6 +102,7 @@ struct Hist_t {
   TH1I* sim_1_2_nhits;
   TH1F* event_weight;
   TH1F* gen_energy;
+  TH1F* gen_energy_nowt;
 
   // Directory for this histogram set
   TDirectory* dir = nullptr;
@@ -238,38 +239,38 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->dir->SetTitle(title);
 
   // Cluster
-  H->cluster_energy        = new TH1F("cluster_energy"       , "Cluster energy;Energy (MeV);"          , 300,   0.,  300.);
-  H->cluster_time          = new TH1F("cluster_time"         , "Cluster time;Time (ns);"               , 200,   0., 2000.);
-  H->cluster_radius        = new TH1F("cluster_radius"       , "Cluster radius;R (mm);"                , 100,   0.,  700.);
-  H->cluster_ncr           = new TH1F("cluster_ncr"          , "N(crystals);N;"                        ,  20,   0.,   20.);
+  H->cluster_energy        = new TH1F("cluster_energy"       , "Cluster energy;Cluster energy (MeV);"          , 300,   0.,  300.);
+  H->cluster_time          = new TH1F("cluster_time"         , "Cluster time;Cluster time (ns);"               , 200,   0., 2000.);
+  H->cluster_radius        = new TH1F("cluster_radius"       , "Cluster radius;Cluster radius (mm);"                , 100,   0.,  700.);
+  H->cluster_ncr           = new TH1F("cluster_ncr"          , "N(crystals);N(crystals);"                        ,  20,   0.,   20.);
   H->cluster_disk          = new TH1F("cluster_disk"         , "Disk ID;Disk ID;"                      ,   4,  -1.,    3.);
-  H->cluster_e_per_crystal = new TH1F("cluster_e_per_crystal", "Energy/crystal;E/N_{cr} (MeV);"        , 300,   0.,  300.);
-  H->cluster_frac_1        = new TH1F("cluster_frac_1"       , "E_{1}/E_{total};Frac;"                 , 101,   0.,  1.01);
-  H->cluster_frac_2        = new TH1F("cluster_frac_2"       , "E_{1+2}/E_{total};Frac;"               , 101,   0.,  1.01);
+  H->cluster_e_per_crystal = new TH1F("cluster_e_per_crystal", "Energy/crystal;Energy/N(crystals) (MeV);"        , 300,   0.,  300.);
+  H->cluster_frac_1        = new TH1F("cluster_frac_1"       , ";E_{1}/E_{total};"                 , 101,   0.,  1.01);
+  H->cluster_frac_2        = new TH1F("cluster_frac_2"       , ";E_{1+2}/E_{total};"               , 101,   0.,  1.01);
   H->cluster_second_moment = new TH1F("cluster_second_moment", "Second moment;Second moment;"          , 200,   0., 1.e6);
-  H->cluster_e1            = new TH1F("cluster_e1"           , "E1;E1 (MeV);"                          , 300,   0.,  300.);
-  H->cluster_e2            = new TH1F("cluster_e2"           , "E2;E2 (MeV);"                          , 300,   0.,  300.);
-  H->cluster_e9            = new TH1F("cluster_e9"           , "E9;E9 (MeV);"                          , 300,   0.,  300.);
-  H->cluster_e25           = new TH1F("cluster_e25"          , "E25;E25 (MeV);"                        , 300,   0.,  300.);
-  H->cluster_t_var         = new TH1F("cluster_t_var"        , "Time variance;#sigma_{t}^{2} (ns^{2});", 200,   0.,   10.);
-  H->cluster_e1_over_e     = new TH1F("cluster_e1_over_e"    , "E1/E;E1/E;"                            , 110,   0.,  1.1);
-  H->cluster_e2_over_e     = new TH1F("cluster_e2_over_e"    , "E2/E;E2/E;"                            , 110,   0.,  1.1);
-  H->cluster_e9_over_e     = new TH1F("cluster_e9_over_e"    , "E9/E;E9/E;"                            , 110,   0.,  1.1);
-  H->cluster_e25_over_e    = new TH1F("cluster_e25_over_e"   , "E25/E;E25/E;"                          , 110,   0.,  1.1);
-  H->cluster_e8_over_e     = new TH1F("cluster_e8_over_e"    , "(E9 - E1)/E;(E9-E1)/E;"                , 110,   0.,  1.1);
-  H->cluster_e24_over_e    = new TH1F("cluster_e24_over_e"   , "(E25 - E1)/E;(E25-E1)/E;"              , 110,   0.,  1.1);
+  H->cluster_e1            = new TH1F("cluster_e1"           , "E1;E_{1} (MeV);"                          , 300,   0.,  300.);
+  H->cluster_e2            = new TH1F("cluster_e2"           , "E2;E_{1+2} (MeV);"                          , 300,   0.,  300.);
+  H->cluster_e9            = new TH1F("cluster_e9"           , "E9;E_{3x3} (MeV);"                          , 300,   0.,  300.);
+  H->cluster_e25           = new TH1F("cluster_e25"          , "E25;E_{5x5} (MeV);"                        , 300,   0.,  300.);
+  H->cluster_t_var         = new TH1F("cluster_t_var"        , "Time variance;Cluster #sigma_{t}^{2} (ns^{2});", 200,   0.,   10.);
+  H->cluster_e1_over_e     = new TH1F("cluster_e1_over_e"    , "E1/E;E_{1}/E_{cluster};"                            , 110,   0.,  1.1);
+  H->cluster_e2_over_e     = new TH1F("cluster_e2_over_e"    , "E2/E;E_{2}/E_{cluster};"                            , 110,   0.,  1.1);
+  H->cluster_e9_over_e     = new TH1F("cluster_e9_over_e"    , "E9/E;E_{3x3}/E_{cluster};"                            , 110,   0.,  1.1);
+  H->cluster_e25_over_e    = new TH1F("cluster_e25_over_e"   , "E25/E;E_{5x5}/E_{cluster};"                          , 110,   0.,  1.1);
+  H->cluster_e8_over_e     = new TH1F("cluster_e8_over_e"    , "(E9 - E1)/E;(E_{3x3}-E_{1})/E_{cluster};"                , 110,   0.,  1.1);
+  H->cluster_e24_over_e    = new TH1F("cluster_e24_over_e"   , "(E25 - E1)/E;(E_{5x5}-E_{1})/E_{cluster};"              , 110,   0.,  1.1);
 
   // Line-cluster matching
-  H->line_dt               = new TH1F("line_dt"              , "Line-cluster #Delta t;#Delta t (ns);"  , 200,-200.,  200.);
-  H->line_dr               = new TH1F("line_dr"              , "Line-cluster #Delta r;#Delta r (mm);"  , 150,   0.,  500.);
-  H->time_cluster_dt       = new TH1F("time_cluster_dt"      , "TCl-cluster #Delta t;#Delta t (ns);"   , 200,-200.,  200.);
-  H->time_cluster_dr       = new TH1F("time_cluster_dr"      , "TCl-cluster #Delta r;#Delta r (mm);"   , 150,   0.,  500.);
-  H->ntcl_hits             = new TH1F("ntcl_hits"            , "N(TCl hits);N;"                        , 200,   0.,  200.);
-  H->photon_id             = new TH1F("photon_id"            , "Photon ID MVA;Score;"                  , 100,  -1.,    1.);
+  H->line_dt               = new TH1F("line_dt"              , ";Line-cluster #Delta t (ns);"  , 200,-200.,  200.);
+  H->line_dr               = new TH1F("line_dr"              , ";Line-cluster #Delta r (mm);"  , 150,   0.,  500.);
+  H->time_cluster_dt       = new TH1F("time_cluster_dt"      , ";Time cluster-cluster #Delta t (ns);"   , 200,-200.,  200.);
+  H->time_cluster_dr       = new TH1F("time_cluster_dr"      , ";Time cluster-cluster #Delta r (mm);"   , 150,   0.,  500.);
+  H->ntcl_hits             = new TH1F("ntcl_hits"            , ";N(time cluster hits);"                        , 200,   0.,  200.);
+  H->photon_id             = new TH1F("photon_id"            , ";Photon ID MVA score;"                  , 100,  -1.,    1.);
 
   // Line parameters
   H->line_chi2             = new TH1F("line_chi2"            , "Line #chi^{2}/DOF;#chi^{2}/DOF;"       , 100,   0.,   10.);
-  H->line_nhits            = new TH1F("line_nhits"           , "Line N(hits);N;"                       , 100,   0.,  100.);
+  H->line_nhits            = new TH1F("line_nhits"           , ";Line N(hits);"                       , 100,   0.,  100.);
   H->line_nplanes          = new TH1F("line_nplanes"         , "Line N(planes);N;"                     ,  50,   0.,   50.);
   H->line_nstereo          = new TH1F("line_nstereo"         , "Line N(stereo);N;"                     ,  15,   0.,   15.);
   H->line_d0               = new TH1F("line_d0"              , "Line d_{0};d_{0} (mm);"                , 200,-400.,  400.);
@@ -294,13 +295,13 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->cosmic_seed_B1        = new TH1F("cosmic_seed_B1"       , "Cosmic seed B1;B1 (mm);"               , 200,-4000.,4000.);
 
   // Time cluster parameters
-  H->time_cluster_nhits         = new TH1F("time_cluster_nhits"        , "TCl N(hits);N;"              , 200,   0.,  200.);
-  H->time_cluster_nstraw_hits   = new TH1F("time_cluster_nstraw_hits"  , "TCl N(straw hits);N;"        , 200,   0.,  200.);
-  H->time_cluster_nhigh_z_hits  = new TH1F("time_cluster_nhigh_z_hits" , "TCl N(high-z hits);N;"       ,  50,   0.,   50.);
-  H->time_cluster_t0            = new TH1F("time_cluster_t0"           , "TCl t_{0};t_{0} (ns);"       , 200,   0., 2000.);
-  H->time_cluster_t0err         = new TH1F("time_cluster_t0err"        , "TCl t_{0} err;t_{0} err (ns);", 100,   0.,   10.);
-  H->time_cluster_z0            = new TH1F("time_cluster_z0"           , "TCl z_{0};z_{0} (mm);"       , 100,-5000.,5000.);
-  H->time_cluster_phi0          = new TH1F("time_cluster_phi0"         , "TCl #phi_{0};#phi_{0};"       , 100,-3.15,  3.15);
+  H->time_cluster_nhits         = new TH1F("time_cluster_nhits"        , ";N(time cluster hits);"              , 200,   0.,  200.);
+  H->time_cluster_nstraw_hits   = new TH1F("time_cluster_nstraw_hits"  , ";N(time cluster straw hits);"        , 200,   0.,  200.);
+  H->time_cluster_nhigh_z_hits  = new TH1F("time_cluster_nhigh_z_hits" , ";N(high-z time cluster hits);"       ,  50,   0.,   50.);
+  H->time_cluster_t0            = new TH1F("time_cluster_t0"           , ";Time cluster t_{0} (ns);"       , 200,   0., 2000.);
+  H->time_cluster_t0err         = new TH1F("time_cluster_t0err"        , ";Time cluster t_{0} #sigma (ns);", 100,   0.,   10.);
+  H->time_cluster_z0            = new TH1F("time_cluster_z0"           , ";Time cluster z_{0} (mm);"       , 100,-5000.,5000.);
+  H->time_cluster_phi0          = new TH1F("time_cluster_phi0"         , ";Time cluster #phi_{0};"       , 100,-3.15,  3.15);
 
   // MC truth
   H->mc_cluster_energy     = new TH1F("mc_cluster_energy"    , "MC cluster energy;E (MeV);"            , 300,   0.,  300.);
@@ -321,7 +322,8 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->sim_2_main_crystal_energy = new TH1F("sim_2_main_crystal_energy", "Sim 2 main crystal energy;E (MeV);", 300,   0.,  300.);
   H->sim_1_2_nhits         = new TH1I("sim_1_2_nhits"        , "Sim 1-2 N(tracker hits);N;"            , 200,   0,   200);
   H->event_weight          = new TH1F("event_weight"         , "Event weight;Weight;"                  , 100,   0.,    5.);
-  H->gen_energy            = new TH1F("gen_energy"           , "Generated energy;E (MeV);"             ,  90,  50.,  140.);
+  H->gen_energy            = new TH1F("gen_energy"           , ";Generated energy (MeV);"             ,  90,  50.,  140.);
+  H->gen_energy_nowt       = new TH1F("gen_energy_nowt"      , ";Generated energy (MeV);"             ,  90,  50.,  140.);
 }
 
 //--------------------------------------------------------------------------------------
@@ -416,6 +418,7 @@ void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) 
   H->sim_1_2_nhits        ->Fill(b.sim_1_nhits + b.sim_2_nhits, w);
   H->event_weight         ->Fill(b.event_weight,          w);
   H->gen_energy           ->Fill(b.gen_energy,            w);
+  H->gen_energy_nowt      ->Fill(b.gen_energy);
 }
 
 //--------------------------------------------------------------------------------------
@@ -497,11 +500,11 @@ void setBranchAddresses(TTree* tree, TreeBranches& b) {
 //--------------------------------------------------------------------------------------
 
 bool sel_energy(const TreeBranches& b) {
-  return b.cluster_energy > 60.;
+  return b.cluster_energy > 50. && b.cluster_energy < 150.;
 }
 
 bool sel_energy_time(const TreeBranches& b) {
-  return b.cluster_energy > 60. && b.cluster_time > 400. && b.cluster_time < 1650.;
+  return sel_energy(b) && b.cluster_time > 400. && b.cluster_time < 1650.;
 }
 
 bool sel_photon_id(const TreeBranches& b) {
@@ -593,6 +596,10 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
   bookHistograms(  2, "photon_id"                             , fout);
   bookHistograms(  3, "signal_id"                             , fout);
   bookHistograms(  4, "id_high_z_hits"                        , fout);
+  bookHistograms(  5, "energy_time"                           , fout);
+  bookHistograms(  6, "50MeV"                                 , fout);
+  bookHistograms(  7, "50MeV_line"                            , fout);
+  bookHistograms(  8, "id_line"                               , fout);
   bookHistograms( 10, "r_500"                                 , fout);
   bookHistograms( 11, "r_550"                                 , fout);
   bookHistograms( 15, "id_r_500"                              , fout);
@@ -621,6 +628,9 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
     bookHistograms( 73 + offset*100, "id_tcl_hits"      , fout);
     bookHistograms( 74 + offset*100, "id_r_500_tcl_hits", fout);
 
+    // CE sets
+    bookHistograms( 80 + offset*100, "id_line"          , fout);
+
     // RPC sets
     bookHistograms( 90 + offset*100, "base"             , fout);
     bookHistograms( 91 + offset*100, "id"               , fout);
@@ -639,6 +649,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
   //--------------------------------------------------------------------------------------
 
   const bool is_pu = TString(inputFiles).Contains("mnbs");
+  const bool is_csm = TString(inputFiles).Contains("csms");
 
   for(Long64_t i = 0; i < nEntries; ++i) {
     chain->GetEntry(i);
@@ -647,8 +658,13 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
       std::cout << "  Entry " << i << " / " << nEntries << std::endl;
 
     int offset = 0;
-    if(b.sim_1_type == 2 || b.sim_2_type == 2) offset = 200; // calo muon stop
-    else if(b.sim_1_edep / b.mc_cluster_energy < 0.90) offset = 100; // pileup or misreconstructed
+    if(!is_csm) { // for now, don't offset cosmics due to gen matching issues
+      if(b.sim_1_type == 2 || b.sim_2_type == 2) offset = 200; // calo muon stop
+      else if(b.sim_1_edep / b.mc_cluster_energy < 0.90  // pileup or misreconstructed
+              || b.sim_1_type < 0 || b.sim_1_type > 2) { // main sim is not a normal process
+        offset = 100;
+      }
+    }
 
     // Fill each selection set
     fillHistograms(0, b, b.event_weight);
@@ -659,6 +675,13 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
       if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(4, b, b.event_weight);
     }
     if(sel_energy_time(b)) {
+      fillHistograms(5, b, b.event_weight);
+      if(b.cluster_energy > 50.) {
+        fillHistograms(6, b, b.event_weight);
+        if(b.line_nhits > 0) {
+          fillHistograms(7, b, b.event_weight);
+        }
+      }
       if(b.cluster_radius > 500.)  fillHistograms(10, b, b.event_weight);
       if(b.cluster_radius > 550.)  fillHistograms(11, b, b.event_weight);
       if(sel_signal_id(b)) {
@@ -668,6 +691,9 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
         }
         if(b.cluster_radius > 550.)  fillHistograms(16, b, b.event_weight);
         if(b.sim_1_nhits + b.sim_2_nhits <= 0) fillHistograms(17, b, b.event_weight);
+        if(b.line_nhits > 0) {
+          fillHistograms(8, b, b.event_weight);
+        }
       }
     }
 
@@ -697,7 +723,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
     // Offset selections
 
     // RMC
-    if(b.cluster_time > 600.) {
+    if(b.cluster_time > 600. && b.cluster_energy > 50. && b.cluster_energy < 150.) {
       fillHistograms(70 + offset, b, b.event_weight);
       if(sel_signal_id(b)) {
         fillHistograms(71 + offset, b, b.event_weight);
@@ -706,6 +732,14 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
         if(b.cluster_radius > 500. && b.time_cluster_nhigh_z_hits < 3) fillHistograms(74 + offset, b, b.event_weight);
       }
     }
+
+    // CE
+    if(sel_signal_id(b) && sel_energy_time(b)) {
+      if(b.line_nhits > 0) {
+        fillHistograms(80, b, b.event_weight);
+      }
+    }
+
 
     // Low time selection
     if(b.cluster_time > 400. && b.cluster_time < 550.) {

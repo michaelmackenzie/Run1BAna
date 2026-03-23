@@ -35,7 +35,7 @@ class Project(ProjectBase):
         job.fIfdh                    = 'xrootd'                 # ifdh/xrootd
         job.fOutputPath              = [ 'out' ]
 
-        reco_version                 = 'r0001'
+        reco_version                 = 'r0002'
         job.fOutputStream            = [ 'defaultOutput'                    ]
         job.fOutputDsID              = [ familyID+s.name()+'1'+reco_version ]
         job.fOutputFnPattern         = [ 'nts.'+user+'.'+job.fOutputDsID[0] ]

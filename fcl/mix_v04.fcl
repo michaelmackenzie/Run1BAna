@@ -1,0 +1,60 @@
+#include "Production/JobConfig/mixing/Mix.fcl"
+#include "Production/JobConfig/mixing/OneBB.fcl"
+physics.filters.MuBeamFlashMixer.mu2e.MaxEventsToSkip: 967298
+physics.filters.EleBeamFlashMixer.mu2e.MaxEventsToSkip: 26190
+physics.filters.NeutralsFlashMixer.mu2e.MaxEventsToSkip: 1831
+physics.filters.MuStopPileupMixer.mu2e.MaxEventsToSkip: 11182262
+services.DbService.purpose: "Sim_best"
+services.DbService.version: "v1_4"
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v03.txt"
+services.ProditionsService.strawElectronics.digitizationEnd: 1650
+physics.producers.CaloShowerROMaker.digitizationEnd: 1650
+physics.producers.CaloDigiMaker.digitizationEnd: 1650
+#include "Production/JobConfig/digitize/OnSpill_run1b_epilog.fcl"
+physics.producers.PBISim.extendedMean: "5.92e6"
+physics.producers.PBISim.cutMax: "35.5e6"
+
+source.maxEvents: -1
+physics.filters.MuBeamFlashMixer.fileNames: [
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuBeamFlashCat/Run1Bag/art/4d/77/dts.mu2e.MuBeamFlashCat.Run1Bag.001450_00000002.art"
+]
+physics.filters.EleBeamFlashMixer.fileNames: [
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/a6/98/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000009.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/84/60/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000597.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/4c/f2/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000391.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/56/07/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000185.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/64/1f/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000039.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/c3/0f/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000497.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/55/b9/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000001.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/a1/50/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000016.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/0c/5b/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000033.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/a2/7c/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000213.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/53/e9/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000201.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/9a/c1/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000631.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/27/8e/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000176.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/78/61/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000307.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/cc/1f/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000079.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/e1/58/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000055.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/33/99/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000091.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/57/e5/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000005.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/38/29/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000027.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/e2/5d/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000041.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/83/ad/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000363.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/02/17/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000000.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/92/b0/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000013.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/66/8c/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000061.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlashCat/Run1Bag/art/84/46/dts.mu2e.EleBeamFlashCat.Run1Bag.001450_00000071.art"
+]
+physics.filters.NeutralsFlashMixer.fileNames: [
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/tape/phy-sim/dts/mu2e/NeutralsFlashCat/Run1Bag/art/b5/7a/dts.mu2e.NeutralsFlashCat.Run1Bag.001450_00000000.art"
+]
+physics.filters.MuStopPileupMixer.fileNames: [
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/tape/phy-sim/dts/mu2e/MuStopPileupCat/Run1Bag/art/2c/43/dts.mu2e.MuStopPileupCat.Run1Bag.001450_00000426.art",
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/tape/phy-sim/dts/mu2e/MuStopPileupCat/Run1Bag/art/2b/34/dts.mu2e.MuStopPileupCat.Run1Bag.001450_00000000.art"
+]
+services.SeedService.baseSeed: 1
+
+outputs.Output.fileName: "dig.mu2e.mix.Run1Bah_best_v1_4-000.art"
+
+# physics.filters.CaloPileupDtsFilter.NullFilter       : false
