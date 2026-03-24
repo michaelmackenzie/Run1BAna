@@ -50,8 +50,8 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
   norm_sig_ = norm_rpc;
 
   // Cosmic info
-  const double livetime_digi = (2377000000. / 2585823777.) * 556000.; // N(gen digi) / N(gen sim) * livetime (sim)
-  const double ndigi = 55369216.; // N(events) in the digi dataset
+  const double livetime_digi = 883457; // (2377000000. / 2585823777.) * 556000.; // N(gen digi) / N(gen sim) * livetime (sim)
+  const double ndigi = 115953402; //55369216.; // N(events) in the digi dataset
   const double norm_csm = onspill_time / livetime_digi * (ndigi / nnt_csm);
 
   // Pileup info
@@ -84,8 +84,8 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
     {"RPC"    , f_sig, norm_sig_,   0, true , kBlue},
     {"RPC_pu" , f_sig, norm_sig_, 100, true , kBlue},
     {"RPC_cpu", f_sig, norm_sig_, 200, true , kBlue},
-    {"DIO-pu" , f_bkg, norm_bkg_,   0, false, kPink},
     {"Cosmics", f_csm, norm_csm ,   0, false, kGreen-6},
+    {"DIO-pu" , f_bkg, norm_bkg_,   0, false, kPink},
     {"Pileup" , f_bkg, norm_bkg_, 100, false, kViolet},
     {"CaloMu" , f_bkg, norm_bkg_, 200, false, kOrange}
   };
@@ -100,8 +100,8 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
   vector<int> proc_sets = {90, 91, 92, 93, 94, 95, 97};
   for(const int set : proc_sets) {
     for(const bool normalize : {false, true}) {
-      plot("cluster_energy"                 , set, normalize, 2,  60.,  140.);
-      plot("cluster_time"                   , set, normalize, 2, 400., 2000.);
+      plot("cluster_energy"                 , set, normalize, 2,  60.,  140., true, false);
+      plot("cluster_time"                   , set, normalize, 2, 450., 1000., true);
       plot("cluster_radius"                 , set, normalize, 1, 300.,  700.);
       plot("cluster_disk"                   , set, normalize, 1,   0.,    2.);
       plot("cluster_frac_1"                 , set, normalize, 1,   1.,   -1.);

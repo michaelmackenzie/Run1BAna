@@ -80,6 +80,16 @@ struct Hist_t {
   TH1F* time_cluster_z0;
   TH1F* time_cluster_phi0;
 
+  // CRV info
+  TH1F* crv_dt;
+  TH1F* crv_dt_corrected;
+  TH1F* crv_cluster_nhits;
+  TH1F* crv_cluster_npe;
+  TH1F* crv_cluster_t0;
+  TH1F* crv_cluster_x;
+  TH1F* crv_cluster_y;
+  TH1F* crv_cluster_z;
+
   // MC truth
   TH1F* mc_cluster_energy;
   TH1F* mc_cluster_time;
@@ -133,6 +143,8 @@ struct TreeBranches {
   float line_dr;
   float time_cluster_dt;
   float time_cluster_dr;
+  float crv_dt;
+  float crv_dt_corrected;
   float ntcl_hits;
   float photon_id;
 
@@ -167,6 +179,13 @@ struct TreeBranches {
   float time_cluster_t0err;
   float time_cluster_z0;
   float time_cluster_phi0;
+
+  int   crv_cluster_nhits;
+  float crv_cluster_npe;
+  float crv_cluster_t0;
+  float crv_cluster_x;
+  float crv_cluster_y;
+  float crv_cluster_z;
 
   float mc_cluster_energy;
   float mc_cluster_time;
@@ -303,6 +322,16 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->time_cluster_z0            = new TH1F("time_cluster_z0"           , ";Time cluster z_{0} (mm);"       , 100,-5000.,5000.);
   H->time_cluster_phi0          = new TH1F("time_cluster_phi0"         , ";Time cluster #phi_{0};"       , 100,-3.15,  3.15);
 
+  // CRV info
+  H->crv_dt                    = new TH1F("crv_dt"                   , ";CRV-cluster #Delta t (ns);"  , 200,-200.,  200.);
+  H->crv_dt_corrected          = new TH1F("crv_dt_corrected"         , ";CRV-cluster #Delta t (ns), corrected for time-of-flight;"  , 200,-200.,  200.);
+  H->crv_cluster_nhits         = new TH1F("crv_cluster_nhits"        , ";CRV cluster N(hits);"                        , 50,   0.,   50.);
+  H->crv_cluster_npe          = new TH1F("crv_cluster_npe"         , ";CRV cluster N(PE);"                          , 50,   0.,   50.);
+  H->crv_cluster_t0           = new TH1F("crv_cluster_t0"          , ";CRV cluster t_{0} (ns);"         , 200,   0., 2000.);
+  H->crv_cluster_x            = new TH1F("crv_cluster_x"           , ";CRV cluster x (mm);"              , 100,-5000.,5000.);
+  H->crv_cluster_y            = new TH1F("crv_cluster_y"           , ";CRV cluster y (mm);"              , 100,-5000.,5000.);
+  H->crv_cluster_z            = new TH1F("crv_cluster_z"           , ";CRV cluster z (mm);"              , 100,-5000.,5000.);
+
   // MC truth
   H->mc_cluster_energy     = new TH1F("mc_cluster_energy"    , "MC cluster energy;E (MeV);"            , 300,   0.,  300.);
   H->mc_cluster_time       = new TH1F("mc_cluster_time"      , "MC cluster time;t (ns);"               , 200,   0., 2000.);
@@ -398,6 +427,16 @@ void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) 
   H->time_cluster_z0          ->Fill(b.time_cluster_z0,          w);
   H->time_cluster_phi0        ->Fill(b.time_cluster_phi0,        w);
 
+  // CRV info
+  H->crv_dt                   ->Fill(b.crv_dt,                   w);
+  H->crv_dt_corrected         ->Fill(b.crv_dt_corrected,         w);
+  H->crv_cluster_nhits        ->Fill(b.crv_cluster_nhits,        w);
+  H->crv_cluster_npe         ->Fill(b.crv_cluster_npe,         w);
+  H->crv_cluster_t0          ->Fill(b.crv_cluster_t0,          w);
+  H->crv_cluster_x           ->Fill(b.crv_cluster_x,           w);
+  H->crv_cluster_y           ->Fill(b.crv_cluster_y,           w);
+  H->crv_cluster_z           ->Fill(b.crv_cluster_z,           w);
+
   // MC truth
   H->mc_cluster_energy    ->Fill(b.mc_cluster_energy,     w);
   H->mc_cluster_time      ->Fill(b.mc_cluster_time,       w);
@@ -444,6 +483,8 @@ void setBranchAddresses(TTree* tree, TreeBranches& b) {
   tree->SetBranchAddress("line_dr"                 , &b.line_dr);
   tree->SetBranchAddress("time_cluster_dt"         , &b.time_cluster_dt);
   tree->SetBranchAddress("time_cluster_dr"         , &b.time_cluster_dr);
+  tree->SetBranchAddress("crv_dt"                  , &b.crv_dt);
+  tree->SetBranchAddress("crv_dt_corrected"        , &b.crv_dt_corrected);
   tree->SetBranchAddress("ntcl_hits"               , &b.ntcl_hits);
   tree->SetBranchAddress("photon_id"               , &b.photon_id);
   tree->SetBranchAddress("line_chi2"               , &b.line_chi2);
@@ -475,6 +516,12 @@ void setBranchAddresses(TTree* tree, TreeBranches& b) {
   tree->SetBranchAddress("time_cluster_t0err"      , &b.time_cluster_t0err);
   tree->SetBranchAddress("time_cluster_z0"         , &b.time_cluster_z0);
   tree->SetBranchAddress("time_cluster_phi0"       , &b.time_cluster_phi0);
+  tree->SetBranchAddress("crv_cluster_nhits"       , &b.crv_cluster_nhits);
+  tree->SetBranchAddress("crv_cluster_npe"         , &b.crv_cluster_npe);
+  tree->SetBranchAddress("crv_cluster_t0"          , &b.crv_cluster_t0);
+  tree->SetBranchAddress("crv_cluster_x"           , &b.crv_cluster_x);
+  tree->SetBranchAddress("crv_cluster_y"           , &b.crv_cluster_y);
+  tree->SetBranchAddress("crv_cluster_z"           , &b.crv_cluster_z);
   tree->SetBranchAddress("mc_cluster_energy"       , &b.mc_cluster_energy);
   tree->SetBranchAddress("mc_cluster_time"         , &b.mc_cluster_time);
   tree->SetBranchAddress("sim_1_edep"              , &b.sim_1_edep);
@@ -640,7 +687,8 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
 
     bookHistograms( 95 + offset*100, "t_500", fout);
     bookHistograms( 96 + offset*100, "id_t_500", fout);
-    bookHistograms( 97 + offset*100, "sim_t_500", fout);
+    bookHistograms( 97 + offset*100, "sim_t_500", fout);  const bool is_pu = TString(inputFiles).Contains("mnbs");
+
   }
 
 
@@ -729,7 +777,9 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
         fillHistograms(71 + offset, b, b.event_weight);
         if(b.cluster_radius > 500.) fillHistograms(72 + offset, b, b.event_weight);
         if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(73 + offset, b, b.event_weight);
-        if(b.cluster_radius > 500. && b.time_cluster_nhigh_z_hits < 3) fillHistograms(74 + offset, b, b.event_weight);
+        const bool radius_cut = b.cluster_radius > 500. && b.cluster_radius < 580.;
+        const bool crv_cut = b.crv_cluster_nhits <= 0 || std::fabs(b.crv_dt_corrected) > 50.;
+        if(radius_cut && crv_cut && b.time_cluster_nhigh_z_hits < 3) fillHistograms(74 + offset, b, b.event_weight);
       }
     }
 

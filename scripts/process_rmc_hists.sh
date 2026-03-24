@@ -15,7 +15,7 @@ RPC="rpce4b0s51r0002"
 DIO="diob4b1s51r0002"
 COSMIC="csms4b0s51r0002"
 CE="cele4b1s51r0001"
-TAG="v04"
+TAG="v06"
 
 # Version with 2 cm target + 10 cm poly
 if [[ "${TAG}" == "v06" ]]; then

@@ -70,11 +70,13 @@ void plotCEvsBkgFromNtuple(const char* tag = "v04") {
   const double norm_dio = ndio*dio_skim_eff/nnt_dio;
 
   // Cosmic info
-  const double livetime_sim  = 556000.; // livetime reported in the sim dataset
-  const double ngen_sim      = 2585823777.; // N(gen events) in the sim dataset
-  const double ngen_digi     = 2377000000.; // N(gen events) in the digi dataset
-  const double livetime_digi = (ngen_digi / ngen_sim) * livetime_sim; // scale the original livetime by the sample factor
-  const double ndigi         = 55369216.; // N(events) in the digi dataset
+  // const double livetime_sim  = 556000.; // livetime reported in the sim dataset
+  // const double ngen_sim      = 2585823777.; // N(gen events) in the sim dataset
+  // const double ngen_digi     = 2377000000.; // N(gen events) in the digi dataset
+  // const double livetime_digi = (ngen_digi / ngen_sim) * livetime_sim; // scale the original livetime by the sample factor
+  // const double ndigi         = 55369216.; // N(events) in the digi dataset
+  const double livetime_digi = 883457; // (2377000000. / 2585823777.) * 556000.; // N(gen digi) / N(gen sim) * livetime (sim)
+  const double ndigi = 115953402; //55369216.; // N(events) in the digi dataset
   const double norm_csm      = onspill_time / livetime_digi * (ndigi / nnt_csm);
 
   // Pileup info
@@ -109,7 +111,7 @@ void plotCEvsBkgFromNtuple(const char* tag = "v04") {
       {"CE_pu"   , f_sig, norm_sig_, 100, true , kBlue},
       {"CE_cpu"  , f_sig, norm_sig_, 200, true , kBlue},
       // {"Cosmics" , f_csm, norm_csm ,   0, false, kViolet+6},
-      {"DIO tail", f_dio, norm_dio ,   0, false, kGreen-6},
+      // {"DIO tail", f_dio, norm_dio ,   0, false, kGreen-6},
       {"Low pileup clusters"  , f_bkg, norm_bkg_,   0, false, kPink},
       {"Other pileup"  , f_bkg, norm_bkg_, 100, false, kViolet},
       {"Calo muon stops"  , f_bkg, norm_bkg_, 200, false, kOrange}
@@ -128,7 +130,7 @@ void plotCEvsBkgFromNtuple(const char* tag = "v04") {
   vector<int> proc_sets = {70, 71, 80};
   for(const int set : proc_sets) {
     for(const bool normalize : {false, true}) {
-      plot("cluster_energy"                 , set, normalize, 2, emin,  emax);
+      plot("cluster_energy"                 , set, normalize, 2, emin,  emax, true);
       plot("cluster_time"                   , set, normalize, 5, 400., 1800.);
       plot("cluster_radius"                 , set, normalize, 1, 300.,  700.);
       plot("cluster_disk"                   , set, normalize, 1,   0.,    2.);

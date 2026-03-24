@@ -148,6 +148,40 @@ TH1* significance_hist(TH1* h_sig, TH1* h_bkg, double x_min = 1., double x_max =
   return h;
 }
 
+//-------------------------------------------------------------------------------
+TH1* smooth_tail(TH1* h, double x_min = 1., double x_max = -1., int rebin = 1) {
+  gStyle->SetOptFit(0);
+  TH1* h_s = (TH1*) h->Clone(Form("%s_smooth", h->GetName()));
+  if(rebin > 1) h_s->Rebin(rebin);
+
+  // First find where the signal falls off
+  const int nbins = h->GetNbinsX();
+  const int bin_min = (x_min < x_max) ? max(1, min(nbins, h_s->GetXaxis()->FindBin(x_min))) : 1;
+  const int bin_max = (x_min < x_max) ? max(1, min(nbins, h_s->GetXaxis()->FindBin(x_max))) : nbins;
+  const int bin_start = max(h_s->FindFirstBinAbove(0.), bin_min);
+
+  int bin_last = bin_start;
+  for(int bin = bin_start + 1; bin <= bin_max; ++bin) {
+    if(h_s->GetBinContent(bin) <= 0.) break;
+    bin_last = bin;
+  }
+  cout << bin_start << " " << bin_last << endl;
+
+  if(bin_start > bin_max) return h_s;
+  if(bin_last >= bin_max || bin_last < bin_min + 1) return h_s;
+
+  const int bin_1 = max(bin_start, bin_last - 5);
+  const int bin_2 = min(bin_max, bin_last + 3);
+  const double x_1 = h_s->GetBinCenter(bin_1);
+  const double x_2 = h_s->GetBinCenter(bin_2);
+  TF1 f("f", "expo(0)", x_1, x_2);
+  h_s->Fit(&f, "wRX0");
+
+  for(int bin = bin_1; bin <= bin_max; ++bin) h_s->SetBinContent(bin, f.Eval(h_s->GetBinCenter(bin)));
+  // TCanvas c; h->Draw("hist"); h_s->Draw("hist same"); h_s->SetLineColor(kRed); h->SetAxisRange(x_min, x_max, "X"); c.SetLogy(); c.SaveAs("tmp.png");
+  return h_s;
+}
+
 //------------------------------------------------------------------------------
 void plot_signal(TFile* f_sig, const char* name, const int set,
                  const int rebin, const double x_min, const double x_max) {
@@ -183,7 +217,7 @@ void plot_signal(TFile* f_sig, const char* name, const int set,
 //------------------------------------------------------------------------------
 void plot(const char* name, const int set, const bool normalize,
           const int rebin, const double x_min, const double x_max,
-          const bool sig_plot = false) {
+          const bool sig_plot = false, const bool smooth = false) {
   TH1* h_sig = nullptr;
   TH1* h_bkg = nullptr;
   TH1* h_bkg_no_calo_mu = nullptr;
@@ -197,6 +231,7 @@ void plot(const char* name, const int set, const bool normalize,
       Error(__func__, "Could not retrieve histogram %s from process %s", name, process.name.Data());
       return;
     }
+    if(smooth) h = smooth_tail(h, x_min, x_max, rebin);
     if(!h_loc) {
       h_loc = (TH1*) h->Clone(Form("h_%s_%i_%s", name, set, (process.is_signal) ? "sig" : "bkg"));
       h_loc->Scale(process.norm);
@@ -218,10 +253,11 @@ void plot(const char* name, const int set, const bool normalize,
       h->Scale(process.norm);
       h->SetLineColor(process.color);
       h->SetTitle(process.name);
-      h->SetLineWidth(2);
+      h->SetLineWidth(1);
       if(stack_bkgs_) {
         h->SetFillColor(process.color);
-        h->SetLineColor(process.color+1);
+        // h->SetLineColor(process.color+1);
+        h->SetLineColor(kBlack);
       }
       h_bkgs.push_back(h);
     }
@@ -241,7 +277,7 @@ void plot(const char* name, const int set, const bool normalize,
       for(auto h : h_bkgs) h->Scale(1./n_bkg);
     }
   }
-  if(rebin > 1) {
+  if(!smooth && rebin > 1) {
     h_sig->Rebin(rebin);
     h_bkg->Rebin(rebin);
     h_bkg_no_calo_mu->Rebin(rebin);
@@ -262,7 +298,7 @@ void plot(const char* name, const int set, const bool normalize,
   if(sig_plot) {
     pad2.SetLeftMargin(pad1.GetLeftMargin());
     pad2.SetRightMargin(pad1.GetRightMargin());
-    pad1.SetBottomMargin(0.02);
+    pad1.SetBottomMargin(0.03);
     pad2.SetTopMargin(0.03);
     pad2.SetBottomMargin(0.35);
     pad2.Draw();
@@ -326,16 +362,17 @@ void plot(const char* name, const int set, const bool normalize,
 
     const double text_size = 0.19;
     const double label_size = 0.13;
+    const double y_offset = 0.35;
     h_sig->GetXaxis()->SetTitle("");
     h_sig->GetXaxis()->SetLabelSize(0.);
     h_sig->GetYaxis()->SetLabelSize(0.15*0.3/0.7);
     h_sig->GetYaxis()->SetTitleSize(text_size*0.3/0.7);
-    h_sig->GetYaxis()->SetTitleOffset(0.30*0.7/0.3);
+    h_sig->GetYaxis()->SetTitleOffset(y_offset*0.7/0.3);
     h_sig_cut->SetYTitle("S/#sqrt{B}");
     h_sig_cut->GetXaxis()->SetTitleSize(text_size);
     h_sig_cut->GetYaxis()->SetTitleSize(text_size);
     h_sig_cut->GetXaxis()->SetTitleOffset(0.70);
-    h_sig_cut->GetYaxis()->SetTitleOffset(0.30);
+    h_sig_cut->GetYaxis()->SetTitleOffset(y_offset);
     h_sig_cut->GetXaxis()->SetLabelSize(label_size);
     h_sig_cut->GetYaxis()->SetLabelSize(label_size);
 
@@ -349,13 +386,13 @@ void plot(const char* name, const int set, const bool normalize,
     pad1.cd();
   }
 
-  draw_info((sig_plot) ? 1.1 : 1.);
+  draw_info((sig_plot) ? 1.1 : 0.75);
   TString fig_name = Form("%s/%s_%i%s", dir_.Data(), name, set, (normalize) ? "_norm" : "");
   c.SaveAs((fig_name + ".png").Data());
 
-  double ymin = std::max(min_max*1.e-3, 1.e-6);
+  double ymin = std::max(((normalize) ? 1.e-5 : min_max*1.e-3), 1.e-6);
   double r = max_val/ymin;
-  double factor = std::max(2., std::log10(r)*5.); // scale up proportional to orders of magnitude spanned
+  double factor = std::max(2., std::log10(r)*20.); // scale up proportional to orders of magnitude spanned
   double ymax = max_val*factor;
   h_sig->GetYaxis()->SetRangeUser(ymin, ymax);
   pad1.SetLogy();
@@ -439,7 +476,7 @@ void plot(const char* name, const int set, const bool normalize,
 
   double ymin = std::max(min_max*1.e-3, 1.e-6);
   double r = max_val/ymin;
-  double factor = std::max(2., std::log10(r)*5.); // scale up proportional to orders of magnitude spanned
+  double factor = std::max(2., std::log10(r)*20.); // scale up proportional to orders of magnitude spanned
   double ymax = max_val*factor;
   h_sig->GetYaxis()->SetRangeUser(ymin, ymax);
   c.SetLogy();

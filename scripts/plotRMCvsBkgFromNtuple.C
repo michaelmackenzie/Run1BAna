@@ -79,8 +79,8 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v04") {
   const double norm_rpc = nrpc*rpc_skim_eff/nnt_rpc;
 
   // Cosmic info
-  const double livetime_digi = (2377000000. / 2585823777.) * 556000.; // N(gen digi) / N(gen sim) * livetime (sim)
-  const double ndigi = 55369216.; // N(events) in the digi dataset
+  const double livetime_digi = 883457; // (2377000000. / 2585823777.) * 556000.; // N(gen digi) / N(gen sim) * livetime (sim)
+  const double ndigi = 115953402; //55369216.; // N(events) in the digi dataset
   const double norm_csm = onspill_time / livetime_digi * (ndigi / nnt_csm);
 
   // Pileup info
@@ -138,7 +138,7 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v04") {
   gSystem->Exec(Form("mkdir -p %s", dir_.Data()));
   gStyle->SetOptStat(0);
 
-  const double emin = (is_v06) ?  50. :  60.;
+  const double emin = (is_v06) ?  60. :  60.;
   const double emax = (is_v06) ? 120. : 120.;
 
   // Plot by process
@@ -146,7 +146,7 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v04") {
   vector<int> proc_sets = {70, 71, 72, 73, 74};
   for(const int set : proc_sets) {
     for(const bool normalize : {false, true}) {
-      plot("cluster_energy"                 , set, normalize, 2, emin,  emax, true);
+      plot("cluster_energy"                 , set, normalize, 2, emin,  emax, true, false);
       plot("cluster_time"                   , set, normalize, 5, 600., 1650.);
       plot("cluster_radius"                 , set, normalize, 1, 300.,  700.);
       plot("cluster_disk"                   , set, normalize, 1,   0.,    2.);

@@ -5,8 +5,8 @@
 //--------------------------------------------------------
 // Livetime/muon stop normalization
 
-double duty_cycle_1bb_ = 0.323                 ; // taken from https://github.com/Mu2e/Production/blob/main/JobConfig/ensemble/python/normalizations.py
-double duty_cycle_2bb_ = 0.246                 ;
+double duty_cycle_1bb_ = 0.322                 ; // 4 spills * 107.3 ms / 1333 ms = 429.2 / 1333
+double duty_cycle_2bb_ = 0.246                 ; // taken from https://github.com/Mu2e/Production/blob/main/JobConfig/ensemble/python/normalizations.py
 
 // SU2020 info
 double livetime_su2020_        = 1.11e7;
