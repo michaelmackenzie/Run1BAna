@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
 
-  TString csm_file = "Run1BAna.csms4b0s51r0001.hist";
+  TString csm_file = "Run1BAna.csms4b0s51r0002.hist";
 
   // Open the data files
   TFile* f_sig = TFile::Open("Run1BAna.rpce4b0s51r0002.hist", "READ");
@@ -85,9 +85,9 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
     {"RPC_pu" , f_sig, norm_sig_, 100, true , kBlue},
     {"RPC_cpu", f_sig, norm_sig_, 200, true , kBlue},
     {"Cosmics", f_csm, norm_csm ,   0, false, kGreen-6},
-    {"DIO-pu" , f_bkg, norm_bkg_,   0, false, kPink},
-    {"Pileup" , f_bkg, norm_bkg_, 100, false, kViolet},
-    {"CaloMu" , f_bkg, norm_bkg_, 200, false, kOrange}
+    {"Low pileup clusters"  , f_bkg, norm_bkg_,   0, false, kPink},
+    {"Other pileup"  , f_bkg, norm_bkg_, 100, false, kViolet},
+    {"Calo muon stops"  , f_bkg, norm_bkg_, 200, false, kOrange}
   };
 
   // Set up the figure directory and style

@@ -1,4 +1,4 @@
-`#ifndef __RUN1BANA_TOOLS_FUNCTIONS__
+#ifndef __RUN1BANA_TOOLS_FUNCTIONS__
 #define __RUN1BANA_TOOLS_FUNCTIONS__
 
 //------------------------------------------------------------------------------------------------------------

@@ -1,10 +1,14 @@
 #! /bin/bash
 
 DATASETS="$1"
-NOPLOT=$2
+TAG=$2
+NOPLOT=$3
 
 if [[ "${DATASETS}" == "" ]]; then
     DATASETS="RMC DIO RPC COSMIC CE PILEUP"
+fi
+if [[ "${TAG}" == "" ]]; then
+    TAG="v04"
 fi
 
 # Script + dataset inputs
@@ -15,7 +19,6 @@ RPC="rpce4b0s51r0002"
 DIO="diob4b1s51r0002"
 COSMIC="csms4b0s51r0002"
 CE="cele4b1s51r0001"
-TAG="v06"
 
 # Version with 2 cm target + 10 cm poly
 if [[ "${TAG}" == "v06" ]]; then

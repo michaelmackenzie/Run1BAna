@@ -103,7 +103,8 @@ void plotCEvsBkgFromNtuple(const char* tag = "v04") {
       // {"Cosmics" , f_csm, norm_csm ,   0, false, kViolet+6},
       // {"DIO tail", f_dio, norm_dio ,   0, false, kGreen-6},
       {"Low pileup clusters"  , f_bkg, norm_bkg_,   0, false, kPink},
-      {"Other pileup"  , f_bkg, norm_bkg_, 100, false, kViolet}
+      {"Other pileup"  , f_bkg, norm_bkg_, 100, false, kViolet},
+      {"Calo muon stops"  , f_bkg, norm_bkg_, 200, false, kOrange}
     };
   } else {
     processes_ = {

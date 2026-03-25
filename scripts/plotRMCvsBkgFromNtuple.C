@@ -122,17 +122,29 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v04") {
   std::cout << "I(RMC | 0) = " << getIntegral(f_sig, 0)*norm_sig_ << " I(Bkg | 0) = " << getIntegral(f_bkg, 0)*norm_bkg_ << " I(RPC | 0) = " << getIntegral(f_rpc, 0)*norm_rpc << std::endl;
 
   // Set the list of processes to consider
-  processes_ = {
-    {"RMC"    , f_sig, norm_sig_,   0, true , kBlue},
-    {"RMC_pu" , f_sig, norm_sig_, 100, true , kBlue},
-    {"RMC_cpu", f_sig, norm_sig_, 200, true , kBlue},
-    {"Cosmics", f_csm, norm_csm ,   0, false, kGreen-6},
-    // {"DIO tail", f_dio, norm_dio ,   0, false, kGreen-6},
-    {"Low pileup clusters"  , f_bkg, norm_bkg_,   0, false, kPink},
-    {"Other pileup"  , f_bkg, norm_bkg_, 100, false, kViolet},
-    {"Calo muon stops"  , f_bkg, norm_bkg_, 200, false, kOrange}
-  };
-
+  if(is_v06) {
+    processes_ = {
+      {"RMC"    , f_sig, norm_sig_,   0, true , kBlue},
+      {"RMC_pu" , f_sig, norm_sig_, 100, true , kBlue},
+      {"RMC_cpu", f_sig, norm_sig_, 200, true , kBlue},
+      {"Cosmics", f_csm, norm_csm ,   0, false, kGreen-6},
+      // {"DIO tail", f_dio, norm_dio ,   0, false, kGreen-6},
+      {"Low pileup clusters"  , f_bkg, norm_bkg_,   0, false, kPink},
+      {"Other pileup"  , f_bkg, norm_bkg_, 100, false, kViolet},
+      {"Calo muon stops"  , f_bkg, norm_bkg_, 200, false, kOrange}
+    };
+  } else {
+    processes_ = {
+      {"RMC"    , f_sig, norm_sig_,   0, true , kBlue},
+      {"RMC_pu" , f_sig, norm_sig_, 100, true , kBlue},
+      {"RMC_cpu", f_sig, norm_sig_, 200, true , kBlue},
+      {"Cosmics", f_csm, norm_csm ,   0, false, kGreen-6},
+      // {"DIO tail", f_dio, norm_dio ,   0, false, kGreen-6},
+      {"Low pileup clusters"  , f_bkg, norm_bkg_,   0, false, kPink},
+      {"Other pileup"  , f_bkg, norm_bkg_, 100, false, kViolet},
+      {"Calo muon stops"  , f_bkg, norm_bkg_, 200, false, kOrange}
+    };
+  }
   // Set up the figure directory and style
   dir_ = (tag) ? Form("figures/rmc_vs_bkg_nt_%s", tag) : "figures/rmc_vs_bkg";
   gSystem->Exec(Form("mkdir -p %s", dir_.Data()));
@@ -162,6 +174,7 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v04") {
       plot("time_cluster_nhits"             , set, normalize, 1,   0.,  100.);
       plot("time_cluster_nstraw_hits"       , set, normalize, 1,   0.,  100.);
       plot("time_cluster_nhigh_z_hits"      , set, normalize, 1,   0.,   20.);
+      plot("crv_dt_corrected"               , set, normalize, 2, -100.,  100.);
       plot("sim_1_2_nhits"                  , set, normalize, 1,   1.,   -1.);
       plot("sim_1_edep"                     , set, normalize, 1,   0.,  100.);
       plot("sim_2_edep"                     , set, normalize, 1,   0.,  100.);

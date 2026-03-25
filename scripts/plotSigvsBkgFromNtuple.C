@@ -375,7 +375,7 @@ void plot(const char* name, const int set, const bool normalize,
     h_sig_cut->GetYaxis()->SetTitleOffset(y_offset);
     h_sig_cut->GetXaxis()->SetLabelSize(label_size);
     h_sig_cut->GetYaxis()->SetLabelSize(label_size);
-
+    h_sig_cut->GetYaxis()->SetNoExponent(kTRUE);
     TLegend* leg_2 = new TLegend(0.5, 0.9 - pad2.GetTopMargin(), 0.99 - pad2.GetRightMargin(), 0.99 - pad2.GetTopMargin());
     leg_2->SetNColumns(2); leg_2->SetLineWidth(0); leg_2->SetFillColor(0);
     leg_2->SetTextSize(0.10);

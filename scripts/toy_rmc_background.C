@@ -1,4 +1,5 @@
 // Plot the closure approximation
+#include "Run1BAna/tools/functions.C"
 
 //-------------------------------------------------------------------------------------
 double closure_approx(const double energy, const double kmax) {
@@ -100,10 +101,19 @@ void toy_rmc_background() {
 
 
   // Draw the conversions
+  c->SetLogy(0);
   h_1_e->Draw("hist");
   h_2_e->Draw("hist same");
   leg->Draw();
   h_1_e->SetTitle(Form("RMC positrons per %.1e muon stops;Energy (MeV);", nmuons));
+
+  // Example signal
+  auto signal = landau_crystal_ball_tf1();
+  signal->SetParameters(100., 92., 0.5, 10.4, 0.8, 0.4, 5., 10.);
+  signal->SetLineColor(kGreen+1);
+  signal->SetRange(85., 95.);
+  signal->Draw("same");
+  leg->AddEntry(signal, "#mu^{-}#rightarrowe^{+}", "L");
 
   max_val = max(h_1_e->GetMaximum(), h_2_e->GetMaximum());
   h_1_e->GetYaxis()->SetRangeUser(0., 1.1*max_val);

@@ -180,7 +180,7 @@ struct TreeBranches {
   float time_cluster_z0;
   float time_cluster_phi0;
 
-  int   crv_cluster_nhits;
+  int   crv_cluster_nhits = 0;
   float crv_cluster_npe;
   float crv_cluster_t0;
   float crv_cluster_x;
@@ -698,9 +698,15 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
 
   const bool is_pu = TString(inputFiles).Contains("mnbs");
   const bool is_csm = TString(inputFiles).Contains("csms");
+  const bool is_fgm = TString(inputFiles).Contains("fgam");
 
+  TTree* current_tree = nullptr;
   for(Long64_t i = 0; i < nEntries; ++i) {
     chain->GetEntry(i);
+    if(current_tree != chain->GetTree()) {
+      current_tree = chain->GetTree();
+      current_tree->LoadBaskets(200000000U);
+    }
 
     if(i % 10000 == 0)
       std::cout << "  Entry " << i << " / " << nEntries << std::endl;
@@ -778,7 +784,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
         if(b.cluster_radius > 500.) fillHistograms(72 + offset, b, b.event_weight);
         if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(73 + offset, b, b.event_weight);
         const bool radius_cut = b.cluster_radius > 500. && b.cluster_radius < 580.;
-        const bool crv_cut = b.crv_cluster_nhits <= 0 || std::fabs(b.crv_dt_corrected) > 50.;
+        const bool crv_cut = true; // b.crv_cluster_nhits <= 0 || std::fabs(b.crv_dt_corrected - 40.) > 30.;
         if(radius_cut && crv_cut && b.time_cluster_nhigh_z_hits < 3) fillHistograms(74 + offset, b, b.event_weight);
       }
     }
@@ -806,7 +812,9 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
         fillHistograms(91 + offset, b, b.event_weight);
         if(b.cluster_radius > 500.) fillHistograms(92 + offset, b, b.event_weight);
         if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(93 + offset, b, b.event_weight);
-        if(b.cluster_radius > 500. && b.time_cluster_nhigh_z_hits < 3) fillHistograms(94 + offset, b, b.event_weight);
+        const bool radius_cut = b.cluster_radius > 500. && b.cluster_radius < 580.;
+        const bool crv_cut = true; // b.crv_cluster_nhits <= 0 || std::fabs(b.crv_dt_corrected - 40.) > 30.;
+        if(radius_cut && crv_cut && b.time_cluster_nhigh_z_hits < 3) fillHistograms(94 + offset, b, b.event_weight);
       }
       if(b.cluster_time > 500.) {
         fillHistograms(95 + offset, b, b.event_weight);

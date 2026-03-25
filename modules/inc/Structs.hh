@@ -318,6 +318,8 @@ namespace Run1BAnaStructs {
         line_dr = 0.f;
         time_cluster_dt = 0.f;
         time_cluster_dr = 0.f;
+        crv_dt = 0.f;
+        crv_dt_corrected = 0.f;
         ntcl_hits = 0.f;
         photon_id = 0.f;
 
@@ -352,6 +354,13 @@ namespace Run1BAnaStructs {
         time_cluster_t0err = 0.f;
         time_cluster_z0 = 0.f;
         time_cluster_phi0 = 0.f;
+
+        crv_cluster_nhits = -1;
+        crv_cluster_npe = 0.f;
+        crv_cluster_t0 = 0.f;
+        crv_cluster_x = 0.f;
+        crv_cluster_y = 0.f;
+        crv_cluster_z = 0.f;
 
         mc_cluster_energy = 0.f;
         mc_cluster_time = 0.f;
