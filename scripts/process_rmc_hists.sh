@@ -25,6 +25,7 @@ if [[ "${TAG}" == "v06" ]]; then
     RMC="fgam6b0s51r0002"
     PILEUP="mnbs6b1s51r0002"
     COSMIC="csms6b0s51r0002"
+    RPC="rpce6b0s51r0002"
 fi
 
 # Pileup histogram

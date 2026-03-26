@@ -5,14 +5,20 @@
 //------------------------------------------------------------------------------
 void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
 
+  TString sig_file = "Run1BAna.rpce4b0s51r0002.hist";
+  TString bkg_file = "Run1BAna.mnbs4b1s51r0002.hist";
   TString csm_file = "Run1BAna.csms4b0s51r0002.hist";
-
-  // Open the data files
-  TFile* f_sig = TFile::Open("Run1BAna.rpce4b0s51r0002.hist", "READ");
-  TFile* f_bkg = TFile::Open("Run1BAna.mnbs4b1s51r0002.hist", "READ");
+  const bool is_v06 = TString(tag) == "v06"; // 2 cm target + 10 cm poly
+  if(is_v06) {
+    // sig_file = "Run1BAna.rpce6b0s51r0002.hist";
+    bkg_file = "Run1BAna.mnbs6b1s51r0002.hist";
+    csm_file = "Run1BAna.csms6b0s51r0002.hist";
+  }
+  TFile* f_sig = TFile::Open(sig_file, "READ");
+  TFile* f_bkg = TFile::Open(bkg_file, "READ");
   TFile* f_csm = TFile::Open(csm_file, "READ");
-  if (!f_bkg || f_bkg->IsZombie() ||
-      !f_sig || f_sig->IsZombie() ||
+  if (!f_sig || f_sig->IsZombie() ||
+      !f_bkg || f_bkg->IsZombie() ||
       !f_csm || f_csm->IsZombie()
       ) {
     Error(__func__, "Could not open files!");
@@ -41,11 +47,12 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
   plot_nmuons_   = nmuons;
 
   // RPC info
-  const double rpc_skim_eff = (28757. / 1002530508.) * (9487. / 28757.); // dts dataset * (digi / dts)
-  const double rpc_stops = (16096977. /  100000000.); // PiTargetStops eff
+  double rpc_skim_eff = (28757. / 1002530508.) * (9487. / 28757.); // dts dataset * (digi / dts)
+  if(is_v06) rpc_skim_eff = (436./ 10000.) * (191045. / 210561265); // stop selector * (digi / gen post selector)
+  const double rpc_stops = (is_v06) ? (16096977. / 100000000.) : (16096977. /  100000000.); // PiTargetStops eff
   const double rpc_beam  = (11978542. / 1000000000.); // PiBeam eff
   const double nrpc = npot * rpc_beam * rpc_stops * rpc_br_; // N(infinite lifetime RPC)
-  const double norm_rpc = nrpc*rpc_skim_eff/nnt_sig_;
+  const double norm_rpc = nrpc*rpc_skim_eff/nnt_sig_; // FIXME: Add v06 if
   sig_skim_eff_ = rpc_skim_eff;
   norm_sig_ = norm_rpc;
 
