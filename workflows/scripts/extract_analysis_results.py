@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 from pathlib import Path
 
 
@@ -23,6 +24,111 @@ _ERROR_PATTERNS = [
     re.compile(r"ArtException"),
     re.compile(r"Fatal Exception"),
 ]
+
+
+_TS_ROOT_PATTERN = re.compile(r"ts\.mu2e\.mubeam\.Run1B\.001460_(\d+)\.root$", re.IGNORECASE)
+_NTS_ROOT_PATTERN = re.compile(r"nts\.mu2e\.mubeam\.Run1B\.001460_(\d+)\.root$", re.IGNORECASE)
+_COUNT_EVENTS_PATTERN = re.compile(r"^(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)$")
+
+
+def _parse_events_from_command(command: object) -> int | None:
+    if not isinstance(command, list):
+        return None
+
+    for i, token in enumerate(command):
+        if token == "-n" and i + 1 < len(command):
+            try:
+                return int(command[i + 1])
+            except ValueError:
+                return None
+    return None
+
+
+def _compute_total_simulated_events(status_rows: list[dict]) -> dict:
+    total_events = 0
+    jobs_with_known_events = 0
+
+    for row in status_rows:
+        events = _parse_events_from_command(row.get("command"))
+        if events is None:
+            continue
+        jobs_with_known_events += 1
+        total_events += events
+
+    return {
+        "jobs_with_known_events": jobs_with_known_events,
+        "total_jobs": len(status_rows),
+        "total_events": total_events if jobs_with_known_events == len(status_rows) else None,
+    }
+
+
+def _extract_target_al_entries(run_dir: Path) -> dict:
+    try:
+        import ROOT  # type: ignore
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "root_available": False,
+            "error": f"PyROOT import failed: {exc}",
+            "files_analyzed": 0,
+            "total_target_al_entries": 0.0,
+            "per_file": [],
+        }
+
+    root_files = sorted(run_dir.glob("job_*/ts.mu2e.mubeam.Run1B.001460_*.root"))
+    if not root_files:
+        root_files = sorted(run_dir.glob("job_*/nts.mu2e.mubeam.Run1B.001460_*.root"))
+
+    per_file = []
+    total_target_al_entries = 0.0
+
+    for root_path in root_files:
+        match = _TS_ROOT_PATTERN.search(root_path.name) or _NTS_ROOT_PATTERN.search(root_path.name)
+        subrun = int(match.group(1)) if match else None
+        row = {
+            "path": str(root_path),
+            "subrun": subrun,
+            "hist_found": False,
+            "bin_found": False,
+            "target_al_entries": 0.0,
+            "error": None,
+        }
+
+        tfile = ROOT.TFile.Open(str(root_path), "READ")
+        if not tfile or tfile.IsZombie():
+            row["error"] = "Failed to open ROOT file"
+            per_file.append(row)
+            continue
+
+        hist = tfile.Get("TargetMuonFinder/stopmat")
+        if not hist:
+            row["error"] = "Histogram TargetMuonFinder/stopmat not found"
+            tfile.Close()
+            per_file.append(row)
+            continue
+
+        row["hist_found"] = True
+        xaxis = hist.GetXaxis()
+        for bin_idx in range(1, xaxis.GetNbins() + 1):
+            if xaxis.GetBinLabel(bin_idx) == "StoppingTarget_Al":
+                entries = float(hist.GetBinContent(bin_idx))
+                row["bin_found"] = True
+                row["target_al_entries"] = entries
+                total_target_al_entries += entries
+                break
+
+        if not row["bin_found"]:
+            row["error"] = "Bin label StoppingTarget_Al not found"
+
+        tfile.Close()
+        per_file.append(row)
+
+    return {
+        "root_available": True,
+        "error": None,
+        "files_analyzed": len(root_files),
+        "total_target_al_entries": total_target_al_entries,
+        "per_file": per_file,
+    }
 
 
 def _classify_output(path: Path) -> str:
@@ -50,6 +156,54 @@ def _scan_logs(log_path: Path) -> dict:
                 errors.append({"line": line_number, "text": line.rstrip()[:300]})
 
     return {"line_count": line_count, "possible_errors": errors}
+
+
+def _count_art_file_events(art_path: Path) -> int | None:
+    try:
+        result = subprocess.run(
+            ["count_events", str(art_path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        for line in result.stdout.split("\n"):
+            match = _COUNT_EVENTS_PATTERN.match(line.strip())
+            if match:
+                return int(match.group(4))
+        return None
+    except FileNotFoundError:
+        return None
+    except (subprocess.TimeoutExpired, Exception):
+        return None
+
+
+def _extract_art_event_counts(run_dir: Path) -> dict:
+    art_files = sorted(run_dir.glob("job_*/*.art"))
+    per_file: list[dict] = []
+    total_events_by_type: dict[str, int] = {}
+    total_events = 0
+
+    for art_path in art_files:
+        file_type = _classify_output(art_path)
+        event_count = _count_art_file_events(art_path)
+
+        per_file.append({
+            "path": str(art_path),
+            "type": file_type,
+            "event_count": event_count,
+        })
+
+        if event_count is not None:
+            total_events_by_type[file_type] = total_events_by_type.get(file_type, 0) + event_count
+            total_events += event_count
+
+    return {
+        "files_analyzed": len(art_files),
+        "total_events": total_events,
+        "events_by_type": total_events_by_type,
+        "per_file": per_file,
+    }
 
 
 def build_summary(run_dir: Path) -> dict:
@@ -101,6 +255,20 @@ def build_summary(run_dir: Path) -> dict:
     failed_jobs = sum(1 for row in status_rows if row.get("returncode") not in (0, None))
     unknown_jobs = sum(1 for row in status_rows if row.get("returncode") is None)
 
+    event_stats = _compute_total_simulated_events(status_rows)
+    target_al_stats = _extract_target_al_entries(run_dir)
+    art_event_stats = _extract_art_event_counts(run_dir)
+
+    if event_stats["total_events"] and event_stats["total_events"] > 0:
+        target_al_per_event = target_al_stats["total_target_al_entries"] / event_stats["total_events"]
+    else:
+        target_al_per_event = None
+
+    art_events_per_simulated = {}
+    if event_stats["total_events"] and event_stats["total_events"] > 0:
+        for file_type, count in art_event_stats["events_by_type"].items():
+            art_events_per_simulated[file_type] = count / event_stats["total_events"]
+
     return {
         "run_dir": str(run_dir),
         "total_jobs": total_jobs,
@@ -109,6 +277,15 @@ def build_summary(run_dir: Path) -> dict:
         "unknown_jobs": unknown_jobs,
         "output_counts": output_counts,
         "output_total_bytes": output_bytes,
+        "simulation_events": event_stats,
+        "target_al_analysis": {
+            **target_al_stats,
+            "target_al_entries_per_simulated_event": target_al_per_event,
+        },
+        "art_event_analysis": {
+            **art_event_stats,
+            "events_per_simulated_event": art_events_per_simulated,
+        },
         "jobs": status_rows,
         "warnings": warnings,
     }
@@ -153,6 +330,36 @@ def main() -> int:
         print("Output counts:")
         for key, value in sorted(summary["output_counts"].items()):
             print(f"  {key}: {value}")
+
+        target_al = summary["target_al_analysis"]
+        sim_events = summary["simulation_events"]
+        art_events = summary["art_event_analysis"]
+
+        print("TargetMuonFinder/stopmat summary:")
+        print(f"  ROOT files analyzed: {target_al['files_analyzed']}")
+        print(f"  Total StoppingTarget_Al entries: {target_al['total_target_al_entries']}")
+
+        if sim_events["total_events"] is None:
+            print("  Total simulated events: unknown (not all jobs had '-n' in command)")
+            print("  StoppingTarget_Al per simulated event: unavailable")
+        else:
+            print(f"  Total simulated events: {sim_events['total_events']}")
+            print(
+                "  StoppingTarget_Al per simulated event: "
+                f"{target_al['target_al_entries_per_simulated_event']:.8g}"
+            )
+
+        if target_al["error"]:
+            print(f"  Note: {target_al['error']}")
+
+        print("\nArt file event counts:")
+        print(f"  Files analyzed: {art_events['files_analyzed']}")
+        print(f"  Total events: {art_events['total_events']}")
+        if art_events["events_by_type"]:
+            print("  Events by type:")
+            for file_type, count in sorted(art_events["events_by_type"].items()):
+                per_sim = art_events["events_per_simulated_event"].get(file_type, 0)
+                print(f"    {file_type}: {count} ({per_sim:.8g} per simulated event)")
 
     return 0
 

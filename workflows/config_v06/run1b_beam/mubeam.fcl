@@ -1,4 +1,4 @@
-#include "Run1B/worksflows/run1b_beam/mubeam.fcl"
+#include "Run1BAna/workflows/run1b_beam/mubeam.fcl"
 
 # Configuration info
 source.firstRun: 1460

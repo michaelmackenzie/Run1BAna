@@ -70,8 +70,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--events-per-job",
         type=int,
-        default=None,
-        help="Optional value passed as '-n <events>' to mu2e",
+        required=True,
+        help="Number of events per job passed as '-n <events>' to mu2e",
     )
     parser.add_argument(
         "--mu2e-command",
@@ -108,12 +108,15 @@ def main() -> int:
 
     if args.parallel_jobs <= 0:
         raise SystemExit("parallel_jobs must be > 0")
+    if args.events_per_job <= 0:
+        raise SystemExit("events_per_job must be > 0")
     if args.seed_start <= 0:
         raise SystemExit("seed_start must be > 0")
 
     script_dir = Path(__file__).resolve().parent
     workflows_dir = script_dir.parent
     fcl_path = workflows_dir / args.config_version / "run1b_beam" / "mubeam.fcl"
+    include_fcl_path = Path("Run1BAna") / "workflows" / args.config_version / "run1b_beam" / "mubeam.fcl"
     extractor_path = script_dir / "extract_analysis_results.py"
 
     if not fcl_path.exists():
@@ -146,15 +149,15 @@ def main() -> int:
             seed = args.seed_start + index
             job_fcl = job_dir / "mubeam_job.fcl"
             job_fcl.write_text(
-                f"#include \"{fcl_path}\"\n"
+                f"#include \"{include_fcl_path.as_posix()}\"\n"
                 "\n"
-                f"services.SeedService.baseSeed : {seed}\n",
+                f"services.SeedService.baseSeed : {seed}\n"
+                f"source.firstSubRun: {index}\n",
                 encoding="utf-8",
             )
 
             command = [args.mu2e_command, "-c", str(job_fcl)]
-            if args.events_per_job is not None:
-                command.extend(["-n", str(args.events_per_job)])
+            command.extend(["-n", str(args.events_per_job)])
 
             # Record command for reproducibility.
             (job_dir / "job_command.txt").write_text(shlex.join(command) + "\n", encoding="utf-8")
