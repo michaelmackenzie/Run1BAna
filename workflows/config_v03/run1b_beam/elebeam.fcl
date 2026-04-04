@@ -1,0 +1,6 @@
+#include "Run1BAna/workflows/run1b_beam/elebeam.fcl"
+
+# Configuration info
+#include "Run1BAna/workflows/config_v03/run1b_beam/epilog_run.fcl"
+#include "Run1BAna/workflows/config_v03/run1b_beam/epilog_geom.fcl"
+

@@ -26,9 +26,13 @@ _ERROR_PATTERNS = [
 ]
 
 
-_TS_ROOT_PATTERN = re.compile(r"ts\.mu2e\.mubeam\.Run1B\.001460_(\d+)\.root$", re.IGNORECASE)
-_NTS_ROOT_PATTERN = re.compile(r"nts\.mu2e\.mubeam\.Run1B\.001460_(\d+)\.root$", re.IGNORECASE)
+_NTS_ROOT_PATTERN = re.compile(r"nts\.mu2e\.mubeam\.Run1B\.(\d+)_(\d+)\.root$", re.IGNORECASE)
 _COUNT_EVENTS_PATTERN = re.compile(r"^(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)$")
+_EDEP_SUMMARY_PATTERN = re.compile(
+    r"EdepAna summary:\s*Saw\s+(\d+)\s+events,\s*"
+    r"average calo energy deposition per event:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV,\s*"
+    r"events with Edep > 50 MeV:\s*(\d+)"
+)
 
 
 def _parse_events_from_command(command: object) -> int | None:
@@ -74,15 +78,14 @@ def _extract_target_al_entries(run_dir: Path) -> dict:
             "per_file": [],
         }
 
-    root_files = sorted(run_dir.glob("job_*/ts.mu2e.mubeam.Run1B.001460_*.root"))
-    if not root_files:
-        root_files = sorted(run_dir.glob("job_*/nts.mu2e.mubeam.Run1B.001460_*.root"))
+    root_files = sorted(run_dir.glob("job_*/nts.mu2e.mubeam.Run1B.*_*.root"))
+    print(f">>> Extracting TargetMuonFinder/stopmat entries from {len(root_files)} ROOT files")
 
     per_file = []
     total_target_al_entries = 0.0
 
     for root_path in root_files:
-        match = _TS_ROOT_PATTERN.search(root_path.name) or _NTS_ROOT_PATTERN.search(root_path.name)
+        match = _NTS_ROOT_PATTERN.search(root_path.name)
         subrun = int(match.group(1)) if match else None
         row = {
             "path": str(root_path),
@@ -183,6 +186,7 @@ def _extract_art_event_counts(run_dir: Path) -> dict:
     per_file: list[dict] = []
     total_events_by_type: dict[str, int] = {}
     total_events = 0
+    print(f">>> Counting events in {len(art_files)} art files")
 
     for art_path in art_files:
         file_type = _classify_output(art_path)
@@ -203,6 +207,104 @@ def _extract_art_event_counts(run_dir: Path) -> dict:
         "total_events": total_events,
         "events_by_type": total_events_by_type,
         "per_file": per_file,
+    }
+
+
+def _run_edep_analysis(run_dir: Path) -> dict:
+    flash_art_files = sorted(run_dir.glob("job_*/dts.mu2e.MuBeamFlash.Run1B.*_*.art"))
+    list_path = run_dir / "mubeam_flash_art_files.txt"
+    log_path = run_dir / "edep_analysis.log"
+
+    if not flash_art_files:
+        return {
+            "ran": False,
+            "error": "No MuBeamFlash art files found",
+            "input_file_count": 0,
+            "input_list_path": str(list_path),
+            "log_path": str(log_path),
+            "fcl_path": None,
+            "wrapper_fcl_path": None,
+            "nts_output_path": None,
+            "mu2e_returncode": None,
+            "summary_line": None,
+            "events_seen": None,
+            "average_calo_energy_mev": None,
+            "events_edep_gt_50_mev": None,
+        }
+
+    print(f">>> Found {len(flash_art_files)} MuBeamFlash art files for EdepAna processing")
+    list_path.write_text("\n".join(str(path) for path in flash_art_files) + "\n", encoding="utf-8")
+
+    workflows_dir = Path(__file__).resolve().parent.parent
+    edep_fcl = workflows_dir / "fcl" / "edep.fcl"
+    if not edep_fcl.exists():
+        return {
+            "ran": False,
+            "error": f"Missing edep fcl: {edep_fcl}",
+            "input_file_count": len(flash_art_files),
+            "input_list_path": str(list_path),
+            "log_path": str(log_path),
+            "fcl_path": str(edep_fcl),
+            "wrapper_fcl_path": None,
+            "nts_output_path": None,
+            "mu2e_returncode": None,
+            "summary_line": None,
+            "events_seen": None,
+            "average_calo_energy_mev": None,
+            "events_edep_gt_50_mev": None,
+        }
+
+    command = ["mu2e", "-c", str(edep_fcl), "-S", str(list_path)]
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=run_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        log_path.write_text("mu2e executable not found on PATH\n", encoding="utf-8")
+        return {
+            "ran": False,
+            "error": "mu2e executable not found on PATH",
+            "input_file_count": len(flash_art_files),
+            "input_list_path": str(list_path),
+            "log_path": str(log_path),
+            "fcl_path": str(edep_fcl),
+            "mu2e_returncode": None,
+            "summary_line": None,
+            "events_seen": None,
+            "average_calo_energy_mev": None,
+            "events_edep_gt_50_mev": None,
+        }
+
+    log_path.write_text(proc.stdout + "\n" + proc.stderr, encoding="utf-8")
+
+    summary_line = None
+    events_seen = None
+    average_calo_energy_mev = None
+    events_edep_gt_50_mev = None
+    for line in (proc.stdout + "\n" + proc.stderr).splitlines():
+        match = _EDEP_SUMMARY_PATTERN.search(line)
+        if match:
+            summary_line = line.strip()
+            events_seen = int(match.group(1))
+            average_calo_energy_mev = float(match.group(2))
+            events_edep_gt_50_mev = int(match.group(3))
+
+    return {
+        "ran": proc.returncode == 0,
+        "error": None if proc.returncode == 0 else f"mu2e exited with code {proc.returncode}",
+        "input_file_count": len(flash_art_files),
+        "input_list_path": str(list_path),
+        "log_path": str(log_path),
+        "fcl_path": str(edep_fcl),
+        "mu2e_returncode": proc.returncode,
+        "summary_line": summary_line,
+        "events_seen": events_seen,
+        "average_calo_energy_mev": average_calo_energy_mev,
+        "events_edep_gt_50_mev": events_edep_gt_50_mev,
     }
 
 
@@ -258,6 +360,7 @@ def build_summary(run_dir: Path) -> dict:
     event_stats = _compute_total_simulated_events(status_rows)
     target_al_stats = _extract_target_al_entries(run_dir)
     art_event_stats = _extract_art_event_counts(run_dir)
+    edep_stats = _run_edep_analysis(run_dir)
 
     if event_stats["total_events"] and event_stats["total_events"] > 0:
         target_al_per_event = target_al_stats["total_target_al_entries"] / event_stats["total_events"]
@@ -286,6 +389,7 @@ def build_summary(run_dir: Path) -> dict:
             **art_event_stats,
             "events_per_simulated_event": art_events_per_simulated,
         },
+        "edep_analysis": edep_stats,
         "jobs": status_rows,
         "warnings": warnings,
     }
@@ -293,7 +397,16 @@ def build_summary(run_dir: Path) -> dict:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-dir", required=True, help="Directory containing job_* folders")
+    parser.add_argument(
+        "--run-dir",
+        default=None,
+        help="Directory containing job_* folders (required unless --from-json is used)",
+    )
+    parser.add_argument(
+        "--from-json",
+        default=None,
+        help="Load an existing analysis_summary.json and print results without recomputing",
+    )
     parser.add_argument(
         "--output",
         default=None,
@@ -307,59 +420,94 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _print_pretty_summary(summary: dict) -> None:
+    print("-----")
+    print(f"Jobs: {summary['completed_jobs']}/{summary['total_jobs']} completed")
+    print(f"Failed: {summary['failed_jobs']}, Unknown: {summary['unknown_jobs']}")
+    print("Output counts:")
+    nFlash = summary["output_counts"].get("FlashOutput", 0)
+    for key, value in sorted(summary["output_counts"].items()):
+        print(f"  {key}: {value}")
+
+    target_al = summary["target_al_analysis"]
+    sim_events = summary["simulation_events"]
+    art_events = summary["art_event_analysis"]
+
+    print("TargetMuonFinder/stopmat summary:")
+    print(f"  ROOT files analyzed: {target_al['files_analyzed']}")
+    print(f"  Total StoppingTarget_Al entries: {target_al['total_target_al_entries']}")
+
+    if sim_events["total_events"] is None:
+        print("  Total simulated events: unknown (not all jobs had '-n' in command)")
+        print("  StoppingTarget_Al per simulated event: unavailable")
+    else:
+        print(f"  Total simulated events: {sim_events['total_events']}")
+        print(
+            "  StoppingTarget_Al per simulated event: "
+            f"{target_al['target_al_entries_per_simulated_event']:.8g}"
+        )
+
+    if target_al["error"]:
+        print(f"  Note: {target_al['error']}")
+
+    print("\nArt file event counts:")
+    print(f"  Files analyzed: {art_events['files_analyzed']}")
+    print(f"  Total events: {art_events['total_events']}")
+    if art_events["events_by_type"]:
+        print("  Events by type:")
+        for file_type, count in sorted(art_events["events_by_type"].items()):
+            per_sim = art_events["events_per_simulated_event"].get(file_type, 0)
+            print(f"    {file_type}: {count} ({per_sim:.8g} per simulated event)")
+
+    edep = summary["edep_analysis"]
+    print("\nEdep reprocessing summary:")
+    print(f"  Input MuBeamFlash files: {edep['input_file_count']}")
+    print(f"  Input list file: {edep['input_list_path']}")
+    print(f"  Edep log: {edep['log_path']}")
+    if edep["summary_line"]:
+        print(f"  {edep['summary_line']}")
+        edep_avg = edep["average_calo_energy_mev"]
+        ndep_gt_50 = edep["events_edep_gt_50_mev"]
+        if edep_avg is not None:
+            nsim_events = sim_events["total_events"] if sim_events["total_events"] else 0
+            edep_avg_wt = edep_avg * nFlash / nsim_events if nsim_events > 0 else 0
+            ndep_gt_50_wt = ndep_gt_50 * nFlash / nsim_events if nsim_events > 0 else 0
+            print(f"  Average calo energy deposition per sim event: {edep_avg_wt:.3g} MeV")
+            print(f"  Events with Edep > 50 MeV per sim event: {ndep_gt_50_wt:.3g}")
+    else:
+        print("  EdepAna summary line not found in mu2e output")
+    if edep["error"]:
+        print(f"  Note: {edep['error']}")
+
+
 def main() -> int:
     args = parse_args()
-    run_dir = Path(args.run_dir).resolve()
+    if args.from_json:
+        json_path = Path(args.from_json).resolve()
+        if not json_path.exists() or not json_path.is_file():
+            raise SystemExit(f"Summary JSON does not exist: {json_path}")
+        with json_path.open("r", encoding="utf-8") as handle:
+            summary = json.load(handle)
+        print(f"Loaded summary: {json_path}")
+    else:
+        if not args.run_dir:
+            raise SystemExit("--run-dir is required unless --from-json is used")
 
-    if not run_dir.exists() or not run_dir.is_dir():
-        raise SystemExit(f"Run directory does not exist: {run_dir}")
+        run_dir = Path(args.run_dir).resolve()
+        if not run_dir.exists() or not run_dir.is_dir():
+            raise SystemExit(f"Run directory does not exist: {run_dir}")
 
-    summary = build_summary(run_dir)
-    output_path = Path(args.output).resolve() if args.output else run_dir / "analysis_summary.json"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+        summary = build_summary(run_dir)
+        output_path = Path(args.output).resolve() if args.output else run_dir / "analysis_summary.json"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with output_path.open("w", encoding="utf-8") as handle:
-        json.dump(summary, handle, indent=2, sort_keys=True)
+        with output_path.open("w", encoding="utf-8") as handle:
+            json.dump(summary, handle, indent=2, sort_keys=True)
 
-    print(f"Wrote summary: {output_path}")
+        print(f"Wrote summary: {output_path}")
 
     if args.pretty:
-        print("-----")
-        print(f"Jobs: {summary['completed_jobs']}/{summary['total_jobs']} completed")
-        print(f"Failed: {summary['failed_jobs']}, Unknown: {summary['unknown_jobs']}")
-        print("Output counts:")
-        for key, value in sorted(summary["output_counts"].items()):
-            print(f"  {key}: {value}")
-
-        target_al = summary["target_al_analysis"]
-        sim_events = summary["simulation_events"]
-        art_events = summary["art_event_analysis"]
-
-        print("TargetMuonFinder/stopmat summary:")
-        print(f"  ROOT files analyzed: {target_al['files_analyzed']}")
-        print(f"  Total StoppingTarget_Al entries: {target_al['total_target_al_entries']}")
-
-        if sim_events["total_events"] is None:
-            print("  Total simulated events: unknown (not all jobs had '-n' in command)")
-            print("  StoppingTarget_Al per simulated event: unavailable")
-        else:
-            print(f"  Total simulated events: {sim_events['total_events']}")
-            print(
-                "  StoppingTarget_Al per simulated event: "
-                f"{target_al['target_al_entries_per_simulated_event']:.8g}"
-            )
-
-        if target_al["error"]:
-            print(f"  Note: {target_al['error']}")
-
-        print("\nArt file event counts:")
-        print(f"  Files analyzed: {art_events['files_analyzed']}")
-        print(f"  Total events: {art_events['total_events']}")
-        if art_events["events_by_type"]:
-            print("  Events by type:")
-            for file_type, count in sorted(art_events["events_by_type"].items()):
-                per_sim = art_events["events_per_simulated_event"].get(file_type, 0)
-                print(f"    {file_type}: {count} ({per_sim:.8g} per simulated event)")
+        _print_pretty_summary(summary)
 
     return 0
 

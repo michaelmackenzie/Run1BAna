@@ -1,0 +1,30 @@
+# Evaluate the average calo edep / event
+
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardServices.fcl"
+
+process_name : EDep
+
+services : @local::Services.Reco
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+
+source: {
+  module_type: RootInput
+}
+services.TFileService.fileName : "nts.owner.edep.Run1B.%6r_%8s.root"
+
+
+physics : {
+
+  analyzers : {
+    EDepAna : {
+      module_type              : EdepAna
+      CaloShowerStepCollection : "compressDetStepMCs"
+      CaloClusterCollection    : "CaloClusterMaker"
+      primary                  : "FindMCPrimary"
+      debugLevel               : 0
+    }
+  }
+  EndPath : [ EDepAna ]
+  end_paths : [ EndPath ]
+}
