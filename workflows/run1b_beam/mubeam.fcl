@@ -1,0 +1,40 @@
+#include "Production/JobConfig/pileup/MuBeamResampler.fcl"
+#include "Production/JobConfig/pileup/epilog_1b.fcl"
+
+physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations: -1
+physics.filters.beamResampler.mu2e.MaxEventsToSkip: 319542
+
+outputs.EarlyFlashOutput.fileName: "dts.mu2e.EarlyMuBeamFlash.Run1B.%6r_%8s.art"
+outputs.FlashOutput.fileName: "dts.mu2e.MuBeamFlash.Run1B.%6r_%8s.art"
+outputs.IPAStopOutput.fileName: "sim.mu2e.IPAStops.Run1B.%6r_%8s.art"
+outputs.TargetStopOutput.fileName: "sim.mu2e.TargetStops.Run1B.%6r_%8s.art"
+services.TFileService.fileName : "nts.mu2e.mubeam.Run1B.%6r_%8s.root"
+services.SeedService.baseSeed: 1
+
+# Adjust the target stop prescale
+physics.filters.TargetStopPrescaleFilter.nPrescale : 10
+
+# Drop data not needed
+outpus.TargetStopOutput.outputCommands : [
+  "drop *_*_*_*",
+  @sequence::Pileup.SimKeptProducts,
+  "drop *_IPAStopFilter_*_*",
+  "drop *_FlashFilter_*_*"
+]
+outpus.FlashOutput.outputCommands : [
+  "drop *_*_*_*",
+  @sequence::Pileup.SimKeptProducts,
+  "drop *_IPAStopFilter_*_*",
+  "drop *_TargetStopFilter_*_*"
+]
+
+# Configuration info
+source.firstRun: 1460
+source.firstSubRun: 0
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+
+# Input dataset: sim.mu2e.MuBeamCat.Run1Baa.art
+physics.filters.beamResampler.fileNames: [
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/sim/mu2e/MuBeamCat/Run1Baa/art/1b/09/sim.mu2e.MuBeamCat.Run1Baa.001430_00000000.art"
+]

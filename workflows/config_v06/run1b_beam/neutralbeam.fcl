@@ -1,0 +1,8 @@
+#include "Run1B/worksflows/run1b_beam/neutralbeam.fcl"
+
+# Configuration info
+source.firstRun: 1460
+source.firstSubRun: 0
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+

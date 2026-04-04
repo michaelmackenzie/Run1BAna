@@ -1,0 +1,4 @@
+#include "Production/JobConfig/pileup/MuonStopSelector.fcl"
+
+outputs.muminusout.fileName: "sim.mu2e.MuminusStopsCat.Run1B.%6r_%8s.art"
+outputs.muplusout.fileName : "sim.mu2e.MuplusStopsCat.Run1B.%6r_%8s.art"

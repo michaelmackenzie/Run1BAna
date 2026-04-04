@@ -1,0 +1,23 @@
+#include "Production/JobConfig/pileup/EleBeamResampler.fcl"
+#include "Production/JobConfig/pileup/epilog_1b.fcl"
+
+outputs.EarlyFlashOutput.fileName: "dts.mu2e.EarlyEleBeamFlash.Run1B.%6r_%8s.art"
+outputs.FlashOutput.fileName: "dts.mu2e.EleBeamFlash.Run1B.%6r_%8s.art"
+services.SeedService.baseSeed: 1
+
+physics.filters.DetStepFilter.StrawGasSteps: []
+physics.filters.DetStepFilter.CrvSteps: []
+physics.filters.DetStepFilter.MinimumSumCaloStepE: 1.0
+physics.filters.beamResampler.mu2e.MaxEventsToSkip: 862118
+
+# Configuration info
+source.firstRun: 1460
+source.firstSubRun: 0
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+
+# Input dataset: sim.mu2e.EleBeamCat.Run1Bai.art
+physics.filters.beamResampler.fileNames: [
+    "xroot://fndcadoor.fnal.gov//pnfs/fnal.gov/usr/mu2e/persistent/datasets/phy-sim/sim/mu2e/EleBeamCat/Run1Bai/art/57/e7/sim.mu2e.EleBeamCat.Run1Bai.001460_00000001.art"
+]
+

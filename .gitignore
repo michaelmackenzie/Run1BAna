@@ -20,6 +20,8 @@
 *.tree
 */datacards
 notes.org
+#Ignore simulation run outputs
+workflows/runs
 #Ignore TMVA outputs
 studies/*/*_output
 studies/*/outputs
