@@ -11,6 +11,24 @@
 #include <vector>
 #include <iostream>
 
+// Plestid spectra
+double plestid_spectrum(const double energy, const int knockout) {
+  const double x = energy;
+  const double k_0 = 101.866;
+  const double k_1 = 95.449;
+  const double k_2 = 84.395;
+  const double norm_0 = (k_0 > 0.) ? 12./1. / k_0 : 0.;
+  const double norm_1 = (k_1 > 0.) ? 99./4. / k_1 : 0.;
+  const double norm_2 = (k_2 > 0.) ? 42./1. / k_2 : 0.;
+
+  double k = 0.; double norm = 0.; double power = 0.;
+  if(knockout == 0) { k = k_0; norm = norm_0; power = 2.0;}
+  if(knockout == 1) { k = k_1; norm = norm_1; power = 3.5;}
+  if(knockout == 2) { k = k_2; norm = norm_2; power = 5.0;}
+  const double p = (x < k && x > 0.) ? norm * x/k * pow(1.-x/k, power) : 0.;
+  return p;
+}
+
 //--------------------------------------------------------------------------------------
 // Histogram struct - one set per selection
 //--------------------------------------------------------------------------------------
@@ -685,9 +703,11 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
     bookHistograms( 93 + offset*100, "id_tcl_hits"      , fout);
     bookHistograms( 94 + offset*100, "id_r_500_tcl_hits", fout);
 
-    bookHistograms( 95 + offset*100, "t_500", fout);
-    bookHistograms( 96 + offset*100, "id_t_500", fout);
-    bookHistograms( 97 + offset*100, "sim_t_500", fout);  const bool is_pu = TString(inputFiles).Contains("mnbs");
+    bookHistograms( 95 + offset*100, "t_500"            , fout);
+    bookHistograms( 96 + offset*100, "id_t_500"         , fout);
+    bookHistograms( 97 + offset*100, "sim_t_500"        , fout);
+    bookHistograms( 98 + offset*100, "id_time"          , fout);
+    bookHistograms( 99 + offset*100, "id_energy"        , fout);
 
   }
 
@@ -699,6 +719,9 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
   const bool is_pu = TString(inputFiles).Contains("mnbs");
   const bool is_csm = TString(inputFiles).Contains("csms");
   const bool is_fgm = TString(inputFiles).Contains("fgam");
+  const bool is_v07 = TString(outputFile).Contains("7b");
+  const bool is_v08 = TString(outputFile).Contains("fgam8b"); // Plestid fit
+  const bool is_v09 = TString(outputFile).Contains("fgam9b");
 
   TTree* current_tree = nullptr;
   for(Long64_t i = 0; i < nEntries; ++i) {
@@ -718,6 +741,29 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
               || b.sim_1_type < 0 || b.sim_1_type > 2) { // main sim is not a normal process
         offset = 100;
       }
+    }
+
+    // FIXME: Hack to move cosmics to low time in v07 = early time dataset
+    if(is_csm && is_v07) {
+      const double offset = 400.;
+      b.cluster_time    = std::fmod(b.cluster_time    - offset, 1695.);
+      b.mc_cluster_time = std::fmod(b.mc_cluster_time - offset, 1695.);
+      b.line_t0         = std::fmod(b.line_t0         - offset, 1695.);
+      b.cosmic_seed_t0  = std::fmod(b.cosmic_seed_t0  - offset, 1695.);
+      b.time_cluster_t0 = std::fmod(b.time_cluster_t0 - offset, 1695.);
+      b.crv_cluster_t0  = std::fmod(b.crv_cluster_t0  - offset, 1695.);
+      b.sim_1_time      = std::fmod(b.sim_1_time      - offset, 1695.);
+      b.sim_2_time      = std::fmod(b.sim_2_time      - offset, 1695.);
+    }
+
+    // Apply Plestid spectrum shape weights
+    if(is_fgm && (is_v08 || is_v09)) {
+      const float energy = b.gen_energy;
+      float weight = 0.;
+      weight += 0.0007 * plestid_spectrum(energy, 0);
+      weight += 0.1967 * plestid_spectrum(energy, 1);
+      weight += 0.8026 * plestid_spectrum(energy, 2);
+      b.event_weight = weight;
     }
 
     // Fill each selection set
@@ -798,7 +844,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
 
 
     // Low time selection
-    if(b.cluster_time > 400. && b.cluster_time < 550.) {
+    if(b.cluster_time > 300. && b.cluster_time < 550.) {
       fillHistograms(90 + offset, b, b.event_weight);
       const bool signal_id = (   b.cluster_energy > 60.
                               && b.cluster_ncr  > 2
@@ -815,6 +861,10 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
         const bool radius_cut = b.cluster_radius > 500. && b.cluster_radius < 580.;
         const bool crv_cut = true; // b.crv_cluster_nhits <= 0 || std::fabs(b.crv_dt_corrected - 40.) > 30.;
         if(radius_cut && crv_cut && b.time_cluster_nhigh_z_hits < 3) fillHistograms(94 + offset, b, b.event_weight);
+
+        // Energy/time selections
+        if(b.cluster_time < 400.) fillHistograms(98 + offset, b, b.event_weight);
+        if(b.cluster_energy > 90. && b.cluster_energy < 130.) fillHistograms(99 + offset, b, b.event_weight);
       }
       if(b.cluster_time > 500.) {
         fillHistograms(95 + offset, b, b.event_weight);

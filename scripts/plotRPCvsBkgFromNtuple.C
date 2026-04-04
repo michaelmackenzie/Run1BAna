@@ -9,10 +9,15 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
   TString bkg_file = "Run1BAna.mnbs4b1s51r0002.hist";
   TString csm_file = "Run1BAna.csms4b0s51r0002.hist";
   const bool is_v06 = TString(tag) == "v06"; // 2 cm target + 10 cm poly
+  const bool is_v07 = TString(tag) == "v07"; // 2 cm target + 10 cm poly, early time
   if(is_v06) {
-    // sig_file = "Run1BAna.rpce6b0s51r0002.hist";
+    sig_file = "Run1BAna.rpce6b0s51r0002.hist";
     bkg_file = "Run1BAna.mnbs6b1s51r0002.hist";
     csm_file = "Run1BAna.csms6b0s51r0002.hist";
+  } else if(is_v07) {
+    sig_file = "Run1BAna.rpce7b1s51r0002.hist";
+    bkg_file = "Run1BAna.mnbs7b1s51r0002.hist";
+    csm_file = "Run1BAna.csms7b0s51r0002.hist";
   }
   TFile* f_sig = TFile::Open(sig_file, "READ");
   TFile* f_bkg = TFile::Open(bkg_file, "READ");
@@ -38,9 +43,9 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
   }
 
   // General info
-  const double onspill_time = livetime_week_*duty_cycle_1bb_;
+  const double onspill_time = ((is_v07) ? 1./7. : 1.) * livetime_week_*duty_cycle_1bb_;
   const double nevents      = onspill_time/1.695e-6; // N(events) in a week
-  const double npot         = nevents*1.6e7*(1.5/3.8);
+  const double npot         = nevents*1.6e7*(1.5/3.8) * ((is_v07) ? 1. : 1.);
   const double nmuons       = npot*nmuons_per_pot_run1b_;
   plot_npot_     = npot;
   plot_livetime_ = livetime_week_;
@@ -49,7 +54,8 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
   // RPC info
   double rpc_skim_eff = (28757. / 1002530508.) * (9487. / 28757.); // dts dataset * (digi / dts)
   if(is_v06) rpc_skim_eff = (436./ 10000.) * (191045. / 210561265); // stop selector * (digi / gen post selector)
-  const double rpc_stops = (is_v06) ? (16096977. / 100000000.) : (16096977. /  100000000.); // PiTargetStops eff
+  if(is_v07) rpc_skim_eff = (61849. / 497656675.); // (digi / gen post selector)
+  const double rpc_stops = (is_v06 || is_v07) ? (16096977. / 100000000.) : (16096977. /  100000000.); // PiTargetStops eff
   const double rpc_beam  = (11978542. / 1000000000.); // PiBeam eff
   const double nrpc = npot * rpc_beam * rpc_stops * rpc_br_; // N(infinite lifetime RPC)
   const double norm_rpc = nrpc*rpc_skim_eff/nnt_sig_; // FIXME: Add v06 if
@@ -87,15 +93,28 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
   std::cout << "----------------------------------------------------\n\n";
 
   // Set the list of processes to consider
-  processes_ = {
-    {"RPC"    , f_sig, norm_sig_,   0, true , kBlue},
-    {"RPC_pu" , f_sig, norm_sig_, 100, true , kBlue},
-    {"RPC_cpu", f_sig, norm_sig_, 200, true , kBlue},
-    {"Cosmics", f_csm, norm_csm ,   0, false, kGreen-6},
-    {"Low pileup clusters"  , f_bkg, norm_bkg_,   0, false, kPink},
-    {"Other pileup"  , f_bkg, norm_bkg_, 100, false, kViolet},
-    {"Calo muon stops"  , f_bkg, norm_bkg_, 200, false, kOrange}
-  };
+  if(is_v06 || is_v07) {
+    draw_no_calo_mu_ = false;
+    processes_ = {
+      {"RPC"    , f_sig, norm_sig_,   0, true , kBlue},
+      {"RPC_pu" , f_sig, norm_sig_, 100, true , kBlue},
+      {"RPC_cpu", f_sig, norm_sig_, 200, true , kBlue},
+      {"Cosmics", f_csm, norm_csm ,   0, false, kGreen-6},
+      {"Low pileup clusters"  , f_bkg, norm_bkg_,   0, false, kPink},
+      {"Other pileup"  , f_bkg, norm_bkg_, 100, false, kViolet}
+      // , {"Calo muon stops"  , f_bkg, norm_bkg_, 200, false, kOrange}
+    };
+  } else {
+    processes_ = {
+      {"RPC"    , f_sig, norm_sig_,   0, true , kBlue},
+      {"RPC_pu" , f_sig, norm_sig_, 100, true , kBlue},
+      {"RPC_cpu", f_sig, norm_sig_, 200, true , kBlue},
+      {"Cosmics", f_csm, norm_csm ,   0, false, kGreen-6},
+      {"Low pileup clusters"  , f_bkg, norm_bkg_,   0, false, kPink},
+      {"Other pileup"  , f_bkg, norm_bkg_, 100, false, kViolet},
+      {"Calo muon stops"  , f_bkg, norm_bkg_, 200, false, kOrange}
+    };
+  }
 
   // Set up the figure directory and style
   dir_ = (tag) ? Form("figures/rpc_vs_bkg_nt_%s", tag) : "figures/rpc_vs_bkg";
@@ -104,11 +123,12 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
 
   // Plot by process
   // Plot the histograms
-  vector<int> proc_sets = {90, 91, 92, 93, 94, 95, 97};
+  vector<int> proc_sets = {90, 91, 92, 93, 94, 95, 97, 98, 99};
   for(const int set : proc_sets) {
     for(const bool normalize : {false, true}) {
-      plot("cluster_energy"                 , set, normalize, 2,  60.,  140., true, false);
-      plot("cluster_time"                   , set, normalize, 2, 450., 1000., true);
+      plot("cluster_energy"                 , set, normalize, 2,  60.,  140., "MeV", true, false);
+      plot("cluster_time"                   , set, normalize, 2, 250., 1000., "ns" , true);
+      continue;
       plot("cluster_radius"                 , set, normalize, 1, 300.,  700.);
       plot("cluster_disk"                   , set, normalize, 1,   0.,    2.);
       plot("cluster_frac_1"                 , set, normalize, 1,   1.,   -1.);
@@ -127,16 +147,17 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
       plot("sim_1_type"                     , set, normalize, 1,  -1.,   10.);
     }
   }
+  return;
 
   // Plot the histograms
   vector<int> sets = {0};
   for(const int set : sets) {
     plot_gen_eff(f_sig, set);
     plot_signal(f_sig, "cluster_energy", set, 2,  60.,  140.);
-    plot_signal(f_sig, "cluster_time"  , set, 5, 400., 1650.);
+    plot_signal(f_sig, "cluster_time"  , set, 5, 200., 1650.);
     for(const bool normalize : {false, true}) {
       plot("cluster_energy"                 , set, normalize, 2,  60.,  140., f_sig, f_bkg);
-      plot("cluster_time"                   , set, normalize, 2, 400., 2000., f_sig, f_bkg);
+      plot("cluster_time"                   , set, normalize, 2, 200., 1000., f_sig, f_bkg);
       plot("cluster_radius"                 , set, normalize, 1, 300.,  700., f_sig, f_bkg);
       plot("cluster_disk"                   , set, normalize, 1,   0.,    2., f_sig, f_bkg);
       plot("cluster_frac_1"                 , set, normalize, 1,   1.,   -1., f_sig, f_bkg);

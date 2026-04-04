@@ -20,6 +20,7 @@ double norm_sig_     = 0.;
 double norm_bkg_     = 0.;
 
 bool stack_bkgs_ = true;
+bool draw_no_calo_mu_ = true;
 double plot_livetime_ = 0.;
 double plot_npot_ = 0.;
 double plot_nmuons_ = 0.;
@@ -217,6 +218,7 @@ void plot_signal(TFile* f_sig, const char* name, const int set,
 //------------------------------------------------------------------------------
 void plot(const char* name, const int set, const bool normalize,
           const int rebin, const double x_min, const double x_max,
+          TString unit = "",
           const bool sig_plot = false, const bool smooth = false) {
   TH1* h_sig = nullptr;
   TH1* h_bkg = nullptr;
@@ -298,8 +300,8 @@ void plot(const char* name, const int set, const bool normalize,
   if(sig_plot) {
     pad2.SetLeftMargin(pad1.GetLeftMargin());
     pad2.SetRightMargin(pad1.GetRightMargin());
-    pad1.SetBottomMargin(0.03);
-    pad2.SetTopMargin(0.03);
+    pad1.SetBottomMargin(0.02);
+    pad2.SetTopMargin(0.05);
     pad2.SetBottomMargin(0.35);
     pad2.Draw();
   }
@@ -322,7 +324,7 @@ void plot(const char* name, const int set, const bool normalize,
   h_sig->SetFillColor(kBlue);
   // h_bkg->SetFillColor(kRed);
   h_sig->SetTitle("");
-  h_sig->SetYTitle(Form("N(events) / %.1g", h_sig->GetBinWidth(1)));
+  h_sig->SetYTitle(Form("N(events) / %.3g %s", h_sig->GetBinWidth(1), unit.Data()));
   h_sig ->Draw("hist");
   if(stack_bkgs_) h_stack.Draw("hist same noclear");
   for(auto h : h_bkgs) {
@@ -352,35 +354,47 @@ void plot(const char* name, const int set, const bool normalize,
 
     TH1* h_sig_full = significance_hist(h_sig, h_bkg, x_min, x_max); h_sig_full->SetName("significance_full");
     TH1* h_sig_cut  = significance_hist(h_sig, h_bkg_no_calo_mu, x_min, x_max);
-    h_sig_cut->Draw("hist");
-    h_sig_full->Draw("hist same");
+    TH1* h_lower_axis = (draw_no_calo_mu_) ? h_sig_cut : h_sig_full;
+    if(draw_no_calo_mu_) {
+      h_sig_cut->Draw("hist");
+      h_sig_full->Draw("hist same");
+    } else {
+      h_sig_full->Draw("hist same");
+    }
     h_sig_full->SetLineColor(kRed);
     // h_sig_full->Draw("hist same");
-    const double max_val = maxInRange(h_sig_cut, x_min, x_max);
-    h_sig_cut->GetYaxis()->SetRangeUser(0., 1.2*max_val);
-    if(x_min < x_max) h_sig_cut->GetXaxis()->SetRangeUser(x_min, x_max);
+    const double max_val = maxInRange(h_lower_axis, x_min, x_max);
+    h_lower_axis->GetYaxis()->SetRangeUser(0., 1.2*max_val);
+    if(x_min < x_max) h_lower_axis->GetXaxis()->SetRangeUser(x_min, x_max);
 
     const double text_size = 0.19;
-    const double label_size = 0.13;
+    const double label_size = 0.11;
     const double y_offset = 0.35;
     h_sig->GetXaxis()->SetTitle("");
     h_sig->GetXaxis()->SetLabelSize(0.);
     h_sig->GetYaxis()->SetLabelSize(0.15*0.3/0.7);
     h_sig->GetYaxis()->SetTitleSize(text_size*0.3/0.7);
     h_sig->GetYaxis()->SetTitleOffset(y_offset*0.7/0.3);
-    h_sig_cut->SetYTitle("S/#sqrt{B}");
-    h_sig_cut->GetXaxis()->SetTitleSize(text_size);
-    h_sig_cut->GetYaxis()->SetTitleSize(text_size);
-    h_sig_cut->GetXaxis()->SetTitleOffset(0.70);
-    h_sig_cut->GetYaxis()->SetTitleOffset(y_offset);
-    h_sig_cut->GetXaxis()->SetLabelSize(label_size);
-    h_sig_cut->GetYaxis()->SetLabelSize(label_size);
-    h_sig_cut->GetYaxis()->SetNoExponent(kTRUE);
-    TLegend* leg_2 = new TLegend(0.5, 0.9 - pad2.GetTopMargin(), 0.99 - pad2.GetRightMargin(), 0.99 - pad2.GetTopMargin());
-    leg_2->SetNColumns(2); leg_2->SetLineWidth(0); leg_2->SetFillColor(0);
-    leg_2->SetTextSize(0.10);
+    h_lower_axis->SetYTitle("S/#sqrt{B}");
+    h_lower_axis->GetXaxis()->SetTitleSize(text_size);
+    h_lower_axis->GetYaxis()->SetTitleSize(text_size);
+    h_lower_axis->GetXaxis()->SetTitleOffset(0.70);
+    h_lower_axis->GetYaxis()->SetTitleOffset(y_offset);
+    h_lower_axis->GetXaxis()->SetLabelSize(label_size);
+    h_lower_axis->GetYaxis()->SetLabelSize(label_size);
+    h_lower_axis->GetYaxis()->SetNoExponent(kTRUE);
+    h_lower_axis->GetYaxis()->SetNdivisions(505, kTRUE);
+    h_lower_axis->GetYaxis()->SetMaxDigits(3);
+    TLegend* leg_2 = new TLegend((draw_no_calo_mu_) ? 0.5 : 0.7,
+                                 0.90 - pad2.GetTopMargin(),
+                                 0.99 - pad2.GetRightMargin(),
+                                 0.99 - pad2.GetTopMargin());
+    leg_2->SetTextSize(0.10); leg_2->SetLineWidth(0); leg_2->SetFillColor(0);
     leg_2->AddEntry(h_sig_full, "Full background", "L");
-    leg_2->AddEntry(h_sig_cut, "No calo muons", "L");
+    if(draw_no_calo_mu_) {
+      leg_2->SetNColumns(2);
+      leg_2->AddEntry(h_sig_cut, "No calo muons", "L");
+    }
     leg_2->Draw();
 
     pad1.cd();

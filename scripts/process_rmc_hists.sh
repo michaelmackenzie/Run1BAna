@@ -28,6 +28,13 @@ if [[ "${TAG}" == "v06" ]]; then
     RPC="rpce6b0s51r0002"
 fi
 
+# Version with 2 cm target + 10 cm poly, early time gate
+if [[ "${TAG}" == "v07" ]]; then
+    PILEUP="mnbs7b1s51r0002"
+    COSMIC="csms7b0s51r0002"
+    RPC="rpce7b1s51r0002"
+fi
+
 # Pileup histogram
 if [[ "${DATASETS}" == *"PILEUP"* ]]; then
     INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${PILEUP}/nts.mmackenz.${PILEUP}.Run1BAna.*.root"
@@ -53,7 +60,11 @@ fi
 
 # Cosmic histogram
 if [[ "${DATASETS}" == *"COSMIC"* ]]; then
-    INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${COSMIC}/nts.mmackenz.${COSMIC}.Run1BAna.*.root"
+    if [[ "${TAG}" == "v07" ]]; then
+        INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/csms6b0s51r0002/nts.mmackenz.csms6b0s51r0002.Run1BAna.*.root"
+    else
+        INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${COSMIC}/nts.mmackenz.${COSMIC}.Run1BAna.*.root"
+    fi
     OUTDATA="Run1BAna.${COSMIC}.hist"
     root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\")"
 fi

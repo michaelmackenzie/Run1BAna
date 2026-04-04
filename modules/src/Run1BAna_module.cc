@@ -1237,7 +1237,7 @@ namespace mu2e
   //--------------------------------------------------------------------------------------
   bool Run1BAna::isGoodCRVCluster(const CrvCoincidenceCluster* crv_cluster) {
     if(!crv_cluster) return false;
-    if(crv_cluster->GetStartTime() < 400.) return false;
+    if(crv_cluster->GetStartTime() < 200.) return false;
     if(crv_cluster->GetPEs() < 0.) return false;
 
     return true;
@@ -2000,7 +2000,7 @@ namespace mu2e
 
     watch_->SetTime("CountObjects");
 
-    const double min_energy = (sim_version_ == 0) ? 60. : 40.; // later version have an abosrber
+    const double min_energy = (sim_version_ == 0) ? 60. : 40.; // later versions have an abosrber
 
     // Clusters
     const CaloCluster* max_cluster = nullptr;
@@ -2009,7 +2009,7 @@ namespace mu2e
       // initClusterPar(cluster_par_, &cluster);
       // line_par_.init(cluster_par_.line);
 
-      const bool cluster_time = (cluster.time() > 400. && cluster.time() < 1650.);
+      const bool cluster_time = (cluster.time() > 200. && cluster.time() < 1650.);
       const bool cluster_id = isGoodCluster(&cluster) && (cluster.energyDep() > min_energy && cluster_time);
 
       if(cluster_id) {
