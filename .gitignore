@@ -18,6 +18,7 @@
 *.root
 *.hist
 *.tree
+*.art
 */datacards
 notes.org
 #Ignore simulation run outputs

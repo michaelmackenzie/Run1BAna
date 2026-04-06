@@ -17,6 +17,7 @@
 // ROOT
 #include "TH1.h"
 #include "TH2.h"
+#include "TF1.h"
 
 // c++
 #include <format>
@@ -46,6 +47,7 @@ namespace mu2e {
       TH1* h_max_cluster_energy_;
       TH1* h_total_calo_energy_;
       TH1* h_step_energy_; // individual CaloShowerStep energies
+      TH2* h_step_energy_vs_time_; // step energy vs time
       TH2* h_primary_vs_edep_;
       TH1* h_primary_edep_;
       TH1* h_primary_energy_edep_diff_;
@@ -82,6 +84,37 @@ namespace mu2e {
       }
       return edep;
     }
+
+  //------------------------------------------------------------------------------------------------------------
+  // Landau core with power-law tails
+  static double landau_crystal_ball(double x, double mean, double a, double b, double alpha1, double alpha2, double n1, double n2) {
+    // See: https://github.com/pavel1murat/murat/blob/main/scripts/fit_cb4.C
+
+    // Requirements for normalization are N1 and N2 are > 1:
+    if(n1 < 1. || n2 < 1.) return 0.;
+
+    // Evaluate the function
+    const double dx = x-mean;
+    double val = 0.;
+    if (dx < -alpha1) { // Low tail
+      const double B1 = -alpha1+n1/(a*b*(1-exp(-b*alpha1)));
+      const double A1 = exp(a*(-b*alpha1-exp(-b*alpha1)))*pow(B1+alpha1,n1);
+      val  = A1/pow(B1-dx,n1);
+    } else if (dx < alpha2) { // Landau core
+      val = exp(a*(b*dx-exp(b*dx)));
+    } else { // High tail
+      const double B2 = -alpha2-n2/(a*b*(1. - exp(b*alpha2)));
+      const double A2 = exp(a*(b*alpha2-exp(b*alpha2)))*pow(B2+alpha2,n2);
+      val  = A2/pow(B2+dx,n2);
+    }
+
+    return val;
+  }
+
+  //------------------------------------------------------------------------------------------------------------
+  static double landau_crystal_ball_func(double* X, double* P) {
+    return P[0]*landau_crystal_ball(X[0], P[1], P[2], P[3], P[4], P[5], P[6], P[7]);
+  }
 
   private:
     art::InputTag primary_tag_;
@@ -133,8 +166,10 @@ namespace mu2e {
    Hist->h_max_cluster_energy_ = dir.make<TH1F>("max_cluster_energy", "Max cluster energy;Energy (MeV)"          , 150,    0., 150.);
    Hist->h_total_calo_energy_  = dir.make<TH1F>("total_calo_energy" , "Total Calo energy from steps;Energy (MeV)", 200,    0., 200.);
    Hist->h_step_energy_        = dir.make<TH1F>("calo_step_energy"  , "CaloShowerStep energy;E_{step} (MeV)"     , 100,    0., 100.);
-   Hist->h_primary_energy_edep_diff_ = dir.make<TH1F>("primary_energy_edep_diff", "Primary energy - Edep;Energy (MeV)", 300, 0., 150.);
+   Hist->h_primary_energy_edep_diff_ = dir.make<TH1F>("primary_energy_edep_diff", "Primary Edep - energy;Energy (MeV)", 300, -150., 0.);
    Hist->h_primary_edep_ = dir.make<TH1F>("primary_edep", "Primary Edep;Energy (MeV)", 300, 0., 150.);
+   Hist->h_primary_vs_edep_ = dir.make<TH2F>("primary_vs_edep", "Primary energy vs Edep;Primary energy (MeV);Edep (MeV)", 150, 0., 150., 150, 0., 150.);
+   Hist->h_step_energy_vs_time_ = dir.make<TH2F>("calo_step_energy_vs_time", "CaloShowerStep energy vs time;Time (ns);Energy (MeV)", 40, 0., 2000., 100, 0., 100.);
   }
 
   void EdepAna::fillHistograms(Hist_t* Hist) {
@@ -149,7 +184,7 @@ namespace mu2e {
       if(debug_level_ > 1) std::cout << "EdepAna: primary energy " << primsim->startMomentum().e() << " PDG " << primsim->pdgId() << std::endl;
       const double edep = edepBySim(primsim, true);
       Hist->h_primary_edep_->Fill(edep);
-      Hist->h_primary_energy_edep_diff_->Fill(primsim->startMomentum().e() - edep);
+      Hist->h_primary_energy_edep_diff_->Fill(edep - primsim->startMomentum().e());
       Hist->h_primary_vs_edep_->Fill(primsim->startMomentum().e(), edep);
       if(debug_level_ > 1) std::cout << "EdepAna: primary Edep " << edep << " difference " << primsim->startMomentum().e() - edep << std::endl;
     }
@@ -170,6 +205,7 @@ namespace mu2e {
         const double e = css.energyDepBirks();
         totalCaloE += e;
         Hist->h_step_energy_->Fill(e);
+        Hist->h_step_energy_vs_time_->Fill(css.time(), e);
       }
       Hist->h_total_calo_energy_->Fill(totalCaloE);
     }
@@ -213,6 +249,28 @@ namespace mu2e {
 
 
   void EdepAna::endJob() {
+
+    if(hists_[0] && hists_[0]->h_primary_energy_edep_diff_) {
+      TH1* h = hists_[0]->h_primary_energy_edep_diff_;
+      if(h->GetEntries() > 100) {
+        TF1* f = new TF1("landau_crystal_ball", landau_crystal_ball_func, -30., 0., 8);
+        f->SetParNames("Norm", "#mu", "a", "b", "#alpha_{1}", "#alpha_{2}", "n_{1}", "n_{2}");
+        f->SetParLimits(1, -50., 0.); // mean
+        f->FixParameter(2, 0.5); // a
+        f->SetParLimits(3, 0.01, 100.); // b
+        f->SetParLimits(4, 0.5, 5.); // alpha1
+        f->SetParLimits(5, 0.5, 5.); // alpha2
+        f->SetParLimits(6, 0.2, 15.); // n1
+        f->SetParLimits(7, 0.2, 10.); // n2
+        f->SetParameters(h->GetMaximum(), -10., 0.5, 5., 1., 1., 1., 1., 1.);
+        h->Fit(f, "R");
+        double mean = f->GetParameter(1);
+        double sigma = f->GetParameter(3);
+        std::cout << std::format("Primary energy - Edep fit: mean = {:.2f} MeV, sigma = {:.2f} MeV", mean, sigma) << std::endl;
+        delete f;
+        std::cout << std::format("Primary energy - Edep distribution: mean = {:.2f} MeV, RMS = {:.2f} MeV", h->GetMean(), h->GetRMS()) << std::endl;
+      }
+    }
     const double averageCaloEdep = (total_events_ > 0)
       ? total_calo_edep_ / static_cast<double>(total_events_)
       : 0.;
