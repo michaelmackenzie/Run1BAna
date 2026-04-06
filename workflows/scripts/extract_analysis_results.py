@@ -38,6 +38,16 @@ _EDEP_SUMMARY_PATTERN = re.compile(
     r"average calo energy deposition per event:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV,\s*"
     r"events with Edep > 50 MeV:\s*(\d+)"
 )
+_EDEP_FIT_PATTERN = re.compile(
+    r"Primary energy - Edep fit:\s*status\s*=\s*(\d+)\s*,\s*mean\s*=\s*"
+    r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV,\s*"
+    r"FWHM\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV"
+)
+_EDEP_DISTRIBUTION_PATTERN = re.compile(
+    r"Primary energy - Edep distribution:\s*mean\s*=\s*"
+    r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV,\s*"
+    r"RMS\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV"
+)
 _CALO_STOP_MATERIALS = ("G4_CESIUM_IODIDE", "CarbonFiber", "AluminumHoneycomb")
 _STAGES = ("mubeam", "mustop")
 _MUSTOP_EDEP_SAMPLES = {
@@ -53,6 +63,10 @@ _MUSTOP_EDEP_SAMPLES = {
         "glob": "job_*/dts.mu2e.FlatGamma.Run1B.*_*.art",
         "label": "FlatGamma",
     },
+}
+_MUBEAM_INPUT_EFFICIENCY_BY_FCL = {
+    "run1b_beam/mubeam.fcl": 0.01278168,
+    "run1a_beam/mubeam.fcl": 0.00213816,
 }
 
 
@@ -70,10 +84,11 @@ def _parse_events_from_command(command: object) -> int | None:
 
 
 def _compute_total_simulated_events(status_rows: list[dict]) -> dict:
+    successful_rows = [row for row in status_rows if row.get("returncode") == 0]
     total_events = 0
     jobs_with_known_events = 0
 
-    for row in status_rows:
+    for row in successful_rows:
         events = _parse_events_from_command(row.get("command"))
         if events is None:
             continue
@@ -82,8 +97,33 @@ def _compute_total_simulated_events(status_rows: list[dict]) -> dict:
 
     return {
         "jobs_with_known_events": jobs_with_known_events,
-        "total_jobs": len(status_rows),
-        "total_events": total_events if jobs_with_known_events == len(status_rows) else None,
+        "total_jobs": len(successful_rows),
+        "total_jobs_all": len(status_rows),
+        "total_events": total_events if jobs_with_known_events == len(successful_rows) else None,
+    }
+
+
+def _detect_mubeam_input_efficiency(run_dir: Path) -> dict:
+    for job_fcl in sorted(run_dir.glob("job_*/mubeam_job.fcl")):
+        try:
+            text = job_fcl.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+
+        for fcl_fragment, correction in _MUBEAM_INPUT_EFFICIENCY_BY_FCL.items():
+            if fcl_fragment in text:
+                return {
+                    "detected": True,
+                    "detected_from": str(job_fcl),
+                    "input_fcl": fcl_fragment,
+                    "correction_factor": correction,
+                }
+
+    return {
+        "detected": False,
+        "detected_from": None,
+        "input_fcl": None,
+        "correction_factor": None,
     }
 
 
@@ -282,6 +322,12 @@ def _run_edep_analysis_for_files(
             "events_seen": None,
             "average_calo_energy_mev": None,
             "events_edep_gt_50_mev": None,
+            "primary_minus_edep_fit_line": None,
+            "primary_minus_edep_fit_mean_mev": None,
+            "primary_minus_edep_fit_fwhm_mev": None,
+            "primary_minus_edep_distribution_line": None,
+            "primary_minus_edep_distribution_mean_mev": None,
+            "primary_minus_edep_distribution_rms_mev": None,
         }
 
     print(f">>> Found {len(art_files)} {input_label} art files for {analysis_name} EdepAna processing")
@@ -304,6 +350,12 @@ def _run_edep_analysis_for_files(
             "events_seen": None,
             "average_calo_energy_mev": None,
             "events_edep_gt_50_mev": None,
+            "primary_minus_edep_fit_line": None,
+            "primary_minus_edep_fit_mean_mev": None,
+            "primary_minus_edep_fit_fwhm_mev": None,
+            "primary_minus_edep_distribution_line": None,
+            "primary_minus_edep_distribution_mean_mev": None,
+            "primary_minus_edep_distribution_rms_mev": None,
         }
 
     wrapper_include_path = Path("Run1BAna") / "workflows" / "fcl" / "edep.fcl"
@@ -339,6 +391,12 @@ def _run_edep_analysis_for_files(
             "events_seen": None,
             "average_calo_energy_mev": None,
             "events_edep_gt_50_mev": None,
+            "primary_minus_edep_fit_line": None,
+            "primary_minus_edep_fit_mean_mev": None,
+            "primary_minus_edep_fit_fwhm_mev": None,
+            "primary_minus_edep_distribution_line": None,
+            "primary_minus_edep_distribution_mean_mev": None,
+            "primary_minus_edep_distribution_rms_mev": None,
         }
 
     log_path.write_text(proc.stdout + "\n" + proc.stderr, encoding="utf-8")
@@ -347,6 +405,12 @@ def _run_edep_analysis_for_files(
     events_seen = None
     average_calo_energy_mev = None
     events_edep_gt_50_mev = None
+    primary_minus_edep_fit_line = None
+    primary_minus_edep_fit_mean_mev = None
+    primary_minus_edep_fit_fwhm_mev = None
+    primary_minus_edep_distribution_line = None
+    primary_minus_edep_distribution_mean_mev = None
+    primary_minus_edep_distribution_rms_mev = None
     for line in (proc.stdout + "\n" + proc.stderr).splitlines():
         match = _EDEP_SUMMARY_PATTERN.search(line)
         if match:
@@ -354,6 +418,16 @@ def _run_edep_analysis_for_files(
             events_seen = int(match.group(1))
             average_calo_energy_mev = float(match.group(2))
             events_edep_gt_50_mev = int(match.group(3))
+        fit_match = _EDEP_FIT_PATTERN.search(line)
+        if fit_match:
+            primary_minus_edep_fit_line = line.strip()
+            primary_minus_edep_fit_mean_mev = float(fit_match.group(2))
+            primary_minus_edep_fit_fwhm_mev = float(fit_match.group(3))
+        distribution_match = _EDEP_DISTRIBUTION_PATTERN.search(line)
+        if distribution_match:
+            primary_minus_edep_distribution_line = line.strip()
+            primary_minus_edep_distribution_mean_mev = float(distribution_match.group(1))
+            primary_minus_edep_distribution_rms_mev = float(distribution_match.group(2))
 
     return {
         "ran": proc.returncode == 0,
@@ -369,6 +443,12 @@ def _run_edep_analysis_for_files(
         "events_seen": events_seen,
         "average_calo_energy_mev": average_calo_energy_mev,
         "events_edep_gt_50_mev": events_edep_gt_50_mev,
+        "primary_minus_edep_fit_line": primary_minus_edep_fit_line,
+        "primary_minus_edep_fit_mean_mev": primary_minus_edep_fit_mean_mev,
+        "primary_minus_edep_fit_fwhm_mev": primary_minus_edep_fit_fwhm_mev,
+        "primary_minus_edep_distribution_line": primary_minus_edep_distribution_line,
+        "primary_minus_edep_distribution_mean_mev": primary_minus_edep_distribution_mean_mev,
+        "primary_minus_edep_distribution_rms_mev": primary_minus_edep_distribution_rms_mev,
     }
 
 
@@ -460,6 +540,7 @@ def _build_mubeam_summary(run_dir: Path) -> dict:
     target_al_stats = _extract_target_al_entries(run_dir)
     art_event_stats = _extract_art_event_counts(run_dir)
     edep_stats = _run_mubeam_edep_analysis(run_dir)
+    input_efficiency = _detect_mubeam_input_efficiency(run_dir)
 
     if event_stats["total_events"] and event_stats["total_events"] > 0:
         target_al_per_event = target_al_stats["total_target_al_entries"] / event_stats["total_events"]
@@ -469,9 +550,20 @@ def _build_mubeam_summary(run_dir: Path) -> dict:
         calo_per_event = None
 
     art_events_per_simulated = {}
+    art_events_absolute_efficiency = {}
     if event_stats["total_events"] and event_stats["total_events"] > 0:
         for file_type, count in art_event_stats["events_by_type"].items():
-            art_events_per_simulated[file_type] = count / event_stats["total_events"]
+            rel_eff = count / event_stats["total_events"]
+            art_events_per_simulated[file_type] = rel_eff
+            if input_efficiency["correction_factor"] is not None:
+                art_events_absolute_efficiency[file_type] = rel_eff * input_efficiency["correction_factor"]
+
+    muminus_stops_files = sorted((run_dir / "mu_stops_job").glob("sim.mu2e.MuminusStopsCat.*.art"))
+    muminus_stops_events: int | None = None
+    if muminus_stops_files:
+        counts = [_count_art_file_events(p) for p in muminus_stops_files]
+        if all(c is not None for c in counts):
+            muminus_stops_events = sum(counts)  # type: ignore[arg-type]
 
     return {
         "stage": "mubeam",
@@ -483,15 +575,28 @@ def _build_mubeam_summary(run_dir: Path) -> dict:
         "output_counts": output_counts,
         "output_total_bytes": output_bytes,
         "simulation_events": event_stats,
+        "input_efficiency": input_efficiency,
         "target_al_analysis": {
             **target_al_stats,
             "target_al_entries_per_simulated_event": target_al_per_event,
             "calo_entries_per_simulated_event": calo_per_event,
+            "target_al_entries_absolute_efficiency": (
+                target_al_per_event * input_efficiency["correction_factor"]
+                if target_al_per_event is not None and input_efficiency["correction_factor"] is not None
+                else None
+            ),
+            "calo_entries_absolute_efficiency": (
+                calo_per_event * input_efficiency["correction_factor"]
+                if calo_per_event is not None and input_efficiency["correction_factor"] is not None
+                else None
+            ),
         },
         "art_event_analysis": {
             **art_event_stats,
             "events_per_simulated_event": art_events_per_simulated,
+            "absolute_efficiency_by_type": art_events_absolute_efficiency,
         },
+        "muminus_stops_events": muminus_stops_events,
         "edep_analysis": edep_stats,
         "jobs": status_rows,
         "warnings": warnings,
@@ -596,15 +701,29 @@ def _print_pretty_summary(summary: dict) -> None:
                 print(f"    {edep['summary_line']}")
             else:
                 print("    EdepAna summary line not found in mu2e output")
+            if edep.get("primary_minus_edep_fit_line"):
+                print(f"    {edep['primary_minus_edep_fit_line']}")
+            if edep.get("primary_minus_edep_distribution_line"):
+                print(f"    {edep['primary_minus_edep_distribution_line']}")
             if edep["error"]:
                 print(f"    Note: {edep['error']}")
         return
 
     nFlash = summary["output_counts"].get("FlashOutput", 0)
+    input_efficiency = summary.get("input_efficiency", {})
 
     target_al = summary["target_al_analysis"]
     sim_events = summary["simulation_events"]
     art_events = summary["art_event_analysis"]
+
+    if input_efficiency.get("correction_factor") is not None:
+        print(
+            "Input efficiency correction: "
+            f"{input_efficiency['correction_factor']:.8g} "
+            f"(from {input_efficiency.get('input_fcl')})"
+        )
+    else:
+        print("Input efficiency correction: unavailable")
 
     print("TargetMuonFinder/stopmat summary:")
     print(f"  ROOT files analyzed: {target_al['files_analyzed']}")
@@ -619,6 +738,8 @@ def _print_pretty_summary(summary: dict) -> None:
         print("  Total simulated events: unknown (not all jobs had '-n' in command)")
         print("  StoppingTarget_Al per simulated event: unavailable")
         print("  Calo entries per simulated event: unavailable")
+        print("  StoppingTarget_Al absolute efficiency: unavailable")
+        print("  Calo entries absolute efficiency: unavailable")
     else:
         print(f"  Total simulated events: {sim_events['total_events']}")
         print(
@@ -629,6 +750,20 @@ def _print_pretty_summary(summary: dict) -> None:
             "  Calo entries per simulated event: "
             f"{target_al.get('calo_entries_per_simulated_event', 0.0):.8g}"
         )
+        if target_al.get("target_al_entries_absolute_efficiency") is not None:
+            print(
+                "  StoppingTarget_Al absolute efficiency: "
+                f"{target_al['target_al_entries_absolute_efficiency']:.8g}"
+            )
+        else:
+            print("  StoppingTarget_Al absolute efficiency: unavailable")
+        if target_al.get("calo_entries_absolute_efficiency") is not None:
+            print(
+                "  Calo entries absolute efficiency: "
+                f"{target_al['calo_entries_absolute_efficiency']:.8g}"
+            )
+        else:
+            print("  Calo entries absolute efficiency: unavailable")
 
     if target_al["error"]:
         print(f"  Note: {target_al['error']}")
@@ -640,7 +775,11 @@ def _print_pretty_summary(summary: dict) -> None:
         print("  Events by type:")
         for file_type, count in sorted(art_events["events_by_type"].items()):
             per_sim = art_events["events_per_simulated_event"].get(file_type, 0)
-            print(f"    {file_type}: {count} ({per_sim:.8g} per simulated event)")
+            abs_eff = art_events.get("absolute_efficiency_by_type", {}).get(file_type)
+            if abs_eff is not None:
+                print(f"    {file_type}: {count} ({per_sim:.8g} per simulated event, {abs_eff:.8g} absolute)")
+            else:
+                print(f"    {file_type}: {count} ({per_sim:.8g} per simulated event)")
 
     edep = summary["edep_analysis"]
     print("\nEdep reprocessing summary:")

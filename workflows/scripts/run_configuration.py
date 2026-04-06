@@ -16,8 +16,9 @@ from datetime import datetime
 from pathlib import Path
 
 
-_STAGES = ("mubeam", "mustop")
+_STAGES = ("mubeam", "mustop", "all", "summary")
 _MUSTOP_MODES = ("ce", "ce_plus", "flat_gamma")
+_GEN_RESTRICTION_FACTOR = (1.0 - 0.95) / 2.0  # cos(theta) generation restriction correction
 
 
 @dataclass
@@ -86,8 +87,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--events-per-job",
         type=int,
-        required=True,
-        help="Number of events per job passed as '-n <events>' to mu2e",
+        default=0,
+        help="Number of events per job passed as '-n <events>' to mu2e (required for mubeam/mustop/all)",
     )
     parser.add_argument(
         "--mu2e-command",
@@ -125,10 +126,24 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--mustop-run-dir",
+        default=None,
+        help=(
+            "Directory containing mustop job_* outputs for --stage summary "
+            "(default: latest mustop_* under run-root/config_version)"
+        ),
+    )
+    parser.add_argument(
         "--mustop-jobs-per-mode",
         type=int,
-        default=1,
-        help="Number of jobs to launch for each mustop mode (ce/ce_plus/flat_gamma)",
+        default=10,
+        help="Number of jobs to launch for each mustop mode (ce/ce_plus/flat_gamma) (default: 10)",
+    )
+    parser.add_argument(
+        "--mustop-events-per-job",
+        type=int,
+        default=5000,
+        help="Number of events per mustop job (default: 5000)",
     )
     return parser.parse_args()
 
@@ -207,23 +222,188 @@ def _run_mu_stops_job(
     return result
 
 
+def _load_summary(summary_path: Path) -> dict:
+    if not summary_path.exists() or not summary_path.is_file():
+        raise SystemExit(f"Missing analysis summary: {summary_path}")
+    with summary_path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _print_all_stage_compact_summary(mubeam_summary: dict, mustop_summary: dict) -> None:
+    input_corr = mubeam_summary.get("input_efficiency", {}).get("correction_factor")
+    target_abs = mubeam_summary.get("target_al_analysis", {}).get("target_al_entries_absolute_efficiency")
+    calo_abs = mubeam_summary.get("target_al_analysis", {}).get("calo_entries_absolute_efficiency")
+    mubeam_flash_abs_eff = (
+        mubeam_summary
+        .get("art_event_analysis", {})
+        .get("absolute_efficiency_by_type", {})
+        .get("FlashOutput")
+    )
+
+    sim_total = mubeam_summary.get("simulation_events", {}).get("total_events")
+    edep = mubeam_summary.get("edep_analysis", {})
+    edep_events_seen = edep.get("events_seen")
+    edep_avg = edep.get("average_calo_energy_mev")
+    edep_gt50 = edep.get("events_edep_gt_50_mev")
+
+    mubeam_gt50_per_sim_abs = None
+    if (
+        input_corr is not None
+        and sim_total not in (None, 0)
+        and edep_events_seen is not None
+        and edep_gt50 is not None
+    ):
+        mubeam_gt50_per_sim_abs = (edep_gt50 / sim_total) * input_corr
+
+    n_muminus_stops = mubeam_summary.get("muminus_stops_events")
+    stopping_factor = (
+        n_muminus_stops / sim_total
+        if n_muminus_stops is not None and sim_total not in (None, 0)
+        else None
+    )
+
+    mustop_sim_total = mustop_summary.get("simulation_events", {}).get("total_events")
+    mustop_sim_per_mode = (
+        mustop_sim_total / len(_MUSTOP_MODES)
+        if mustop_sim_total not in (None, 0)
+        else None
+    )
+
+    print("-----")
+    print("Compact all-stage summary")
+    print(f"  Target absolute muon stopping rate: {target_abs:.8g}" if target_abs is not None else "  Target absolute muon stopping rate: unavailable")
+    print(f"  Calorimeter absolute muon stopping rate: {calo_abs:.8g}" if calo_abs is not None else "  Calorimeter absolute muon stopping rate: unavailable")
+    print(
+        f"  mubeam flash output absolute efficiency: {mubeam_flash_abs_eff:.8g}"
+        if mubeam_flash_abs_eff is not None
+        else "  mubeam flash output absolute efficiency: unavailable"
+    )
+    print(
+        f"  mubeam average Edep / event: {edep_avg:.8g} MeV"
+        if edep_avg is not None
+        else "  mubeam average Edep / event: unavailable"
+    )
+    print(
+        f"  mubeam events with Edep > 50 per simulated event (absolute): {mubeam_gt50_per_sim_abs:.8g}"
+        if mubeam_gt50_per_sim_abs is not None
+        else "  mubeam events with Edep > 50 per simulated event (absolute): unavailable"
+    )
+
+    scale = None
+    if input_corr is not None and stopping_factor is not None and mustop_sim_per_mode not in (None, 0):
+        scale = input_corr * stopping_factor * _GEN_RESTRICTION_FACTOR / mustop_sim_per_mode
+
+    for sample in _MUSTOP_MODES:
+        sample_stats = mustop_summary.get("edep_analysis_by_sample", {}).get(sample, {})
+        sample_seen = sample_stats.get("events_seen")
+        sample_gt50 = sample_stats.get("events_edep_gt_50_mev")
+        sample_mpv = sample_stats.get("primary_minus_edep_fit_mean_mev")
+        sample_fwhm = sample_stats.get("primary_minus_edep_fit_fwhm_mev")
+
+        sample_abs_eff_all = sample_seen * scale if scale is not None and sample_seen is not None else None
+        sample_abs_eff_gt50 = sample_gt50 * scale if scale is not None and sample_gt50 is not None else None
+
+        eff_all_str = f"{sample_abs_eff_all:.8g}" if sample_abs_eff_all is not None else "unavailable"
+        eff_gt50_str = f"{sample_abs_eff_gt50:.8g}" if sample_abs_eff_gt50 is not None else "unavailable"
+        mpv_str = f"{sample_mpv:.4g}" if sample_mpv is not None else "unavailable"
+        fwhm_str = f"{sample_fwhm:.4g}" if sample_fwhm is not None else "unavailable"
+
+        print(f"  {sample}: abs eff (all)={eff_all_str}, abs eff (Edep>50)={eff_gt50_str}, MPV={mpv_str} MeV, FWHM={fwhm_str} MeV")
+
+
 def main() -> int:
     args = parse_args()
 
-    if args.stage == "mubeam" and (args.parallel_jobs is None or args.parallel_jobs <= 0):
-        raise SystemExit("parallel_jobs must be > 0 for stage mubeam")
-    if args.events_per_job <= 0:
-        raise SystemExit("events_per_job must be > 0")
-    if args.seed_start <= 0:
-        raise SystemExit("seed_start must be > 0")
-    if args.mustop_jobs_per_mode <= 0:
-        raise SystemExit("mustop_jobs_per_mode must be > 0")
+    if args.stage in ("mubeam", "all") and (args.parallel_jobs is None or args.parallel_jobs <= 0):
+        raise SystemExit("parallel_jobs must be > 0 for stage mubeam/all")
+    if args.stage != "summary":
+        if args.stage != "mustop" and args.events_per_job <= 0:
+            raise SystemExit("events_per_job must be > 0")
+        if args.seed_start <= 0:
+            raise SystemExit("seed_start must be > 0")
+        if args.mustop_jobs_per_mode <= 0:
+            raise SystemExit("mustop_jobs_per_mode must be > 0")
 
     script_dir = Path(__file__).resolve().parent
     workflows_dir = script_dir.parent
     extractor_path = script_dir / "extract_analysis_results.py"
 
     run_root = Path(args.run_root).resolve() if args.run_root else workflows_dir / "runs"
+
+    if args.stage == "summary":
+        mubeam_run_dir = (
+            Path(args.mubeam_run_dir).resolve()
+            if args.mubeam_run_dir
+            else _find_latest_stage_run(run_root, args.config_version, "mubeam")
+        )
+        if mubeam_run_dir is None:
+            raise SystemExit("Could not locate mubeam run directory; pass --mubeam-run-dir explicitly")
+        mustop_run_dir = (
+            Path(args.mustop_run_dir).resolve()
+            if args.mustop_run_dir
+            else _find_latest_stage_run(run_root, args.config_version, "mustop")
+        )
+        if mustop_run_dir is None:
+            raise SystemExit("Could not locate mustop run directory; pass --mustop-run-dir explicitly")
+        mubeam_summary = _load_summary(mubeam_run_dir / "analysis_summary.json")
+        mustop_summary = _load_summary(mustop_run_dir / "analysis_summary.json")
+        print(f"mubeam: {mubeam_run_dir}")
+        print(f"mustop: {mustop_run_dir}")
+        _print_all_stage_compact_summary(mubeam_summary, mustop_summary)
+        return 0
+
+    if args.stage == "all":
+        this_script = Path(__file__).resolve()
+        base_cmd = [
+            sys.executable,
+            str(this_script),
+            args.config_version,
+            str(args.parallel_jobs),
+            "--events-per-job",
+            str(args.events_per_job),
+            "--mu2e-command",
+            args.mu2e_command,
+            "--seed-start",
+            str(args.seed_start),
+            "--run-root",
+            str(run_root),
+            "--mustop-jobs-per-mode",
+            str(args.mustop_jobs_per_mode),
+            "--mustop-events-per-job",
+            str(args.mustop_events_per_job),
+        ]
+        if args.max_workers is not None:
+            base_cmd.extend(["--max-workers", str(args.max_workers)])
+        if args.dry_run:
+            base_cmd.append("--dry-run")
+
+        print("Running stage sequence: mubeam -> mustop")
+        mubeam_cmd = base_cmd + ["--stage", "mubeam"]
+        mubeam_run = subprocess.run(mubeam_cmd, check=False)
+        if mubeam_run.returncode != 0:
+            print("mubeam stage failed in all-stage sequence", file=sys.stderr)
+            return mubeam_run.returncode
+
+        mubeam_run_dir = _find_latest_stage_run(run_root, args.config_version, "mubeam")
+        if mubeam_run_dir is None:
+            raise SystemExit("Could not locate mubeam run directory after mubeam stage completion")
+
+        mustop_cmd = base_cmd + ["--stage", "mustop", "--mubeam-run-dir", str(mubeam_run_dir)]
+        mustop_run = subprocess.run(mustop_cmd, check=False)
+        if mustop_run.returncode != 0:
+            print("mustop stage failed in all-stage sequence", file=sys.stderr)
+            return mustop_run.returncode
+
+        print(f"All-stage sequence complete. mubeam run: {mubeam_run_dir}")
+        latest_mustop = _find_latest_stage_run(run_root, args.config_version, "mustop")
+        if latest_mustop:
+            print(f"All-stage sequence complete. mustop run: {latest_mustop}")
+
+            mubeam_summary = _load_summary(mubeam_run_dir / "analysis_summary.json")
+            mustop_summary = _load_summary(latest_mustop / "analysis_summary.json")
+            _print_all_stage_compact_summary(mubeam_summary, mustop_summary)
+        return 0
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = run_root / args.config_version / f"{args.stage}_{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -343,7 +523,8 @@ def main() -> int:
             )
 
             command = [args.mu2e_command, "-c", str(job_fcl)]
-            command.extend(["-n", str(args.events_per_job)])
+            n_events = args.mustop_events_per_job if args.stage == "mustop" else args.events_per_job
+            command.extend(["-n", str(n_events)])
 
             # Record command for reproducibility.
             (job_dir / "job_command.txt").write_text(shlex.join(command) + "\n", encoding="utf-8")
@@ -372,26 +553,24 @@ def main() -> int:
     failed = len(results) - completed
     print(f"Finished jobs: {completed}/{len(results)} successful, {failed} failed")
 
-    if args.stage != "mubeam":
-        print(f"Stage {args.stage} complete: {run_dir}")
-        return 0 if failed == 0 else 1
+    if args.stage == "mubeam":
+        if failed > 0:
+            print("Warning: proceeding with available successful mubeam outputs despite failed jobs")
 
-    if failed > 0:
-        print("Skipping mu_stops job due to failed mubeam jobs", file=sys.stderr)
-        return 1
-
-    mu_stops_result = _run_mu_stops_job(
-        run_dir, workflows_dir, args.config_version,
-        args.mu2e_command, env, args.dry_run,
-    )
-    if mu_stops_result.returncode != 0:
-        print("mu_stops job failed", file=sys.stderr)
-        return 1
+        mu_stops_result = _run_mu_stops_job(
+            run_dir, workflows_dir, args.config_version,
+            args.mu2e_command, env, args.dry_run,
+        )
+        if mu_stops_result.returncode != 0:
+            print("mu_stops job failed", file=sys.stderr)
+            return 1
 
     summary_path = run_dir / "analysis_summary.json"
     extractor_cmd = [
         sys.executable,
         str(extractor_path),
+        "--stage",
+        args.stage,
         "--run-dir",
         str(run_dir),
         "--output",
@@ -406,7 +585,9 @@ def main() -> int:
         return extractor_run.returncode
 
     print(f"Analysis summary: {summary_path}")
-    return 0 if failed == 0 else 1
+    if failed > 0:
+        print("Warning: stage completed with failed jobs; efficiencies are evaluated from successful outputs")
+    return 0
 
 
 if __name__ == "__main__":

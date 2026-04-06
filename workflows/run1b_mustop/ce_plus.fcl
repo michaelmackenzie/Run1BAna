@@ -4,6 +4,9 @@ physics.filters.PrimaryFilter.StrawGasSteps: []
 physics.filters.PrimaryFilter.MinimumSumCaloStepE: 20
 physics.filters.PrimaryFilter.MinimumPartMom: 0.
 
+physics.producers.generate.czMin    : 0.95
+physics.producers.generate.czMax    : 1.00
+
 outputs.PrimaryOutput.fileName: "dts.mu2e.CePlusEndpoint.Run1B.%6r_%8s.art"
 services.SeedService.baseSeed: 1
 

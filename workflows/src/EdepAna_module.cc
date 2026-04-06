@@ -18,6 +18,7 @@
 #include "TH1.h"
 #include "TH2.h"
 #include "TF1.h"
+#include "TFitResult.h"
 
 // c++
 #include <format>
@@ -87,6 +88,16 @@ namespace mu2e {
 
   //------------------------------------------------------------------------------------------------------------
   // Landau core with power-law tails
+  static double landau(double x, double mean, double a, double b) {
+
+    // Evaluate the function
+    const double dx = x-mean;
+    double val = exp(a*(b*dx-exp(b*dx)));
+    return val;
+  }
+
+  //------------------------------------------------------------------------------------------------------------
+  // Landau core with power-law tails
   static double landau_crystal_ball(double x, double mean, double a, double b, double alpha1, double alpha2, double n1, double n2) {
     // See: https://github.com/pavel1murat/murat/blob/main/scripts/fit_cb4.C
 
@@ -114,6 +125,10 @@ namespace mu2e {
   //------------------------------------------------------------------------------------------------------------
   static double landau_crystal_ball_func(double* X, double* P) {
     return P[0]*landau_crystal_ball(X[0], P[1], P[2], P[3], P[4], P[5], P[6], P[7]);
+  }
+  //------------------------------------------------------------------------------------------------------------
+  static double landau_func(double* X, double* P) {
+    return P[0]*landau(X[0], P[1], P[2], P[3]);
   }
 
   private:
@@ -253,22 +268,51 @@ namespace mu2e {
     if(hists_[0] && hists_[0]->h_primary_energy_edep_diff_) {
       TH1* h = hists_[0]->h_primary_energy_edep_diff_;
       if(h->GetEntries() > 100) {
-        TF1* f = new TF1("landau_crystal_ball", landau_crystal_ball_func, -30., 0., 8);
-        f->SetParNames("Norm", "#mu", "a", "b", "#alpha_{1}", "#alpha_{2}", "n_{1}", "n_{2}");
+        const double mean_seed = h->GetBinCenter(h->GetMaximumBin());
+        const double h_height = h->GetMaximum();
+        const double x1_seed = h->GetBinCenter(h->FindFirstBinAbove(h_height/2.));
+        const double x2_seed = h->GetBinCenter(h->FindLastBinAbove(h_height/2.));
+        const double fwhm_seed = x2_seed - x1_seed;
+        const double sigma_seed = std::max(2., fwhm_seed / 2.355); // FWHM ~ 2.355*sigma for Gaussian-like peak
+        // TF1* f = new TF1("landau_crystal_ball", landau_crystal_ball_func, mean_seed - 3.*sigma_seed, std::min(0., mean_seed + 3.*sigma_seed), 8);
+        // f->SetParNames("Norm", "#mu", "a", "b", "#alpha_{1}", "#alpha_{2}", "n_{1}", "n_{2}");
+        // f->SetParLimits(1, -50., 0.); // mean
+        // f->FixParameter(2, 0.5); // a
+        // f->SetParLimits(3, 0.01, 100.); // b
+        // f->SetParLimits(4, 0.5, 3.); // alpha1
+        // f->SetParLimits(5, 0.5, 3.); // alpha2
+        // f->SetParLimits(6, 0.2, 15.); // n1
+        // f->SetParLimits(7, 0.2, 10.); // n2
+        // f->FixParameter(7, 1.); // for now, fix to improve fit stability
+        // f->SetParameters(h->GetMaximum(), mean_seed, 0.5, sigma_seed/2., 1., 1., 1., 1., 1.);
+        TF1* f = new TF1("landau", landau_func, mean_seed - 3*sigma_seed, std::min(0., mean_seed + 3*sigma_seed), 4);
+        f->SetParNames("Norm", "#mu", "a", "b");
         f->SetParLimits(1, -50., 0.); // mean
         f->FixParameter(2, 0.5); // a
         f->SetParLimits(3, 0.01, 100.); // b
-        f->SetParLimits(4, 0.5, 5.); // alpha1
-        f->SetParLimits(5, 0.5, 5.); // alpha2
-        f->SetParLimits(6, 0.2, 15.); // n1
-        f->SetParLimits(7, 0.2, 10.); // n2
-        f->SetParameters(h->GetMaximum(), -10., 0.5, 5., 1., 1., 1., 1., 1.);
-        h->Fit(f, "R");
-        double mean = f->GetParameter(1);
-        double sigma = f->GetParameter(3);
-        std::cout << std::format("Primary energy - Edep fit: mean = {:.2f} MeV, sigma = {:.2f} MeV", mean, sigma) << std::endl;
+        f->SetParameters(h->GetMaximum(), mean_seed, 0.5, sigma_seed/2.);
+        auto fit_res = h->Fit(f, "SR");
+        const double mean = f->GetParameter(1);
+        const double max_val = f->GetMaximum();
+        const double half_max = max_val / 2.;
+        double fwhm = -1.;
+        if(!fit_res->IsValid()) {
+          std::cerr << "Fit failed with code " << fit_res->Status() << std::endl;
+        } else {
+          try {
+            f->SetRange(-100., 100.); // ensure the fit function covers the full histogram range for mean/FWHM calculation
+            const double x_left = f->GetX(half_max, mean - 100., mean);
+            const double x_right = std::min(f->GetX(half_max, mean, mean + 100.), 0.); // don't include above 0 values
+            fwhm = x_right - x_left;
+          } catch(...) {
+            std::cerr << "Error calculating FWHM from fit\n";
+          }
+        }
+        std::cout << std::format("Primary energy - Edep fit: status = {}, mean = {:.2f} MeV, FWHM = {:.2f} MeV",
+                                 fit_res->Status(), mean, fwhm) << std::endl;
         delete f;
-        std::cout << std::format("Primary energy - Edep distribution: mean = {:.2f} MeV, RMS = {:.2f} MeV", h->GetMean(), h->GetRMS()) << std::endl;
+        std::cout << std::format("Primary energy - Edep distribution: mean = {:.2f} MeV, RMS = {:.2f} MeV, MPV = {:.2f} MeV, FWHM = {:.2f} MeV",
+                                 h->GetMean(), h->GetRMS(), mean_seed, fwhm_seed) << std::endl;
       }
     }
     const double averageCaloEdep = (total_events_ > 0)
