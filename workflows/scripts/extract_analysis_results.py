@@ -20,6 +20,7 @@ _OUTPUT_PATTERNS = {
     "CeEndpointOutput": re.compile(r"CeEndpoint", re.IGNORECASE),
     "CePlusEndpointOutput": re.compile(r"CePlusEndpoint", re.IGNORECASE),
     "FlatGammaOutput": re.compile(r"FlatGamma", re.IGNORECASE),
+    "PileupOutput": re.compile(r"Pileup", re.IGNORECASE),
     "TFileService": re.compile(r"mubeam.*\.root$", re.IGNORECASE),
 }
 
@@ -49,7 +50,7 @@ _EDEP_DISTRIBUTION_PATTERN = re.compile(
     r"RMS\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV"
 )
 _CALO_STOP_MATERIALS = ("G4_CESIUM_IODIDE", "CarbonFiber", "AluminumHoneycomb")
-_STAGES = ("mubeam", "mustop")
+_STAGES = ("mubeam", "mustop", "mustop_pileup")
 _MUSTOP_EDEP_SAMPLES = {
     "ce": {
         "glob": "job_*/dts.mu2e.CeEndpoint.Run1B.*_*.art",
@@ -481,6 +482,19 @@ def _run_mustop_edep_analyses(run_dir: Path) -> dict[str, dict]:
     return analyses
 
 
+def _run_mustop_pileup_edep_analysis(run_dir: Path) -> dict:
+    return _run_edep_analysis_for_files(
+        run_dir,
+        sorted(run_dir.glob("job_*/dts.mu2e.MuStopPileup.Run1B.*_*.art")),
+        analysis_name="mustop_pileup",
+        input_label="Pileup",
+        list_filename="pileup_art_files.txt",
+        log_filename="edep_analysis_pileup.log",
+        wrapper_fcl_filename="edep_analysis_pileup.fcl",
+        nts_output_filename="nts.owner.edep.pileup.root",
+    )
+
+
 def _collect_job_status(run_dir: Path) -> tuple[dict[str, int], dict[str, int], list[dict], list[str]]:
     job_dirs = sorted(path for path in run_dir.glob("job_*") if path.is_dir())
 
@@ -631,11 +645,41 @@ def _build_mustop_summary(run_dir: Path) -> dict:
     }
 
 
+def _build_mustop_pileup_summary(run_dir: Path) -> dict:
+    output_counts, output_bytes, status_rows, warnings = _collect_job_status(run_dir)
+
+    total_jobs = len(status_rows)
+    completed_jobs = sum(1 for row in status_rows if row.get("returncode") == 0)
+    failed_jobs = sum(1 for row in status_rows if row.get("returncode") not in (0, None))
+    unknown_jobs = sum(1 for row in status_rows if row.get("returncode") is None)
+
+    event_stats = _compute_total_simulated_events(status_rows)
+    art_event_stats = _extract_art_event_counts(run_dir)
+
+    return {
+        "stage": "mustop_pileup",
+        "run_dir": str(run_dir),
+        "total_jobs": total_jobs,
+        "completed_jobs": completed_jobs,
+        "failed_jobs": failed_jobs,
+        "unknown_jobs": unknown_jobs,
+        "output_counts": output_counts,
+        "output_total_bytes": output_bytes,
+        "simulation_events": event_stats,
+        "art_event_analysis": art_event_stats,
+        "edep_analysis": _run_mustop_pileup_edep_analysis(run_dir),
+        "jobs": status_rows,
+        "warnings": warnings,
+    }
+
+
 def build_summary(run_dir: Path, stage: str) -> dict:
     if stage == "mubeam":
         return _build_mubeam_summary(run_dir)
     if stage == "mustop":
         return _build_mustop_summary(run_dir)
+    if stage == "mustop_pileup":
+        return _build_mustop_pileup_summary(run_dir)
     raise ValueError(f"Unsupported stage: {stage}")
 
 
@@ -707,6 +751,30 @@ def _print_pretty_summary(summary: dict) -> None:
                 print(f"    {edep['primary_minus_edep_distribution_line']}")
             if edep["error"]:
                 print(f"    Note: {edep['error']}")
+        return
+
+    if stage == "mustop_pileup":
+        art_events = summary["art_event_analysis"]
+
+        print("\nArt file event counts:")
+        print(f"  Files analyzed: {art_events['files_analyzed']}")
+        print(f"  Total events: {art_events['total_events']}")
+        if art_events["events_by_type"]:
+            print("  Events by type:")
+            for file_type, count in sorted(art_events["events_by_type"].items()):
+                print(f"    {file_type}: {count}")
+
+        edep = summary["edep_analysis"]
+        print("\nEdep reprocessing summary:")
+        print(f"  Input files: {edep['input_file_count']}")
+        print(f"  Input list file: {edep['input_list_path']}")
+        print(f"  Edep log: {edep['log_path']}")
+        if edep["summary_line"]:
+            print(f"  {edep['summary_line']}")
+        else:
+            print("  EdepAna summary line not found in mu2e output")
+        if edep["error"]:
+            print(f"  Note: {edep['error']}")
         return
 
     nFlash = summary["output_counts"].get("FlashOutput", 0)
