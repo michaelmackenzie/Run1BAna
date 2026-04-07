@@ -13,6 +13,7 @@ from pathlib import Path
 _OUTPUT_PATTERNS = {
     "EarlyFlashOutput": re.compile(r"EarlyMuBeamFlash", re.IGNORECASE),
     "FlashOutput": re.compile(r"MuBeamFlash", re.IGNORECASE),
+    "EleFlashOutput": re.compile(r"EleBeamFlash", re.IGNORECASE),
     "IPAStopOutput": re.compile(r"IPAStops", re.IGNORECASE),
     "TargetStopOutput": re.compile(r"TargetStops", re.IGNORECASE),
     "MuminusStopOutput": re.compile(r"MuminusStopsCat", re.IGNORECASE),
@@ -50,7 +51,7 @@ _EDEP_DISTRIBUTION_PATTERN = re.compile(
     r"RMS\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV"
 )
 _CALO_STOP_MATERIALS = ("G4_CESIUM_IODIDE", "CarbonFiber", "AluminumHoneycomb")
-_STAGES = ("mubeam", "mustop", "mustop_pileup")
+_STAGES = ("mubeam", "elebeam", "mustop", "mustop_pileup")
 _MUSTOP_EDEP_SAMPLES = {
     "ce": {
         "glob": "job_*/dts.mu2e.CeEndpoint.Run1B.*_*.art",
@@ -68,6 +69,8 @@ _MUSTOP_EDEP_SAMPLES = {
 _MUBEAM_INPUT_EFFICIENCY_BY_FCL = {
     "run1b_beam/mubeam.fcl": 0.01278168,
     "run1a_beam/mubeam.fcl": 0.00213816,
+    "run1b_beam/elebeam.fcl": 0.086211877,
+    "run1a_beam/elebeam.fcl": 0.01730766,
 }
 
 
@@ -105,7 +108,7 @@ def _compute_total_simulated_events(status_rows: list[dict]) -> dict:
 
 
 def _detect_mubeam_input_efficiency(run_dir: Path) -> dict:
-    for job_fcl in sorted(run_dir.glob("job_*/mubeam_job.fcl")):
+    for job_fcl in sorted(run_dir.glob("job_*/*.fcl")):
         try:
             text = job_fcl.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -466,6 +469,19 @@ def _run_mubeam_edep_analysis(run_dir: Path) -> dict:
     )
 
 
+def _run_elebeam_edep_analysis(run_dir: Path) -> dict:
+    return _run_edep_analysis_for_files(
+        run_dir,
+        sorted(run_dir.glob("job_*/dts.mu2e.EleBeamFlash.Run1B.*_*.art")),
+        analysis_name="elebeam",
+        input_label="EleBeamFlash",
+        list_filename="elebeam_flash_art_files.txt",
+        log_filename="edep_analysis_elebeam.log",
+        wrapper_fcl_filename="edep_analysis_elebeam.fcl",
+        nts_output_filename="nts.owner.edep.elebeam.root",
+    )
+
+
 def _run_mustop_edep_analyses(run_dir: Path) -> dict[str, dict]:
     analyses: dict[str, dict] = {}
     for sample_name, sample_info in _MUSTOP_EDEP_SAMPLES.items():
@@ -617,6 +633,50 @@ def _build_mubeam_summary(run_dir: Path) -> dict:
     }
 
 
+def _build_elebeam_summary(run_dir: Path) -> dict:
+    output_counts, output_bytes, status_rows, warnings = _collect_job_status(run_dir)
+
+    total_jobs = len(status_rows)
+    completed_jobs = sum(1 for row in status_rows if row.get("returncode") == 0)
+    failed_jobs = sum(1 for row in status_rows if row.get("returncode") not in (0, None))
+    unknown_jobs = sum(1 for row in status_rows if row.get("returncode") is None)
+
+    event_stats = _compute_total_simulated_events(status_rows)
+    art_event_stats = _extract_art_event_counts(run_dir)
+    edep_stats = _run_elebeam_edep_analysis(run_dir)
+    input_efficiency = _detect_mubeam_input_efficiency(run_dir)
+
+    art_events_per_simulated = {}
+    art_events_absolute_efficiency = {}
+    if event_stats["total_events"] and event_stats["total_events"] > 0:
+        for file_type, count in art_event_stats["events_by_type"].items():
+            rel_eff = count / event_stats["total_events"]
+            art_events_per_simulated[file_type] = rel_eff
+            if input_efficiency["correction_factor"] is not None:
+                art_events_absolute_efficiency[file_type] = rel_eff * input_efficiency["correction_factor"]
+
+    return {
+        "stage": "elebeam",
+        "run_dir": str(run_dir),
+        "total_jobs": total_jobs,
+        "completed_jobs": completed_jobs,
+        "failed_jobs": failed_jobs,
+        "unknown_jobs": unknown_jobs,
+        "output_counts": output_counts,
+        "output_total_bytes": output_bytes,
+        "simulation_events": event_stats,
+        "input_efficiency": input_efficiency,
+        "art_event_analysis": {
+            **art_event_stats,
+            "events_per_simulated_event": art_events_per_simulated,
+            "absolute_efficiency_by_type": art_events_absolute_efficiency,
+        },
+        "edep_analysis": edep_stats,
+        "jobs": status_rows,
+        "warnings": warnings,
+    }
+
+
 def _build_mustop_summary(run_dir: Path) -> dict:
     output_counts, output_bytes, status_rows, warnings = _collect_job_status(run_dir)
 
@@ -676,6 +736,8 @@ def _build_mustop_pileup_summary(run_dir: Path) -> dict:
 def build_summary(run_dir: Path, stage: str) -> dict:
     if stage == "mubeam":
         return _build_mubeam_summary(run_dir)
+    if stage == "elebeam":
+        return _build_elebeam_summary(run_dir)
     if stage == "mustop":
         return _build_mustop_summary(run_dir)
     if stage == "mustop_pileup":
@@ -771,6 +833,55 @@ def _print_pretty_summary(summary: dict) -> None:
         print(f"  Edep log: {edep['log_path']}")
         if edep["summary_line"]:
             print(f"  {edep['summary_line']}")
+        else:
+            print("  EdepAna summary line not found in mu2e output")
+        if edep["error"]:
+            print(f"  Note: {edep['error']}")
+        return
+
+    if stage == "elebeam":
+        nFlash = summary["output_counts"].get("EleFlashOutput", 0)
+        input_efficiency = summary.get("input_efficiency", {})
+        sim_events = summary["simulation_events"]
+        art_events = summary["art_event_analysis"]
+        edep = summary["edep_analysis"]
+
+        if input_efficiency.get("correction_factor") is not None:
+            print(
+                "Input efficiency correction: "
+                f"{input_efficiency['correction_factor']:.8g} "
+                f"(from {input_efficiency.get('input_fcl')})"
+            )
+        else:
+            print("Input efficiency correction: unavailable")
+
+        print("\nArt file event counts:")
+        print(f"  Files analyzed: {art_events['files_analyzed']}")
+        print(f"  Total events: {art_events['total_events']}")
+        if art_events["events_by_type"]:
+            print("  Events by type:")
+            for file_type, count in sorted(art_events["events_by_type"].items()):
+                per_sim = art_events["events_per_simulated_event"].get(file_type, 0)
+                abs_eff = art_events.get("absolute_efficiency_by_type", {}).get(file_type)
+                if abs_eff is not None:
+                    print(f"    {file_type}: {count} ({per_sim:.8g} per simulated event, {abs_eff:.8g} absolute)")
+                else:
+                    print(f"    {file_type}: {count} ({per_sim:.8g} per simulated event)")
+
+        print("\nEdep reprocessing summary:")
+        print(f"  Input EleBeamFlash files: {edep['input_file_count']}")
+        print(f"  Input list file: {edep['input_list_path']}")
+        print(f"  Edep log: {edep['log_path']}")
+        if edep["summary_line"]:
+            print(f"  {edep['summary_line']}")
+            edep_avg = edep["average_calo_energy_mev"]
+            ndep_gt_50 = edep["events_edep_gt_50_mev"]
+            if edep_avg is not None:
+                nsim_events = sim_events["total_events"] if sim_events["total_events"] else 0
+                edep_avg_wt = edep_avg * nFlash / nsim_events if nsim_events > 0 else 0
+                ndep_gt_50_wt = ndep_gt_50 * nFlash / nsim_events if nsim_events > 0 else 0
+                print(f"  Average calo energy deposition per sim event: {edep_avg_wt:.3g} MeV")
+                print(f"  Events with Edep > 50 MeV per sim event: {ndep_gt_50_wt:.3g}")
         else:
             print("  EdepAna summary line not found in mu2e output")
         if edep["error"]:
