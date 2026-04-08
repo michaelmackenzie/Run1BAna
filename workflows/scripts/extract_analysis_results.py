@@ -33,7 +33,6 @@ _ERROR_PATTERNS = [
 ]
 
 
-_NTS_ROOT_PATTERN = re.compile(r"nts\.mu2e\.mubeam\.Run1B\.(\d+)_(\d+)\.root$", re.IGNORECASE)
 _COUNT_EVENTS_PATTERN = re.compile(r"^(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)$")
 _EDEP_SUMMARY_PATTERN = re.compile(
     r"EdepAna summary:\s*Saw\s+(\d+)\s+events,\s*"
@@ -51,7 +50,7 @@ _EDEP_DISTRIBUTION_PATTERN = re.compile(
     r"RMS\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV"
 )
 _CALO_STOP_MATERIALS = ("G4_CESIUM_IODIDE", "CarbonFiber", "AluminumHoneycomb")
-_STAGES = ("mubeam", "elebeam", "mustop", "mustop_pileup")
+_STAGES = ("mubeam", "elebeam", "mustop", "mustop_pileup", "run1a_mubeam", "run1a_mustops")
 _MUSTOP_EDEP_SAMPLES = {
     "ce": {
         "glob": "job_*/dts.mu2e.CeEndpoint.Run1B.*_*.art",
@@ -144,7 +143,10 @@ def _extract_target_al_entries(run_dir: Path) -> dict:
             "per_file": [],
         }
 
-    root_files = sorted(run_dir.glob("job_*/nts.mu2e.mubeam.Run1B.*_*.root"))
+    root_files = sorted(run_dir.glob("job_*/nts.mu2e.mubeam.Run1A.*_*.root"))
+    if not root_files:
+        root_files = sorted(run_dir.glob("job_*/nts.mu2e.mubeam.Run1B.*_*.root"))
+    nts_root_pattern = re.compile(r"nts\.mu2e\.mubeam\.Run1[AB]\.(\d+)_(\d+)\.root$", re.IGNORECASE)
     print(f">>> Extracting TargetMuonFinder/stopmat entries from {len(root_files)} ROOT files")
 
     per_file = []
@@ -152,7 +154,7 @@ def _extract_target_al_entries(run_dir: Path) -> dict:
     total_calo_entries = 0.0
 
     for root_path in root_files:
-        match = _NTS_ROOT_PATTERN.search(root_path.name)
+        match = nts_root_pattern.search(root_path.name)
         subrun = int(match.group(1)) if match else None
         row = {
             "path": str(root_path),
@@ -456,16 +458,18 @@ def _run_edep_analysis_for_files(
     }
 
 
-def _run_mubeam_edep_analysis(run_dir: Path) -> dict:
+def _run_mubeam_edep_analysis(run_dir: Path, run_tag: str = "Run1B") -> dict:
+    flash_glob = f"job_*/dts.mu2e.MuBeamFlash.{run_tag}.*_*.art"
+    nts_filename = f"nts.owner.edep.mubeam.{run_tag.lower()}.root"
     return _run_edep_analysis_for_files(
         run_dir,
-        sorted(run_dir.glob("job_*/dts.mu2e.MuBeamFlash.Run1B.*_*.art")),
+        sorted(run_dir.glob(flash_glob)),
         analysis_name="mubeam",
         input_label="MuBeamFlash",
         list_filename="mubeam_flash_art_files.txt",
         log_filename="edep_analysis.log",
         wrapper_fcl_filename="edep_analysis.fcl",
-        nts_output_filename="nts.owner.edep.mubeam.root",
+        nts_output_filename=nts_filename,
     )
 
 
@@ -482,18 +486,23 @@ def _run_elebeam_edep_analysis(run_dir: Path) -> dict:
     )
 
 
-def _run_mustop_edep_analyses(run_dir: Path) -> dict[str, dict]:
+def _run_mustop_edep_analyses(run_dir: Path, run_tag: str = "Run1B") -> dict[str, dict]:
+    sample_glob_by_name = {
+        "ce": f"job_*/dts.mu2e.CeEndpoint.{run_tag}.*_*.art",
+        "ce_plus": f"job_*/dts.mu2e.CePlusEndpoint.{run_tag}.*_*.art",
+        "flat_gamma": f"job_*/dts.mu2e.FlatGamma.{run_tag}.*_*.art",
+    }
     analyses: dict[str, dict] = {}
     for sample_name, sample_info in _MUSTOP_EDEP_SAMPLES.items():
         analyses[sample_name] = _run_edep_analysis_for_files(
             run_dir,
-            sorted(run_dir.glob(sample_info["glob"])),
+            sorted(run_dir.glob(sample_glob_by_name[sample_name])),
             analysis_name=sample_name,
             input_label=sample_info["label"],
             list_filename=f"{sample_name}_art_files.txt",
             log_filename=f"edep_analysis_{sample_name}.log",
             wrapper_fcl_filename=f"edep_analysis_{sample_name}.fcl",
-            nts_output_filename=f"nts.owner.edep.{sample_name}.root",
+            nts_output_filename=f"nts.owner.edep.{sample_name}.{run_tag.lower()}.root",
         )
     return analyses
 
@@ -569,7 +578,7 @@ def _build_mubeam_summary(run_dir: Path) -> dict:
     event_stats = _compute_total_simulated_events(status_rows)
     target_al_stats = _extract_target_al_entries(run_dir)
     art_event_stats = _extract_art_event_counts(run_dir)
-    edep_stats = _run_mubeam_edep_analysis(run_dir)
+    edep_stats = _run_mubeam_edep_analysis(run_dir, run_tag="Run1B")
     input_efficiency = _detect_mubeam_input_efficiency(run_dir)
 
     if event_stats["total_events"] and event_stats["total_events"] > 0:
@@ -699,7 +708,110 @@ def _build_mustop_summary(run_dir: Path) -> dict:
         "output_total_bytes": output_bytes,
         "simulation_events": event_stats,
         "art_event_analysis": art_event_stats,
-        "edep_analysis_by_sample": _run_mustop_edep_analyses(run_dir),
+        "edep_analysis_by_sample": _run_mustop_edep_analyses(run_dir, run_tag="Run1B"),
+        "jobs": status_rows,
+        "warnings": warnings,
+    }
+
+
+def _build_run1a_mubeam_summary(run_dir: Path) -> dict:
+    output_counts, output_bytes, status_rows, warnings = _collect_job_status(run_dir)
+
+    total_jobs = len(status_rows)
+    completed_jobs = sum(1 for row in status_rows if row.get("returncode") == 0)
+    failed_jobs = sum(1 for row in status_rows if row.get("returncode") not in (0, None))
+    unknown_jobs = sum(1 for row in status_rows if row.get("returncode") is None)
+
+    event_stats = _compute_total_simulated_events(status_rows)
+    target_al_stats = _extract_target_al_entries(run_dir)
+    art_event_stats = _extract_art_event_counts(run_dir)
+    edep_stats = _run_mubeam_edep_analysis(run_dir, run_tag="Run1A")
+    input_efficiency = _detect_mubeam_input_efficiency(run_dir)
+
+    if event_stats["total_events"] and event_stats["total_events"] > 0:
+        target_al_per_event = target_al_stats["total_target_al_entries"] / event_stats["total_events"]
+        calo_per_event = target_al_stats["total_calo_entries"] / event_stats["total_events"]
+    else:
+        target_al_per_event = None
+        calo_per_event = None
+
+    art_events_per_simulated = {}
+    art_events_absolute_efficiency = {}
+    if event_stats["total_events"] and event_stats["total_events"] > 0:
+        for file_type, count in art_event_stats["events_by_type"].items():
+            rel_eff = count / event_stats["total_events"]
+            art_events_per_simulated[file_type] = rel_eff
+            if input_efficiency["correction_factor"] is not None:
+                art_events_absolute_efficiency[file_type] = rel_eff * input_efficiency["correction_factor"]
+
+    muminus_stops_files = sorted((run_dir / "mu_stops_job").glob("sim.mu2e.MuminusStopsCat.*.art"))
+    muminus_stops_events: int | None = None
+    if muminus_stops_files:
+        counts = [_count_art_file_events(p) for p in muminus_stops_files]
+        if all(c is not None for c in counts):
+            muminus_stops_events = sum(counts)  # type: ignore[arg-type]
+
+    return {
+        "stage": "run1a_mubeam",
+        "run_dir": str(run_dir),
+        "total_jobs": total_jobs,
+        "completed_jobs": completed_jobs,
+        "failed_jobs": failed_jobs,
+        "unknown_jobs": unknown_jobs,
+        "output_counts": output_counts,
+        "output_total_bytes": output_bytes,
+        "simulation_events": event_stats,
+        "input_efficiency": input_efficiency,
+        "target_al_analysis": {
+            **target_al_stats,
+            "target_al_entries_per_simulated_event": target_al_per_event,
+            "calo_entries_per_simulated_event": calo_per_event,
+            "target_al_entries_absolute_efficiency": (
+                target_al_per_event * input_efficiency["correction_factor"]
+                if target_al_per_event is not None and input_efficiency["correction_factor"] is not None
+                else None
+            ),
+            "calo_entries_absolute_efficiency": (
+                calo_per_event * input_efficiency["correction_factor"]
+                if calo_per_event is not None and input_efficiency["correction_factor"] is not None
+                else None
+            ),
+        },
+        "art_event_analysis": {
+            **art_event_stats,
+            "events_per_simulated_event": art_events_per_simulated,
+            "absolute_efficiency_by_type": art_events_absolute_efficiency,
+        },
+        "muminus_stops_events": muminus_stops_events,
+        "edep_analysis": edep_stats,
+        "jobs": status_rows,
+        "warnings": warnings,
+    }
+
+
+def _build_run1a_mustops_summary(run_dir: Path) -> dict:
+    output_counts, output_bytes, status_rows, warnings = _collect_job_status(run_dir)
+
+    total_jobs = len(status_rows)
+    completed_jobs = sum(1 for row in status_rows if row.get("returncode") == 0)
+    failed_jobs = sum(1 for row in status_rows if row.get("returncode") not in (0, None))
+    unknown_jobs = sum(1 for row in status_rows if row.get("returncode") is None)
+
+    event_stats = _compute_total_simulated_events(status_rows)
+    art_event_stats = _extract_art_event_counts(run_dir)
+
+    return {
+        "stage": "run1a_mustops",
+        "run_dir": str(run_dir),
+        "total_jobs": total_jobs,
+        "completed_jobs": completed_jobs,
+        "failed_jobs": failed_jobs,
+        "unknown_jobs": unknown_jobs,
+        "output_counts": output_counts,
+        "output_total_bytes": output_bytes,
+        "simulation_events": event_stats,
+        "art_event_analysis": art_event_stats,
+        "edep_analysis_by_sample": _run_mustop_edep_analyses(run_dir, run_tag="Run1A"),
         "jobs": status_rows,
         "warnings": warnings,
     }
@@ -742,6 +854,10 @@ def build_summary(run_dir: Path, stage: str) -> dict:
         return _build_mustop_summary(run_dir)
     if stage == "mustop_pileup":
         return _build_mustop_pileup_summary(run_dir)
+    if stage == "run1a_mubeam":
+        return _build_run1a_mubeam_summary(run_dir)
+    if stage == "run1a_mustops":
+        return _build_run1a_mustops_summary(run_dir)
     raise ValueError(f"Unsupported stage: {stage}")
 
 
@@ -786,7 +902,7 @@ def _print_pretty_summary(summary: dict) -> None:
     for key, value in sorted(summary["output_counts"].items()):
         print(f"  {key}: {value}")
 
-    if stage == "mustop":
+    if stage in ("mustop", "run1a_mustops"):
         art_events = summary["art_event_analysis"]
 
         print("\nArt file event counts:")
