@@ -114,6 +114,12 @@ def parse_args() -> argparse.Namespace:
         help="Number of events per job passed as '-n <events>' to mu2e (required for mubeam/mustop_pileup/all)",
     )
     parser.add_argument(
+        "--elebeam-events-per-job",
+        type=int,
+        default=0,
+        help="Number of events per elebeam job (default: 0, uses --events-per-job if not specified)",
+    )
+    parser.add_argument(
         "--mu2e-command",
         default="mu2e",
         help="Executable used to run jobs (default: mu2e)",
@@ -872,11 +878,17 @@ def _print_all_stage_compact_summary(
 def main() -> int:
     args = parse_args()
 
+    # Default elebeam_events_per_job to events_per_job if not specified
+    if args.elebeam_events_per_job <= 0:
+        args.elebeam_events_per_job = args.events_per_job
+
     if args.stage in ("mubeam", "elebeam", "mustop_pileup", "all") and (args.parallel_jobs is None or args.parallel_jobs <= 0):
         raise SystemExit("parallel_jobs must be > 0 for stage mubeam/elebeam/mustop_pileup/all")
     if args.stage != "summary":
         if args.stage not in ("mustop", "mustop_pileup", "final") and args.events_per_job <= 0:
             raise SystemExit("events_per_job must be > 0")
+        if args.stage == "elebeam" and args.elebeam_events_per_job <= 0:
+            raise SystemExit("elebeam_events_per_job (or events_per_job) must be > 0")
         if args.stage in ("mustop", "all") and args.mustop_events_per_job <= 0:
             raise SystemExit("mustop_events_per_job must be > 0")
         if args.stage in ("mustop_pileup", "all") and args.mustop_pileup_events_per_job <= 0:
@@ -1372,6 +1384,8 @@ def main() -> int:
             command = [args.mu2e_command, "-c", str(job_fcl)]
             if args.stage == "mustop":
                 n_events = args.mustop_events_per_job
+            elif args.stage == "elebeam":
+                n_events = args.elebeam_events_per_job
             elif args.stage == "mustop_pileup":
                 n_events = args.mustop_pileup_events_per_job
             else:
