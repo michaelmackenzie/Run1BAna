@@ -1,2 +1,2 @@
-services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v03.txt"
+services.GeometryService.inputFile: "Run1BAna/workflows/config_v03/run1b_beam/geom.txt"
 services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_v01.txt"
