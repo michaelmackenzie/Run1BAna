@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import shlex
@@ -391,6 +392,50 @@ def _compute_mustop_sample_absolute_efficiencies(mubeam_summary: dict, mustop_su
         sample_gt50 = mustop_summary.get("edep_analysis_by_sample", {}).get(mode, {}).get("events_edep_gt_50_mev")
         result[mode] = sample_gt50 * scale if sample_gt50 is not None else None
     return result
+
+
+def _parse_events_from_command(command: object) -> int | None:
+    if not isinstance(command, list):
+        return None
+
+    for i, token in enumerate(command):
+        if token == "-n" and i + 1 < len(command):
+            try:
+                return int(command[i + 1])
+            except ValueError:
+                return None
+    return None
+
+
+def _infer_mustop_mode_from_command(command: object) -> str | None:
+    if not isinstance(command, list):
+        return None
+
+    for i, token in enumerate(command):
+        if token == "-c" and i + 1 < len(command):
+            fcl_name = Path(command[i + 1]).name
+            for mode in _MUSTOP_MODES:
+                if fcl_name.startswith(f"{mode}_job_"):
+                    return mode
+    return None
+
+
+def _compute_simulated_events_by_mode(summary: dict | None) -> dict[str, int]:
+    totals: dict[str, int] = {}
+    if not summary:
+        return totals
+
+    for row in summary.get("jobs", []):
+        if row.get("returncode") != 0:
+            continue
+
+        mode = _infer_mustop_mode_from_command(row.get("command"))
+        events = _parse_events_from_command(row.get("command"))
+        if mode is None or events is None:
+            continue
+        totals[mode] = totals.get(mode, 0) + events
+
+    return totals
 
 
 def _find_double_edep_output_path(run_dir: Path) -> Path | None:
@@ -820,8 +865,21 @@ def _print_all_stage_compact_summary(
         sample_stats = mustop_summary.get("edep_analysis_by_sample", {}).get(sample, {})
         sample_seen = sample_stats.get("events_seen")
         sample_gt50 = sample_stats.get("events_edep_gt_50_mev")
-        sample_mpv = sample_stats.get("primary_minus_edep_fit_mean_mev")
-        sample_fwhm = sample_stats.get("primary_minus_edep_fit_fwhm_mev")
+        tracker_front_fit_mpv = sample_stats.get("tracker_front_fit_mpv_mev")
+        tracker_front_fit_fwhm = sample_stats.get("tracker_front_fit_fwhm_mev")
+        primary_edep_minus_tracker_front_mpv = sample_stats.get("primary_edep_minus_tracker_front_distribution_mpv_mev")
+        primary_edep_minus_tracker_front_fwhm = sample_stats.get("primary_edep_minus_tracker_front_distribution_fwhm_mev")
+
+        sample_mpv = (
+            tracker_front_fit_mpv + primary_edep_minus_tracker_front_mpv
+            if tracker_front_fit_mpv is not None and primary_edep_minus_tracker_front_mpv is not None
+            else None
+        )
+        sample_fwhm = (
+            math.sqrt(tracker_front_fit_fwhm**2 + primary_edep_minus_tracker_front_fwhm**2)
+            if tracker_front_fit_fwhm is not None and primary_edep_minus_tracker_front_fwhm is not None
+            else None
+        )
 
         sample_abs_eff_all = sample_seen * scale if scale is not None and sample_seen is not None else None
         sample_abs_eff_gt50 = sample_gt50 * scale if scale is not None and sample_gt50 is not None else None
@@ -874,14 +932,20 @@ def _print_all_stage_compact_summary(
         if run1a_mustops_sim_total not in (None, 0)
         else None
     )
+    run1a_sim_by_mode = _compute_simulated_events_by_mode(run1a_mustops_summary)
+    run1a_reference_sim_per_mode = run1a_sim_by_mode.get("ce")
+    if run1a_reference_sim_per_mode in (None, 0):
+        run1a_reference_sim_per_mode = run1a_sim_by_mode.get("ce_plus")
+    if run1a_reference_sim_per_mode in (None, 0):
+        run1a_reference_sim_per_mode = run1a_mustops_sim_per_mode
     run1a_muon_stop_input_eff = (
         run1a_input_corr * run1a_stopping_factor
         if run1a_input_corr is not None and run1a_stopping_factor is not None
         else None
     )
     run1a_mustops_effective_pot_per_mode = (
-        run1a_mustops_sim_per_mode / run1a_muon_stop_input_eff
-        if run1a_mustops_sim_per_mode not in (None, 0) and run1a_muon_stop_input_eff not in (None, 0)
+        run1a_reference_sim_per_mode / run1a_muon_stop_input_eff
+        if run1a_reference_sim_per_mode not in (None, 0) and run1a_muon_stop_input_eff not in (None, 0)
         else None
     )
     print(
@@ -890,33 +954,78 @@ def _print_all_stage_compact_summary(
         else "  run1a_mustops effective N(POT) simulated (per mode): unavailable"
     )
 
-    run1a_scale = None
-    if run1a_input_corr is not None and run1a_stopping_factor is not None and run1a_mustops_sim_per_mode not in (None, 0):
-        run1a_scale = (
-            run1a_input_corr
-            * run1a_stopping_factor
-            * _GEN_RESTRICTION_FACTOR
-            / run1a_mustops_sim_per_mode
-        )
-
     for sample in _MUSTOP_MODES:
         sample_stats = run1a_mustops_summary.get("edep_analysis_by_sample", {}).get(sample, {}) if run1a_mustops_summary else {}
         sample_seen = sample_stats.get("events_seen")
         sample_gt50 = sample_stats.get("events_edep_gt_50_mev")
-        sample_mpv = sample_stats.get("primary_minus_edep_fit_mean_mev")
-        sample_fwhm = sample_stats.get("primary_minus_edep_fit_fwhm_mev")
+        tracker_front_fit_mpv = sample_stats.get("tracker_front_fit_mpv_mev")
+        tracker_front_fit_fwhm = sample_stats.get("tracker_front_fit_fwhm_mev")
+        primary_edep_minus_tracker_front_mpv = sample_stats.get("primary_edep_minus_tracker_front_distribution_mpv_mev")
+        primary_edep_minus_tracker_front_fwhm = sample_stats.get("primary_edep_minus_tracker_front_distribution_fwhm_mev")
+        sample_mpv = (
+            tracker_front_fit_mpv + primary_edep_minus_tracker_front_mpv
+            if tracker_front_fit_mpv is not None and primary_edep_minus_tracker_front_mpv is not None
+            else None
+        )
+        sample_fwhm = (
+            math.sqrt(tracker_front_fit_fwhm**2 + primary_edep_minus_tracker_front_fwhm**2)
+            if tracker_front_fit_fwhm is not None and primary_edep_minus_tracker_front_fwhm is not None
+            else None
+        )
+        sample_gen_correction = _GEN_RESTRICTION_FACTOR if sample == "flat_gamma" else 1.0
+        sample_simulated_events = run1a_sim_by_mode.get(sample)
 
-        sample_abs_eff_all = sample_seen * run1a_scale if run1a_scale is not None and sample_seen is not None else None
-        sample_abs_eff_gt50 = sample_gt50 * run1a_scale if run1a_scale is not None and sample_gt50 is not None else None
+        # Run1A flat_gamma should be normalized to the same simulated-event baseline as ce/ce_plus.
+        if sample == "flat_gamma" and run1a_reference_sim_per_mode not in (None, 0):
+            sample_simulated_events = run1a_reference_sim_per_mode
+        elif sample_simulated_events in (None, 0):
+            sample_simulated_events = run1a_reference_sim_per_mode
 
+        run1a_sample_scale = (
+            run1a_input_corr * run1a_stopping_factor / sample_simulated_events
+            if run1a_input_corr is not None
+            and run1a_stopping_factor is not None
+            and sample_simulated_events not in (None, 0)
+            else None
+        )
+
+        sample_eff_per_mu_stop_all = (
+            sample_seen / sample_simulated_events
+            if sample_seen is not None and sample_simulated_events not in (None, 0)
+            else None
+        )
+        sample_eff_per_mu_stop_gt50 = (
+            sample_gt50 / sample_simulated_events
+            if sample_gt50 is not None and sample_simulated_events not in (None, 0)
+            else None
+        )
+
+        sample_abs_eff_all = (
+            sample_seen * run1a_sample_scale * sample_gen_correction
+            if run1a_sample_scale is not None and sample_seen is not None
+            else None
+        )
+        sample_abs_eff_gt50 = (
+            sample_gt50 * run1a_sample_scale * sample_gen_correction
+            if run1a_sample_scale is not None and sample_gt50 is not None
+            else None
+        )
+
+        eff_per_mu_stop_all_str = f"{sample_eff_per_mu_stop_all:.8g}" if sample_eff_per_mu_stop_all is not None else "unavailable"
+        eff_per_mu_stop_gt50_str = f"{sample_eff_per_mu_stop_gt50:.8g}" if sample_eff_per_mu_stop_gt50 is not None else "unavailable"
         eff_all_str = f"{sample_abs_eff_all:.8g}" if sample_abs_eff_all is not None else "unavailable"
         eff_gt50_str = f"{sample_abs_eff_gt50:.8g}" if sample_abs_eff_gt50 is not None else "unavailable"
         mpv_str = f"{sample_mpv:.4g}" if sample_mpv is not None else "unavailable"
         fwhm_str = f"{sample_fwhm:.4g}" if sample_fwhm is not None else "unavailable"
+        tracker_front_fit_mpv_str = f"{tracker_front_fit_mpv:.4g}" if tracker_front_fit_mpv is not None else "unavailable"
+        tracker_front_fit_fwhm_str = f"{tracker_front_fit_fwhm:.4g}" if tracker_front_fit_fwhm is not None else "unavailable"
 
         print(
-            f"  run1a {sample}: abs eff (all)={eff_all_str}, "
-            f"abs eff (Edep>50)={eff_gt50_str}, MPV={mpv_str} MeV, FWHM={fwhm_str} MeV"
+            f"  run1a {sample}: eff/mu stop (all)={eff_per_mu_stop_all_str}, "
+            f"eff/mu stop (Edep>50)={eff_per_mu_stop_gt50_str}, "
+            f"abs eff (all)={eff_all_str}, "
+            f"abs eff (Edep>50)={eff_gt50_str}, MPV={mpv_str} MeV, FWHM={fwhm_str} MeV, "
+            f"trk-front fit MPV={tracker_front_fit_mpv_str} MeV, FWHM={tracker_front_fit_fwhm_str} MeV"
         )
 
     if mustop_pileup_summary is None:
@@ -1277,6 +1386,8 @@ def main() -> int:
             str(args.mustop_events_per_job),
             "--mustop-pileup-events-per-job",
             str(args.mustop_pileup_events_per_job),
+            "--elebeam-events-per-job",
+            str(args.elebeam_events_per_job),
         ]
         if args.max_workers is not None:
             base_cmd.extend(["--max-workers", str(args.max_workers)])

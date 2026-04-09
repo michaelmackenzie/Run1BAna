@@ -34,8 +34,14 @@ source.firstSubRun: 0
 services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
 services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_v01.txt"
 
-# Input dataset: sim.mu2e.MuBeamCat.MDC2025ae.art
+# Input dataset: sim.mu2e.MuBeamCat.Run1Baa.art to get start conditions correct
 physics.filters.beamResampler.fileNames: [
-  "/pnfs/mu2e/persistent/datasets/phy-sim/sim/mu2e/MuBeamCat/MDC2025ae/art/9e/5e/sim.mu2e.MuBeamCat.MDC2025ae.001430_00000000.art",
-  "/pnfs/mu2e/persistent/datasets/phy-sim/sim/mu2e/MuBeamCat/MDC2025ae/art/e2/cf/sim.mu2e.MuBeamCat.MDC2025ae.001430_00001744.art"
+  "/pnfs/mu2e/persistent/datasets/phy-sim/sim/mu2e/MuBeamCat/Run1Baa/art/1b/09/sim.mu2e.MuBeamCat.Run1Baa.001430_00000000.art",
+  "/pnfs/mu2e/persistent/datasets/phy-sim/sim/mu2e/MuBeamCat/Run1Baa/art/44/fd/sim.mu2e.MuBeamCat.Run1Baa.001430_00003251.art"
 ]
+
+# # Input dataset: sim.mu2e.MuBeamCat.MDC2025ae.art
+# physics.filters.beamResampler.fileNames: [
+#   "/pnfs/mu2e/persistent/datasets/phy-sim/sim/mu2e/MuBeamCat/MDC2025ae/art/9e/5e/sim.mu2e.MuBeamCat.MDC2025ae.001430_00000000.art",
+#   "/pnfs/mu2e/persistent/datasets/phy-sim/sim/mu2e/MuBeamCat/MDC2025ae/art/e2/cf/sim.mu2e.MuBeamCat.MDC2025ae.001430_00001744.art"
+# ]

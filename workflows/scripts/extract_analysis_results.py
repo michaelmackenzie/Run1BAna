@@ -45,9 +45,20 @@ _EDEP_FIT_PATTERN = re.compile(
     r"FWHM\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV"
 )
 _EDEP_DISTRIBUTION_PATTERN = re.compile(
-    r"Primary energy - Edep distribution:\s*mean\s*=\s*"
+    r"Primary energy - Edep distribution:\s*mpv\s*=\s*"
     r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV,\s*"
-    r"RMS\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV"
+    r"FWHM\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV"
+)
+_TRACKER_FRONT_FIT_PATTERN = re.compile(
+    r"Tracker front - primary energy fit:\s*status\s*=\s*(\d+)\s*,\s*mean\s*=\s*"
+    r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV,\s*"
+    r"FWHM\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV"
+)
+_PRIMARY_EDEP_MINUS_TRACKER_FRONT_DISTRIBUTION_PATTERN = re.compile(
+    r"Primary Edep - tracker front StepPointMC energy distribution:\s*MPV\s*=\s*"
+    r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV,\s*"
+    r"FWHM\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV,\s*"
+    r"efficiency\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"
 )
 _CALO_STOP_MATERIALS = ("G4_CESIUM_IODIDE", "CarbonFiber", "AluminumHoneycomb")
 _STAGES = ("mubeam", "elebeam", "mustop", "mustop_pileup", "run1a_mubeam", "run1a_mustops")
@@ -67,7 +78,7 @@ _MUSTOP_EDEP_SAMPLES = {
 }
 _MUBEAM_INPUT_EFFICIENCY_BY_FCL = {
     "run1b_beam/mubeam.fcl": 0.01278168,
-    "run1a_beam/mubeam.fcl": 0.00213816,
+    "run1a_beam/mubeam.fcl": 0.01278168, # 0.00213816
     "run1b_beam/elebeam.fcl": 0.086211877,
     "run1a_beam/elebeam.fcl": 0.01730766,
 }
@@ -334,6 +345,14 @@ def _run_edep_analysis_for_files(
             "primary_minus_edep_distribution_line": None,
             "primary_minus_edep_distribution_mean_mev": None,
             "primary_minus_edep_distribution_rms_mev": None,
+            "tracker_front_fit_line": None,
+            "tracker_front_fit_status": None,
+            "tracker_front_fit_mpv_mev": None,
+            "tracker_front_fit_fwhm_mev": None,
+            "primary_edep_minus_tracker_front_distribution_line": None,
+            "primary_edep_minus_tracker_front_distribution_mpv_mev": None,
+            "primary_edep_minus_tracker_front_distribution_fwhm_mev": None,
+            "primary_edep_minus_tracker_front_distribution_efficiency": None,
         }
 
     print(f">>> Found {len(art_files)} {input_label} art files for {analysis_name} EdepAna processing")
@@ -362,6 +381,14 @@ def _run_edep_analysis_for_files(
             "primary_minus_edep_distribution_line": None,
             "primary_minus_edep_distribution_mean_mev": None,
             "primary_minus_edep_distribution_rms_mev": None,
+            "tracker_front_fit_line": None,
+            "tracker_front_fit_status": None,
+            "tracker_front_fit_mpv_mev": None,
+            "tracker_front_fit_fwhm_mev": None,
+            "primary_edep_minus_tracker_front_distribution_line": None,
+            "primary_edep_minus_tracker_front_distribution_mpv_mev": None,
+            "primary_edep_minus_tracker_front_distribution_fwhm_mev": None,
+            "primary_edep_minus_tracker_front_distribution_efficiency": None,
         }
 
     wrapper_include_path = Path("Run1BAna") / "workflows" / "fcl" / "edep.fcl"
@@ -403,6 +430,14 @@ def _run_edep_analysis_for_files(
             "primary_minus_edep_distribution_line": None,
             "primary_minus_edep_distribution_mean_mev": None,
             "primary_minus_edep_distribution_rms_mev": None,
+            "tracker_front_fit_line": None,
+            "tracker_front_fit_status": None,
+            "tracker_front_fit_mpv_mev": None,
+            "tracker_front_fit_fwhm_mev": None,
+            "primary_edep_minus_tracker_front_distribution_line": None,
+            "primary_edep_minus_tracker_front_distribution_mpv_mev": None,
+            "primary_edep_minus_tracker_front_distribution_fwhm_mev": None,
+            "primary_edep_minus_tracker_front_distribution_efficiency": None,
         }
 
     log_path.write_text(proc.stdout + "\n" + proc.stderr, encoding="utf-8")
@@ -417,6 +452,14 @@ def _run_edep_analysis_for_files(
     primary_minus_edep_distribution_line = None
     primary_minus_edep_distribution_mean_mev = None
     primary_minus_edep_distribution_rms_mev = None
+    tracker_front_fit_line = None
+    tracker_front_fit_status = None
+    tracker_front_fit_mpv_mev = None
+    tracker_front_fit_fwhm_mev = None
+    primary_edep_minus_tracker_front_distribution_line = None
+    primary_edep_minus_tracker_front_distribution_mpv_mev = None
+    primary_edep_minus_tracker_front_distribution_fwhm_mev = None
+    primary_edep_minus_tracker_front_distribution_efficiency = None
     for line in (proc.stdout + "\n" + proc.stderr).splitlines():
         match = _EDEP_SUMMARY_PATTERN.search(line)
         if match:
@@ -434,6 +477,18 @@ def _run_edep_analysis_for_files(
             primary_minus_edep_distribution_line = line.strip()
             primary_minus_edep_distribution_mean_mev = float(distribution_match.group(1))
             primary_minus_edep_distribution_rms_mev = float(distribution_match.group(2))
+        tracker_front_fit_match = _TRACKER_FRONT_FIT_PATTERN.search(line)
+        if tracker_front_fit_match:
+            tracker_front_fit_line = line.strip()
+            tracker_front_fit_status = int(tracker_front_fit_match.group(1))
+            tracker_front_fit_mpv_mev = float(tracker_front_fit_match.group(2))
+            tracker_front_fit_fwhm_mev = float(tracker_front_fit_match.group(3))
+        primary_edep_minus_tracker_front_match = _PRIMARY_EDEP_MINUS_TRACKER_FRONT_DISTRIBUTION_PATTERN.search(line)
+        if primary_edep_minus_tracker_front_match:
+            primary_edep_minus_tracker_front_distribution_line = line.strip()
+            primary_edep_minus_tracker_front_distribution_mpv_mev = float(primary_edep_minus_tracker_front_match.group(1))
+            primary_edep_minus_tracker_front_distribution_fwhm_mev = float(primary_edep_minus_tracker_front_match.group(2))
+            primary_edep_minus_tracker_front_distribution_efficiency = float(primary_edep_minus_tracker_front_match.group(3))
 
     return {
         "ran": proc.returncode == 0,
@@ -455,6 +510,14 @@ def _run_edep_analysis_for_files(
         "primary_minus_edep_distribution_line": primary_minus_edep_distribution_line,
         "primary_minus_edep_distribution_mean_mev": primary_minus_edep_distribution_mean_mev,
         "primary_minus_edep_distribution_rms_mev": primary_minus_edep_distribution_rms_mev,
+        "tracker_front_fit_line": tracker_front_fit_line,
+        "tracker_front_fit_status": tracker_front_fit_status,
+        "tracker_front_fit_mpv_mev": tracker_front_fit_mpv_mev,
+        "tracker_front_fit_fwhm_mev": tracker_front_fit_fwhm_mev,
+        "primary_edep_minus_tracker_front_distribution_line": primary_edep_minus_tracker_front_distribution_line,
+        "primary_edep_minus_tracker_front_distribution_mpv_mev": primary_edep_minus_tracker_front_distribution_mpv_mev,
+        "primary_edep_minus_tracker_front_distribution_fwhm_mev": primary_edep_minus_tracker_front_distribution_fwhm_mev,
+        "primary_edep_minus_tracker_front_distribution_efficiency": primary_edep_minus_tracker_front_distribution_efficiency,
     }
 
 
@@ -487,22 +550,39 @@ def _run_elebeam_edep_analysis(run_dir: Path) -> dict:
 
 
 def _run_mustop_edep_analyses(run_dir: Path, run_tag: str = "Run1B") -> dict[str, dict]:
-    sample_glob_by_name = {
-        "ce": f"job_*/dts.mu2e.CeEndpoint.{run_tag}.*_*.art",
-        "ce_plus": f"job_*/dts.mu2e.CePlusEndpoint.{run_tag}.*_*.art",
-        "flat_gamma": f"job_*/dts.mu2e.FlatGamma.{run_tag}.*_*.art",
+    tag_priority = [run_tag]
+    for tag in ("Run1A", "Run1B"):
+        if tag not in tag_priority:
+            tag_priority.append(tag)
+
+    sample_pattern_by_name = {
+        "ce": "dts.mu2e.CeEndpoint",
+        "ce_plus": "dts.mu2e.CePlusEndpoint",
+        "flat_gamma": "dts.mu2e.FlatGamma",
     }
+
     analyses: dict[str, dict] = {}
     for sample_name, sample_info in _MUSTOP_EDEP_SAMPLES.items():
+        selected_files: list[Path] = []
+        selected_tag = run_tag
+        sample_prefix = sample_pattern_by_name[sample_name]
+
+        for tag in tag_priority:
+            candidate_files = sorted(run_dir.glob(f"job_*/{sample_prefix}.{tag}.*_*.art"))
+            if candidate_files:
+                selected_files = candidate_files
+                selected_tag = tag
+                break
+
         analyses[sample_name] = _run_edep_analysis_for_files(
             run_dir,
-            sorted(run_dir.glob(sample_glob_by_name[sample_name])),
+            selected_files,
             analysis_name=sample_name,
             input_label=sample_info["label"],
             list_filename=f"{sample_name}_art_files.txt",
             log_filename=f"edep_analysis_{sample_name}.log",
             wrapper_fcl_filename=f"edep_analysis_{sample_name}.fcl",
-            nts_output_filename=f"nts.owner.edep.{sample_name}.{run_tag.lower()}.root",
+            nts_output_filename=f"nts.owner.edep.{sample_name}.{selected_tag.lower()}.root",
         )
     return analyses
 
@@ -927,6 +1007,10 @@ def _print_pretty_summary(summary: dict) -> None:
                 print(f"    {edep['primary_minus_edep_fit_line']}")
             if edep.get("primary_minus_edep_distribution_line"):
                 print(f"    {edep['primary_minus_edep_distribution_line']}")
+            if edep.get("tracker_front_fit_line"):
+                print(f"    {edep['tracker_front_fit_line']}")
+            if edep.get("primary_edep_minus_tracker_front_distribution_line"):
+                print(f"    {edep['primary_edep_minus_tracker_front_distribution_line']}")
             if edep["error"]:
                 print(f"    Note: {edep['error']}")
         return

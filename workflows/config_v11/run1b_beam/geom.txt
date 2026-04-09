@@ -1,0 +1,15 @@
+#include "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+
+// 10 cm polyethylene absorber (TSdA)
+// Target downstream edge: 4205 mm
+// 10 mm gap -> absorber upstream face: 4215 mm
+// halfLength = 5 mm -> center z0 = 4215 + 5 = 4220 mm
+bool hasTSdA            = true;
+double tsda.z0          = 4220;
+double tsda.rin         = 0.001;   // effectively solid (no hole)
+double tsda.halfLength4 = 5;       // 1 cm absorber
+
+// This tells emacs to view this file in c++ mode.
+// Local Variables:
+// mode:c++
+// End:

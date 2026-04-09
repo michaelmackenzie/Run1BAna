@@ -1,1 +1,6 @@
 #include "Offline/Mu2eG4/geom/geom_run1_b_v03.txt"
+
+// This tells emacs to view this file in c++ mode.
+// Local Variables:
+// mode:c++
+// End:

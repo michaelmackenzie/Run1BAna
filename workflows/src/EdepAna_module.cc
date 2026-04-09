@@ -13,6 +13,7 @@
 #include "Offline/RecoDataProducts/inc/CaloCluster.hh"
 #include "Offline/MCDataProducts/inc/PrimaryParticle.hh"
 #include "Offline/MCDataProducts/inc/CaloShowerStep.hh"
+#include "Offline/MCDataProducts/inc/StepPointMC.hh"
 
 // ROOT
 #include "TH1.h"
@@ -36,6 +37,7 @@ namespace mu2e {
       fhicl::Atom<art::InputTag> primaryTag     { Name("primary")                 , Comment("PrimaryParticle tag") };
       fhicl::Atom<art::InputTag> caloClusterTag { Name("CaloClusterCollection")   , Comment("CaloCluster collection") };
       fhicl::Atom<art::InputTag> caloShowerTag  { Name("CaloShowerStepCollection"), Comment("CaloShowerStep collection") };
+      fhicl::Atom<art::InputTag> stepPointTag   { Name("StepPointMCCollection")   , Comment("StepPointMC collection") };
       fhicl::Atom<int>           debugLevel     { Name("debugLevel")              , Comment("Debug level"), 0 };
     };
 
@@ -49,9 +51,12 @@ namespace mu2e {
       TH1* h_total_calo_energy_;
       TH1* h_step_energy_; // individual CaloShowerStep energies
       TH2* h_step_energy_vs_time_; // step energy vs time
+      TH1* h_trk_front_energy_;
+      TH1* h_trk_front_energy_diff_;
       TH2* h_primary_vs_edep_;
       TH1* h_primary_edep_;
       TH1* h_primary_energy_edep_diff_;
+      TH1* h_trk_front_energy_edep_diff_;
     };
     enum {kMaxHists = 100};
 
@@ -131,16 +136,65 @@ namespace mu2e {
     return P[0]*landau(X[0], P[1], P[2], P[3]);
   }
 
+  //------------------------------------------------------------------------------------------------------------
+  static void get_landau_seed(TH1* h, double& mean_seed, double& fwhm_seed) {
+    if(!h) {
+      mean_seed = 0.;
+      fwhm_seed = 0.;
+      return;
+    }
+    mean_seed = h->GetBinCenter(h->GetMaximumBin());
+    const double h_height = h->GetMaximum();
+    const double x1_seed = h->GetBinCenter(h->FindFirstBinAbove(h_height/2.));
+    const double x2_seed = h->GetBinCenter(h->FindLastBinAbove(h_height/2.));
+    fwhm_seed = x2_seed - x1_seed;
+  }
+
+  //------------------------------------------------------------------------------------------------------------
+  static int fit_landau(TH1* h, double& mean, double& fwhm) {
+    mean = 0.; fwhm = 0.;
+    if(!h) return -1;
+    if(h->GetEntries() < 100) return -1; // not enough stats for a fit
+    double mean_seed, fwhm_seed;
+    get_landau_seed(h, mean_seed, fwhm_seed);
+    TF1* f = new TF1("landau", landau_func, mean_seed - fwhm_seed, std::min(0., mean_seed + fwhm_seed), 4);
+    f->SetParNames("Norm", "#mu", "a", "b");
+    f->SetParLimits(1, -50., 0.); // mean
+    f->FixParameter(2, 0.5); // a
+    f->SetParLimits(3, 0.01, 100.); // b
+    f->SetParameters(h->GetMaximum(), mean_seed, 0.5, fwhm_seed/5.);
+    auto fit_res = h->Fit(f, "SR");
+    mean = f->GetParameter(1);
+    const double max_val = f->GetMaximum();
+    const double half_max = max_val / 2.;
+    if(!fit_res->IsValid()) {
+      std::cerr << "Fit failed with code " << fit_res->Status() << std::endl;
+    } else {
+      try {
+        f->SetRange(-100., 100.); // ensure the fit function covers the full histogram range for mean/FWHM calculation
+        const double x_left = f->GetX(half_max, mean - 100., mean);
+        const double x_right = std::min(f->GetX(half_max, mean, mean + 100.), 0.); // don't include above 0 values
+        fwhm = x_right - x_left;
+      } catch(...) {
+        std::cerr << "Error calculating FWHM from fit\n";
+      }
+    }
+    delete f;
+    return fit_res->Status();
+  }
+
   private:
     art::InputTag primary_tag_;
     art::InputTag cluster_tag_;
     art::InputTag calo_shower_tag_;
+    art::InputTag step_point_tag_;
     int debug_level_;
 
     Hist_t* hists_[kMaxHists];
-    const PrimaryParticle*                 primary_     = nullptr;
-    const CaloClusterCollection*           cluster_col_ = nullptr;
-    const CaloShowerStepCollection*        shower_col_  = nullptr;
+    const PrimaryParticle*                 primary_        = nullptr;
+    const CaloClusterCollection*           cluster_col_    = nullptr;
+    const CaloShowerStepCollection*        shower_col_     = nullptr;
+    const StepPointMCCollection*           step_point_col_ = nullptr;
     unsigned long long total_events_ = 0;
     unsigned long long events_above_50_mev_ = 0;
     double total_calo_edep_ = 0.;
@@ -152,12 +206,14 @@ namespace mu2e {
     , primary_tag_(conf().primaryTag())
     , cluster_tag_(conf().caloClusterTag())
     , calo_shower_tag_(conf().caloShowerTag())
+    , step_point_tag_(conf().stepPointTag())
     , debug_level_(conf().debugLevel())
   {
     // register products consumed
     consumes<PrimaryParticle>(primary_tag_);
     consumes<CaloClusterCollection>(cluster_tag_);
     consumes<CaloShowerStepCollection>(calo_shower_tag_);
+    consumes<StepPointMCCollection>(step_point_tag_);
 
     for(int i = 0; i < kMaxHists; ++i) hists_[i] = nullptr;
     bookHistograms(0, "all events");
@@ -181,10 +237,13 @@ namespace mu2e {
    Hist->h_max_cluster_energy_ = dir.make<TH1F>("max_cluster_energy", "Max cluster energy;Energy (MeV)"          , 150,    0., 150.);
    Hist->h_total_calo_energy_  = dir.make<TH1F>("total_calo_energy" , "Total Calo energy from steps;Energy (MeV)", 200,    0., 200.);
    Hist->h_step_energy_        = dir.make<TH1F>("calo_step_energy"  , "CaloShowerStep energy;E_{step} (MeV)"     , 100,    0., 100.);
+   Hist->h_trk_front_energy_   = dir.make<TH1F>("trk_front_energy"  , "Energy of StepPointMC at front of tracker;Energy (MeV)", 150, 0., 150.);
+   Hist->h_trk_front_energy_diff_ = dir.make<TH1F>("trk_front_energy_diff", "Energy difference of StepPointMC at front of tracker and primary;Energy (MeV)", 500, -100., 0.);
    Hist->h_primary_energy_edep_diff_ = dir.make<TH1F>("primary_energy_edep_diff", "Primary Edep - energy;Energy (MeV)", 300, -150., 0.);
    Hist->h_primary_edep_ = dir.make<TH1F>("primary_edep", "Primary Edep;Energy (MeV)", 300, 0., 150.);
    Hist->h_primary_vs_edep_ = dir.make<TH2F>("primary_vs_edep", "Primary energy vs Edep;Primary energy (MeV);Edep (MeV)", 150, 0., 150., 150, 0., 150.);
    Hist->h_step_energy_vs_time_ = dir.make<TH2F>("calo_step_energy_vs_time", "CaloShowerStep energy vs time;Time (ns);Energy (MeV)", 40, 0., 2000., 100, 0., 100.);
+   Hist->h_trk_front_energy_edep_diff_ = dir.make<TH1F>("trk_front_energy_edep_diff", "Energy difference of StepPointMC at front of tracker and primary Edep;Energy (MeV)", 500, -50., 0.);
   }
 
   void EdepAna::fillHistograms(Hist_t* Hist) {
@@ -192,6 +251,18 @@ namespace mu2e {
 
     const SimParticle* primsim = nullptr;
     if(primary_ && !primary_->primarySimParticles().empty()) primsim = &(*primary_->primarySimParticles().front());
+
+
+    // get the StepPointMC at the front of the tracker
+    const StepPointMC* front_trk_sp = nullptr;
+    if(step_point_col_ && primsim) {
+      for(const auto& sp : *step_point_col_) {
+        if(sp.simParticle()->id() == primsim->id() &&
+          (sp.volumeId() == VirtualDetectorId::TT_FrontHollow || sp.volumeId() == VirtualDetectorId::TT_FrontPA)) {
+          if(!front_trk_sp || sp.time() < front_trk_sp->time()) front_trk_sp = &sp;
+        }
+      }
+    }
 
     if(primsim) {
       Hist->h_primary_energy_->Fill(primsim->startMomentum().e());
@@ -202,10 +273,17 @@ namespace mu2e {
       Hist->h_primary_energy_edep_diff_->Fill(edep - primsim->startMomentum().e());
       Hist->h_primary_vs_edep_->Fill(primsim->startMomentum().e(), edep);
       if(debug_level_ > 1) std::cout << "EdepAna: primary Edep " << edep << " difference " << primsim->startMomentum().e() - edep << std::endl;
+
+      if(front_trk_sp) {
+        Hist->h_trk_front_energy_->Fill(front_trk_sp->momentum().mag());
+        Hist->h_trk_front_energy_diff_->Fill(front_trk_sp->momentum().mag() - primsim->startMomentum().e());
+        Hist->h_trk_front_energy_edep_diff_->Fill(edep - front_trk_sp->momentum().mag());
+        if(debug_level_ > 1) std::cout << "EdepAna: front tracker StepPointMC energy " << front_trk_sp->momentum().mag() << " difference " << primsim->startMomentum().e() - front_trk_sp->momentum().mag() << std::endl;
+      }
     }
 
+    Hist->h_nclusters_->Fill((cluster_col_) ? cluster_col_->size() : 0);
     if(cluster_col_) {
-      Hist->h_nclusters_->Fill(cluster_col_->size());
       const CaloCluster* max_cl = nullptr;
       for(const auto& cl : *cluster_col_) {
         if(!max_cl || cl.energyDep() > max_cl->energyDep()) max_cl = &cl;
@@ -243,6 +321,11 @@ namespace mu2e {
     event.getByLabel(calo_shower_tag_, cssH);
     shower_col_ = (cssH.isValid()) ? cssH.product() : nullptr;
 
+    // StepPointMC collection
+    art::Handle<StepPointMCCollection> spH;
+    event.getByLabel(step_point_tag_, spH);
+    step_point_col_ = (spH.isValid()) ? spH.product() : nullptr;
+
     double totalCaloE = 0.;
     if(shower_col_) {
       for(const auto& css : *shower_col_) {
@@ -265,56 +348,44 @@ namespace mu2e {
 
   void EdepAna::endJob() {
 
-    if(hists_[0] && hists_[0]->h_primary_energy_edep_diff_) {
-      TH1* h = hists_[0]->h_primary_energy_edep_diff_;
-      if(h->GetEntries() > 100) {
-        const double mean_seed = h->GetBinCenter(h->GetMaximumBin());
-        const double h_height = h->GetMaximum();
-        const double x1_seed = h->GetBinCenter(h->FindFirstBinAbove(h_height/2.));
-        const double x2_seed = h->GetBinCenter(h->FindLastBinAbove(h_height/2.));
-        const double fwhm_seed = x2_seed - x1_seed;
-        const double sigma_seed = std::max(2., fwhm_seed / 2.355); // FWHM ~ 2.355*sigma for Gaussian-like peak
-        // TF1* f = new TF1("landau_crystal_ball", landau_crystal_ball_func, mean_seed - 3.*sigma_seed, std::min(0., mean_seed + 3.*sigma_seed), 8);
-        // f->SetParNames("Norm", "#mu", "a", "b", "#alpha_{1}", "#alpha_{2}", "n_{1}", "n_{2}");
-        // f->SetParLimits(1, -50., 0.); // mean
-        // f->FixParameter(2, 0.5); // a
-        // f->SetParLimits(3, 0.01, 100.); // b
-        // f->SetParLimits(4, 0.5, 3.); // alpha1
-        // f->SetParLimits(5, 0.5, 3.); // alpha2
-        // f->SetParLimits(6, 0.2, 15.); // n1
-        // f->SetParLimits(7, 0.2, 10.); // n2
-        // f->FixParameter(7, 1.); // for now, fix to improve fit stability
-        // f->SetParameters(h->GetMaximum(), mean_seed, 0.5, sigma_seed/2., 1., 1., 1., 1., 1.);
-        TF1* f = new TF1("landau", landau_func, mean_seed - 3*sigma_seed, std::min(0., mean_seed + 3*sigma_seed), 4);
-        f->SetParNames("Norm", "#mu", "a", "b");
-        f->SetParLimits(1, -50., 0.); // mean
-        f->FixParameter(2, 0.5); // a
-        f->SetParLimits(3, 0.01, 100.); // b
-        f->SetParameters(h->GetMaximum(), mean_seed, 0.5, sigma_seed/2.);
-        auto fit_res = h->Fit(f, "SR");
-        const double mean = f->GetParameter(1);
-        const double max_val = f->GetMaximum();
-        const double half_max = max_val / 2.;
-        double fwhm = -1.;
-        if(!fit_res->IsValid()) {
-          std::cerr << "Fit failed with code " << fit_res->Status() << std::endl;
-        } else {
-          try {
-            f->SetRange(-100., 100.); // ensure the fit function covers the full histogram range for mean/FWHM calculation
-            const double x_left = f->GetX(half_max, mean - 100., mean);
-            const double x_right = std::min(f->GetX(half_max, mean, mean + 100.), 0.); // don't include above 0 values
-            fwhm = x_right - x_left;
-          } catch(...) {
-            std::cerr << "Error calculating FWHM from fit\n";
-          }
-        }
-        std::cout << std::format("Primary energy - Edep fit: status = {}, mean = {:.2f} MeV, FWHM = {:.2f} MeV",
-                                 fit_res->Status(), mean, fwhm) << std::endl;
-        delete f;
-        std::cout << std::format("Primary energy - Edep distribution: mean = {:.2f} MeV, RMS = {:.2f} MeV, MPV = {:.2f} MeV, FWHM = {:.2f} MeV",
-                                 h->GetMean(), h->GetRMS(), mean_seed, fwhm_seed) << std::endl;
-      }
+    // Fit the total gen -> calo edep response
+    TH1* h = (hists_[2]) ? hists_[2]->h_primary_energy_edep_diff_ : nullptr;
+    if(h && h->GetEntries() > 100) {
+      double mean_seed, fwhm_seed;
+      get_landau_seed(h, mean_seed, fwhm_seed);
+      double mean, fwhm;
+      const int fit_status = fit_landau(h, mean, fwhm);
+
+      std::cout << std::format("Primary energy - Edep fit: status = {}, mean = {:.2f} MeV, FWHM = {:.2f} MeV",
+                               fit_status, mean, fwhm) << std::endl;
+      std::cout << std::format("Primary energy - Edep distribution: mean = {:.2f} MeV, RMS = {:.2f} MeV, MPV = {:.2f} MeV, FWHM = {:.2f} MeV",
+                               h->GetMean(), h->GetRMS(), mean_seed, fwhm_seed) << std::endl;
     }
+
+    // Fit the energy loss from gen -> tracker front
+    h = (hists_[2]) ? hists_[2]->h_trk_front_energy_diff_ : nullptr;
+    if(h) {
+      TH1* h_ref = (hists_[0]) ? hists_[0]->h_nclusters_ : nullptr;
+      const double eff = h->GetEntries() > 0 && h_ref ? h->GetEntries() * 1./ h_ref->GetEntries() : 0.;
+      double mpv_seed, fwhm_seed;
+      get_landau_seed(h, mpv_seed, fwhm_seed);
+      double mpv, fwhm;
+      const int fit_status = fit_landau(h, mpv, fwhm);
+      std::cout << std::format("Tracker front - primary energy fit: status = {}, mean = {:.2f} MeV, FWHM = {:.2f} MeV",
+                               fit_status, mpv, fwhm) << std::endl;
+      std::cout << std::format("Tracker front StepPointMC energy - primary energy distribution: MPV = {:.2f} MeV, FWHM = {:.2f} MeV, efficiency = {:.4g}", mpv_seed, fwhm_seed, eff) << std::endl;
+    }
+
+    // Fit the tracker front -> calo edep response
+    h = (hists_[2]) ? hists_[2]->h_trk_front_energy_edep_diff_ : nullptr;
+    if(h) {
+      TH1* h_ref = (hists_[0]) ? hists_[0]->h_nclusters_ : nullptr;
+      const double eff = h->GetEntries() > 0 && h_ref ? h->GetEntries() * 1./ h_ref->GetEntries() : 0.;
+      double mpv, fwhm;
+      get_landau_seed(h, mpv, fwhm);
+      std::cout << std::format("Primary Edep - tracker front StepPointMC energy distribution: MPV = {:.2f} MeV, FWHM = {:.2f} MeV, efficiency = {:.4g}", mpv, fwhm, eff) << std::endl;
+    }
+
     const double averageCaloEdep = (total_events_ > 0)
       ? total_calo_edep_ / static_cast<double>(total_events_)
       : 0.;

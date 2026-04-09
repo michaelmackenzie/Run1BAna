@@ -1,1 +1,1 @@
-services.GeometryService.inputFile: "Run1BAna/workflows/config_v03/geom.txt"
+services.GeometryService.inputFile: "Run1BAna/workflows/config_v03/run1b_beam/geom.txt"
