@@ -1,8 +1,8 @@
 #include "Production/JobConfig/primary/FlatGamma.fcl"
 
 # physics.filters.PrimaryFilter.StrawGasSteps: []
-physics.filters.PrimaryFilter.MinimumSumCaloStepE: 50
-physics.filters.PrimaryFilter.MinimumPartMom: 50.
+physics.filters.PrimaryFilter.MinimumSumCaloStepE: 20.
+physics.filters.PrimaryFilter.MinimumPartMom: 0.
 
 physics.producers.generate.startMom : 70.
 physics.producers.generate.endMom   : 110.
