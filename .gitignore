@@ -21,6 +21,7 @@
 *.art
 */datacards
 notes.org
+*.gdml
 #Ignore simulation run outputs
 workflows/runs
 #Ignore TMVA outputs

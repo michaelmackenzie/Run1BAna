@@ -1,0 +1,38 @@
+#include "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+
+// enable proton absorber
+bool hasProtonAbsorber  = true;
+
+// Run 1A stopping target configuration
+double dummyStoppingTarget.halfLength =   400.;
+double dummyStoppingTarget.z0         =  5900.;
+double stoppingTarget.z0InMu2e        =  5871.;
+bool stoppingTarget.foilTarget_supportStructure = false; // overlaps
+vector<double> stoppingTarget.halfThicknesses = { 0.0528 };
+double stoppingTarget.foilTarget_supportStructure_radius = 0.05388;
+bool stoppingTarget.foilTarget_supportStructure_endAtOPA = true;
+string stoppingTarget.foilTarget_supportStructure_fillMaterial = "ST_Wires";
+double stoppingTarget.holeRadius = 21.5;
+vector<double> stoppingTarget.radii  =
+    { 75.00,  75.00,  75.00,  75.00,  75.00,
+      75.00,  75.00,  75.00,  75.00,  75.00,
+      75.00,  75.00,  75.00,  75.00,  75.00,
+      75.00,  75.00,  75.00,  75.00,  75.00,
+      75.00,  75.00,  75.00,  75.00,  75.00,
+      75.00,  75.00,  75.00,  75.00,  75.00,
+      75.00,  75.00,  75.00,  75.00,  75.00,
+      75.00,  75.00 };
+double stoppingTarget.deltaZ = 22.222222;
+
+// Use the TSdA as a second stopping target, for Run 1B
+bool hasTSdA            = true;
+double tsda.z0          = 4195;
+double tsda.r4          = 600;                  // outer radius
+double tsda.rin         = 25;                   // 25 mm radius hole
+double tsda.halfLength4 = 10;                   // 2 cm target
+string tsda.materialName = "StoppingTarget_Al"; // stopping target material to capture in the stops finder
+
+// This tells emacs to view this file in c++ mode.
+// Local Variables:
+// mode:c++
+// End:

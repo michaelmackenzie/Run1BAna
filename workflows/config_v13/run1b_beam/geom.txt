@@ -1,0 +1,22 @@
+#include "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+
+// Stopping target configuration: 13 mm thick target
+bool stoppingTarget.foilTarget_supportStructure = false;
+vector<double> stoppingTarget.halfThicknesses = { 6.5 };
+vector<double> stoppingTarget.radii  =  {600.00};
+double stoppingTarget.holeRadius = 0.001;
+double stoppingTarget.z0InMu2e = 4188;
+
+// 1 cm polyethylene absorber (TSdA)
+// Target downstream edge: 4194.5 mm
+// 10 mm gap -> absorber upstream face: 4205 mm
+// halfLength4 = 5 mm -> center z0 = 4205 + 5 = 4210 mm
+bool hasTSdA            = true;
+double tsda.z0          = 4210;
+double tsda.rin         = 0.001;    // effectively solid (no hole)
+double tsda.halfLength4 = 5;        // 1 cm absorber
+
+// This tells emacs to view this file in c++ mode.
+// Local Variables:
+// mode:c++
+// End:

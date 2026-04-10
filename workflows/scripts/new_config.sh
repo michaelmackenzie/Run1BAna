@@ -65,6 +65,7 @@ mkdir ${CONFIG}
 cp -r ${REFERENCE}/* ${CONFIG}/
 sed -i "s/${REFRUN}/${RUN}/g" ${CONFIG}/run1b_beam/epilog_run.fcl
 sed -i "s/${REFRUNA}/${RUNA}/g" ${CONFIG}/run1a_beam/epilog_run.fcl
+sed -i "s/${REFERENCE}/${CONFIG}/g" ${CONFIG}/*.fcl
 sed -i "s/${REFERENCE}/${CONFIG}/g" ${CONFIG}/*/*.fcl
 sed -i "s/${REFERENCE}/${CONFIG}/g" ${CONFIG}/*/*.txt
 

@@ -231,8 +231,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--mustop-events-per-job",
         type=int,
-        default=5000,
-        help="Number of events per mustop job (default: 5000)",
+        default=10000,
+        help="Number of events per mustop job (default: 10000)",
     )
     parser.add_argument(
         "--mustop-pileup-events-per-job",
@@ -990,12 +990,12 @@ def _print_all_stage_compact_summary(
         )
 
         sample_eff_per_mu_stop_all = (
-            sample_seen / sample_simulated_events
+            sample_seen / sample_simulated_events * sample_gen_correction
             if sample_seen is not None and sample_simulated_events not in (None, 0)
             else None
         )
         sample_eff_per_mu_stop_gt50 = (
-            sample_gt50 / sample_simulated_events
+            sample_gt50 / sample_simulated_events * sample_gen_correction
             if sample_gt50 is not None and sample_simulated_events not in (None, 0)
             else None
         )
