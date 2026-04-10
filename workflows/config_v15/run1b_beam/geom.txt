@@ -1,0 +1,13 @@
+#include "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+
+// no poly absorber
+bool hasTSdA            = false;
+
+// include Col5
+string ts.coll5.material1Name = "G4_POLYETHYLENE";
+
+
+// This tells emacs to view this file in c++ mode.
+// Local Variables:
+// mode:c++
+// End:
