@@ -1,0 +1,418 @@
+* Configuration workflow
+
+Run 1B:
+- Run mubeam with 10k events
+  --> log FlashOutput and TargetStopOutput efficiencies
+  --> Determine number of mubeam events needed for 10k events output in each output
+- Run this many events
+  --> Extract N(calo muon stops), mubeam edep / event, occupancy / event, muon stop rate
+- Run muon stops: CE
+  --> Extract efficiency, resolution
+- Run muon stops: RMC E > 70
+  --> Extract efficiency, resolution
+- Run muon stop pileup
+  --> Extract edep / event, occupancy / event
+- Run electron beam
+  --> Extract edep / event, occupancy / event
+- Run neutral beam
+  --> Extract edep / event, occupancy / event
+
+* Run 1B rates
+
+** mubeam (v06)
+
+|------------------+--------+--------+--------------|
+| Output           | Counts |   Rate | Stats needed |
+|------------------+--------+--------+--------------|
+| FlashOutput      |     14 | 1.4e-3 |       714286 |
+| EarlyFlashOutput |      1 |   1e-4 |     10000000 |
+| TargetStopOutput |     99 | 9.9e-3 |       101010 |
+|------------------+--------+--------+--------------|
+#+TBLFM: $3=$2/10000:: $4=1000/$3; %.0f
+Time: 0.02 s / event
+--> Job time needed = 714286*0.02 = ~4 hours
+
+* Configurations
+
+|----------------+------+----------+-------+-------------+----------+-----------+----------+----------+--------+----------+------------|
+| Config         |  Run |   Target |  Poly | Hole radius | Mu stop  | Calo stop | RMC eff  |  CE eff  | CE MPV |  Run 1A  |   Run 1A   |
+|                |      |          |       |             | per POT  |  per POT  | Edep(50) | Edep(50) |        |  CE eff  | CE Trk MPV |
+|----------------+------+----------+-------+-------------+----------+-----------+----------+----------+--------+----------+------------|
+| v00            | 1400 |    Foils |  None |   Normal    | 4.64e-06 | 2.45e-05  | 7.72e-09 | 8.44e-09 |  -6.25 | 3.73e-04 |   -0.46    |
+|----------------+------+----------+-------+-------------+----------+-----------+----------+----------+--------+----------+------------|
+| v03            | 1450 | 0.635 cm |  None |    None     | 9.62e-04 | 1.24e-05  | 1.02e-06 | 1.18e-06 |  -6.18 | 2.79e-04 |   -2.04    |
+| v06            | 1460 |     2 cm | 10 cm |    None     | 1.29e-03 | 0.00e-00  | 1.19e-06 | 9.07e-07 |  -36.2 | 6.23e-06 |   -48.0    |
+| v10            | 1470 |     2 cm |  5 cm |    None     | 1.29e-03 | 0.00e-00  | 1.33e-06 | 1.27e-06 |  -22.1 | 3.25e-05 |   -29.9    |
+| v11            | 1471 |     2 cm |  1 cm |    None     | 1.29e-03 | 2.13e-07  | 1.30e-06 | 1.41e-06 |  -13.2 | 1.00e-04 |   -16.5    |
+| v12            | 1472 |     2 cm |  0 cm |    None     | 1.30e-03 | 6.82e-07  | 1.31e-06 | 1.44e-06 |  -11.1 | 1.03e-04 |   -10.8    |
+| v13            | 1473 |   1.3 cm |  1 cm |    None     | 1.19e-03 | 1.49e-06  | 1.25e-06 | 1.41e-06 |  -10.0 | 1.44e-04 |    -9.7    |
+| v14            | 1474 |     2 cm |  0 cm |    25 mm    | 1.28e-03 | 1.66e-06  | 1.34e-06 | 1.38e-06 |  -11.9 | 1.53e-04 |   -0.49    |
+| v15 (Col5)     | 1475 |     2 cm |  0 cm |    None     |          |           |          |          |        |          |            |
+| v16 (degrader) | 1476 |     2 cm |  0 cm |    None     | 3.76e-04 | 8.52e-07  | 4.09e-07 | 4.46e-07 |  -11.8 | 3.79e-04 |   -0.49    |
+|----------------+------+----------+-------+-------------+----------+-----------+----------+----------+--------+----------+------------|
+| <l>            |  <r> |      <r> |   <r> |     <c>     |   <c>    |    <c>    |   <c>    |   <c>    |    <r> |   <c>    |    <c>     |
+|----------------+------+----------+-------+-------------+----------+-----------+----------+----------+--------+----------+------------|
+
+* Work notes
+
+** Test runs
+
+*** Previous test for config_v03 with mubeam, mustop, mustop_pileup, and edep stages, new elebeam:
+$> scripts/run_configuration.py config_v03 --stage summary --mubeam-run-dir runs/config_v03/mubeam_20260406_142342/ --mustop-run-dir runs/config_v03/mustop_20260406_144229/ --mustop-pileup-run-dir runs/config_v03/mustop_pileup_20260407_092828/ --elebeam-run-dir runs/config_v03/elebeam_20260407_135310/
+mubeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/mubeam_20260406_142342
+elebeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/elebeam_20260407_135310
+mustop: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/mustop_20260406_144229
+mustop_pileup: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/mustop_pileup_20260407_092828
+final: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/final_20260407_154941
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.00097925299
+  Calorimeter absolute muon stopping rate: 1.2296858e-05
+  mubeam flash output absolute efficiency: 5.9765373e-05
+  mubeam average Edep / event: 4.00153 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 4.4074759e-08
+  mubeam effective N(POT) simulated: 22688723
+  elebeam flash output absolute efficiency: 1.178229e-05
+  elebeam average Edep / event: 15.2674 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 5.7474585e-07
+  elebeam effective N(POT) simulated: 3479799
+  mustop effective N(POT) simulated (per mode): 51706297
+  ce: abs eff (all)=1.4785433e-06, abs eff (Edep>50)=1.1961793e-06, MPV=-7.91 MeV, FWHM=7.78 MeV
+  ce_plus: abs eff (all)=1.4185893e-06, abs eff (Edep>50)=1.1299397e-06, MPV=-6.52 MeV, FWHM=7.67 MeV
+  flat_gamma: abs eff (all)=1.2222883e-06, abs eff (Edep>50)=1.0366242e-06, MPV=-1.91 MeV, FWHM=6.6 MeV
+  mustop_pileup effective N(POT) simulated: 3.1023778e+09
+  pileup: abs eff (all)=6.7886638e-06, abs eff (Edep>50)=1.2893336e-09, avg Edep/event=3.71499 MeV, effective N(POT) simulated=3.1023778e+09
+  Double-Edep expected/event (single,double,triple): 82.6304, 0.00895082, 8.01171e-05
+  Double-Edep estimated/event E(50,70,80,90): 4.66855, 0.279876, 0.000629953, 0.000216635
+  Rough sensitivity ce: MPV=96.5, FWHM=7, signal rate=46.9788, background rate=1420170, s/sqrt(b)=0.0394214
+  Rough sensitivity ce_plus: MPV=85.5, FWHM=6, signal rate=43.5185, background rate=4477620, s/sqrt(b)=0.020566
+  Rough sensitivity flat_gamma: MPV=71.5, FWHM=15, signal rate=34198.8, background rate=12399700, s/sqrt(b)=9.71189
+
+*** Submitted a test for config_v06 with mubeam, elebeam, mustop, mustop_pileup, and edep stages:
+$> scripts/run_configuration.py config_v06 --stage summary --mubeam-run-dir runs/config_v06/mubeam_20260407_112229/ --mustop-run-dir runs/config_v06/mustop_20260407_114919/ --mustop-pileup-run-dir runs/config_v06/mustop_pileup_20260407_115524/ --elebeam-run-dir runs/config_v06/elebeam_20260407_133433/
+mubeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/mubeam_20260407_112229
+elebeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/elebeam_20260407_133433
+mustop: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/mustop_20260407_114919
+mustop_pileup: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/mustop_pileup_20260407_115524
+final: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/final_20260407_155018
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.0012930288
+  Calorimeter absolute muon stopping rate: 0
+  mubeam flash output absolute efficiency: 1.4485904e-05
+  mubeam average Edep / event: 1.64015 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 0
+  mubeam effective N(POT) simulated: 1.1735547e+08
+  elebeam flash output absolute efficiency: 2.0116105e-06
+  elebeam average Edep / event: 2.54007 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 0
+  elebeam effective N(POT) simulated: 3479799
+  mustop effective N(POT) simulated (per mode): 39202120
+  ce: abs eff (all)=1.7945458e-06, abs eff (Edep>50)=9.0556328e-07, MPV=-50 MeV, FWHM=51.41 MeV
+  ce_plus: abs eff (all)=1.5962147e-06, abs eff (Edep>50)=6.5175047e-07, MPV=-44.29 MeV, FWHM=43.22 MeV
+  flat_gamma: abs eff (all)=1.5471102e-06, abs eff (Edep>50)=1.1625647e-06, MPV=-2.02 MeV, FWHM=6.91 MeV
+  mustop_pileup effective N(POT) simulated: 2.3521272e+09
+  pileup: abs eff (all)=4.734863e-06, abs eff (Edep>50)=1.2754412e-09, avg Edep/event=2.21839 MeV, effective N(POT) simulated=2.3521272e+09
+  Double-Edep expected/event (single,double,triple): 1.99713, 0.000216336, 4.68012e-08
+  Double-Edep estimated/event E(50,70,80,90): 0.00807555, 1.8872e-06, 8.34989e-07, 1.52248e-07
+  Rough sensitivity ce: MPV=70.5, FWHM=55, signal rate=87.5957, background rate=7.96275e+09, s/sqrt(b)=0.000981638
+  Rough sensitivity ce_plus: MPV=54.5, FWHM=43, signal rate=60.8526, background rate=6.60037e+09, s/sqrt(b)=0.000749023
+  Rough sensitivity flat_gamma: MPV=72.5, FWHM=15, signal rate=31052.8, background rate=19869.4, s/sqrt(b)=220.297
+
+*** Higher stats config_v06 submission
+$> time python scripts/run_configuration.py config_v06 30 --stage all --events-per-job 150000 --mustop-pileup-events-per-job 500000 --elebeam-events-per-job 50000
+Running stage sequence: mubeam -> elebeam -> mustop -> mustop_pileup -> final
+FCL: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/config_v06/run1b_beam/mubeam.fcl
+Run directory: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/mubeam_20260407_171203
+
+Results:
+mubeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/mubeam_20260407_171203
+elebeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/elebeam_20260407_182649
+mustop: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/mustop_20260407_191227
+run1a_mubeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/run1a_mubeam_20260408_113504
+run1a_mustops: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/run1a_mustops_20260408_115343
+mustop_pileup: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/mustop_pileup_20260407_191722
+final: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v06/final_20260407_194215
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.0012949404
+  Calorimeter absolute muon stopping rate: 0
+  mubeam flash output absolute efficiency: 1.4468862e-05
+  mubeam average Edep / event: 1.62345 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 0
+  mubeam effective N(POT) simulated: 3.520664e+08
+  elebeam flash output absolute efficiency: 3.9465881e-06
+  elebeam average Edep / event: 5.32899 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 0
+  elebeam effective N(POT) simulated: 52196984
+  mustop effective N(POT) simulated (per mode): 38906663
+  ce: abs eff (all)=1.7522705e-06, abs eff (Edep>50)=9.072996e-07, MPV=-50 MeV, FWHM=52.31 MeV
+  ce_plus: abs eff (all)=1.6578137e-06, abs eff (Edep>50)=6.7854701e-07, MPV=-44.31 MeV, FWHM=42.65 MeV
+  flat_gamma: abs eff (all)=1.5877743e-06, abs eff (Edep>50)=1.1919552e-06, MPV=-1.64 MeV, FWHM=6.27 MeV
+  run1a target absolute muon stopping rate: 0.0021241337
+  run1a_mustops effective N(POT) simulated (per mode): 23605540
+  run1a ce: eff/mu stop (all)=0.00456, eff/mu stop (Edep>50)=0.00166, abs eff (all)=9.6587495e-06, abs eff (Edep>50)=3.5161237e-06, MPV=-50 MeV, FWHM=47.23 MeV, trk-front MPV=-53.9 MeV, FWHM=21 MeV, eff=0.807
+  run1a ce_plus: eff/mu stop (all)=0.00102, eff/mu stop (Edep>50)=0.00034, abs eff (all)=2.1605098e-06, abs eff (Edep>50)=7.2016992e-07, MPV=unavailable MeV, FWHM=unavailable MeV, trk-front MPV=-39.1 MeV, FWHM=12.2 MeV, eff=0.7451
+  run1a flat_gamma: eff/mu stop (all)=0.00136, eff/mu stop (Edep>50)=0.0008, abs eff (all)=7.2016992e-08, abs eff (Edep>50)=4.2362936e-08, MPV=unavailable MeV, FWHM=unavailable MeV, trk-front MPV=-0.1 MeV, FWHM=0 MeV, eff=0.6324
+  mustop_pileup effective N(POT) simulated: 1.1671999e+10
+  pileup: abs eff (all)=4.7476015e-06, abs eff (Edep>50)=6.8540102e-10, avg Edep/event=2.14676 MeV, effective N(POT) simulated=1.1671999e+10
+  Double-Edep expected/event (single,double,triple): 72.4016, 0.3002, 0.0008
+  Double-Edep estimated/event E(50,70,80,90): 0.00373444, 0.000541468, 0.000246479, 1.00796e-05
+  Rough sensitivity ce: MPV=69.5, FWHM=54, signal rate=617.802, background rate=1.30601e+11, s/sqrt(b)=0.00170953
+  Rough sensitivity ce_plus: MPV=54.5, FWHM=43, signal rate=460.907, background rate=1.15152e+11, s/sqrt(b)=0.00135824
+  Rough sensitivity flat_gamma: MPV=71.5, FWHM=15, signal rate=237214, background rate=44120000, s/sqrt(b)=35.7127
+
+*** Higher stats config_v03 submission, included test run1a evaluation
+$> time python scripts/run_configuration.py config_v03 30 --stage all --events-per-job 150000 --mustop-pileup-events-per-job 500000 --elebeam-events-per-job 50000
+Running stage sequence: mubeam -> elebeam -> mustop -> mustop_pileup -> final
+FCL: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/config_v03/run1b_beam/mubeam.fcl
+Run directory: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/mubeam_20260407_194920
+
+$> scripts/run_configuration.py config_v03 --stage summary --mubeam-run-dir runs/config_v03/mubeam_20260407_194920/ --mustop-run-dir runs/config_v03/mustop_20260407_215515/ --mustop-pileup-run-dir runs/config_v03/mustop_pileup_20260407_220010/ --elebeam-run-dir runs/config_v03/elebeam_20260407_210757/
+mubeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/mubeam_20260407_194920
+elebeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/elebeam_20260407_210757
+mustop: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/mustop_20260407_215515
+run1a_mubeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/run1a_mubeam_20260408_093647
+run1a_mustops: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/run1a_mustops_20260408_094501
+mustop_pileup: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/mustop_pileup_20260407_220010
+final: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v03/final_20260407_222736
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.00096218783
+  Calorimeter absolute muon stopping rate: 1.2435154e-05
+  mubeam flash output absolute efficiency: 6.131798e-05
+  mubeam average Edep / event: 4.1072 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 9.373232e-08
+  mubeam effective N(POT) simulated: 3.520664e+08
+  elebeam flash output absolute efficiency: 9.6940466e-06
+  elebeam average Edep / event: 10.4077 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 9.5790974e-08
+  elebeam effective N(POT) simulated: 52196984
+  mustop effective N(POT) simulated (per mode): 52240021
+  ce: abs eff (all)=1.436638e-06, abs eff (Edep>50)=1.1791726e-06, MPV=-7.64 MeV, FWHM=7.63 MeV
+  ce_plus: abs eff (all)=1.4146242e-06, abs eff (Edep>50)=1.1389735e-06, MPV=-6.37 MeV, FWHM=6.89 MeV
+  flat_gamma: abs eff (all)=1.2045363e-06, abs eff (Edep>50)=1.0217262e-06, MPV=-1.86 MeV, FWHM=6.1 MeV
+  run1a target absolute muon stopping rate: 0.0016740082
+  run1a_mustops effective N(POT) simulated (per mode): 29971793
+  run1a ce: eff/mu stop (all)=0.17472, eff/mu stop (Edep>50)=0.14118, abs eff (all)=0.00029147405, abs eff (Edep>50)=0.00023552144, MPV=-12.78 MeV, FWHM=15.16 MeV
+  run1a ce_plus: eff/mu stop (all)=0.12698, eff/mu stop (Edep>50)=0.10262, abs eff (all)=0.00021183251, abs eff (Edep>50)=0.0001711943, MPV=-10.95 MeV, FWHM=14.07 MeV
+  run1a flat_gamma: eff/mu stop (all)=0.00136, eff/mu stop (Edep>50)=0.00064, abs eff (all)=2.2687999e-06, abs eff (Edep>50)=1.0676705e-06, MPV=unavailable MeV, FWHM=unavailable MeV
+  mustop_pileup effective N(POT) simulated: 1.5672006e+10
+  pileup: abs eff (all)=6.7565696e-06, abs eff (Edep>50)=1.531393e-09, avg Edep/event=3.64687 MeV, effective N(POT) simulated=1.5672006e+10
+  Double-Edep expected/event (single,double,triple): 225.82, 2.8003, 0.0192
+  Double-Edep estimated/event E(50,70,80,90): 1.48527, 0.0899742, 0.0117728, 0.00291701
+  Rough sensitivity ce: MPV=98.5, FWHM=6, signal rate=308.549, background rate=1.39929e+08, s/sqrt(b)=0.0260838
+  Rough sensitivity ce_plus: MPV=86.5, FWHM=6, signal rate=322.088, background rate=6.09469e+08, s/sqrt(b)=0.0130466
+  Rough sensitivity flat_gamma: MPV=73.5, FWHM=15, signal rate=243461, background rate=3.6951e+09, s/sqrt(b)=4.00512
+ 
+*** Low stats config_v10: 2 cm Al, 5 cm poly
+>time python scripts/run_configuration.py config_v10 10 --stage all --events-per-job 10000 --mustop-pileup-events-per-job 50000 --elebeam-events-per-job 10000
+Running stage sequence: mubeam -> elebeam -> mustop -> run1a_mubeam -> run1a_mustops -> mustop_pileup -> final
+
+All-stage sequence complete. mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v10/mubeam_20260408_142616
+All-stage sequence complete. elebeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v10/elebeam_20260408_143234
+All-stage sequence complete. run1a_mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v10/run1a_mubeam_20260408_144049
+All-stage sequence complete. run1a_mustops run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v10/run1a_mustops_20260408_144509
+All-stage sequence complete. mustop run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v10/mustop_20260408_143545
+All-stage sequence complete. mustop_pileup run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v10/mustop_pileup_20260408_145022
+All-stage sequence complete. final run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v10/final_20260408_145240
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.0012912053
+  Calorimeter absolute muon stopping rate: 0
+  mubeam flash output absolute efficiency: 1.878907e-05
+  mubeam average Edep / event: 1.43003 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 0
+  mubeam effective N(POT) simulated: 7823697.7
+  elebeam flash output absolute efficiency: 2.5863563e-06
+  elebeam average Edep / event: 6.835 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 0
+  elebeam effective N(POT) simulated: 1159933
+  mustop effective N(POT) simulated (per mode): 37722747
+  ce: abs eff (all)=2.0299423e-06, abs eff (Edep>50)=1.2651518e-06, MPV=-41.85 MeV, FWHM=60.03 MeV
+  ce_plus: abs eff (all)=1.8934199e-06, abs eff (Edep>50)=1.0457881e-06, MPV=-34.59 MeV, FWHM=42.2 MeV
+  flat_gamma: abs eff (all)=1.7224356e-06, abs eff (Edep>50)=1.3307621e-06, MPV=-1.25 MeV, FWHM=6.47 MeV
+  run1a target absolute muon stopping rate: 0.0021237916
+  run1a_mustops effective N(POT) simulated (per mode): 23609353
+  run1a ce: eff/mu stop (all)=0.01728, eff/mu stop (Edep>50)=0.01128, abs eff (all)=3.6595666e-05, abs eff (Edep>50)=2.3888837e-05, MPV=-38.34 MeV, FWHM=27.12 MeV, trk-front MPV=-42.5 MeV, FWHM=26.6 MeV, eff=0.8762
+  run1a ce_plus: eff/mu stop (all)=0.00718, eff/mu stop (Edep>50)=0.00378, abs eff (all)=1.5205838e-05, abs eff (Edep>50)=8.0053018e-06, MPV=-34.02 MeV, FWHM=24.72 MeV, trk-front MPV=-26.3 MeV, FWHM=10.6 MeV, eff=0.8384
+  run1a flat_gamma: eff/mu stop (all)=0.00104, eff/mu stop (Edep>50)=0.00042, abs eff (all)=5.5062923e-08, abs eff (Edep>50)=2.223695e-08, MPV=unavailable MeV, FWHM=unavailable MeV, trk-front MPV=-0.1 MeV, FWHM=0 MeV, eff=0.5
+  mustop_pileup effective N(POT) simulated: 3.7722747e+08
+  pileup: abs eff (all)=6.5769336e-06, abs eff (Edep>50)=0, avg Edep/event=2.46926 MeV, effective N(POT) simulated=3.7722747e+08
+  Double-Edep expected/event (single,double,triple): 68.4861, 0.2699, 0.0005
+  Double-Edep estimated/event E(50,70,80,90): 0.000271829, 6.52571e-07, 5.08052e-08, 2.30261e-10
+  Rough sensitivity ce: MPV=81.5, FWHM=61, signal rate=835.669, background rate=6.75253e+10, s/sqrt(b)=0.00321589
+  Rough sensitivity ce_plus: MPV=67.5, FWHM=48, signal rate=671.003, background rate=5.95027e+10, s/sqrt(b)=0.00275078
+  Rough sensitivity flat_gamma: MPV=71.5, FWHM=15, signal rate=285712, background rate=22338.9, s/sqrt(b)=1911.6
+
+*** Medium stats config_v12
+$> time python scripts/run_configuration.py config_v12 30 --stage all --mustop-events-per-job 10000 --mustop-pileup-events-per-job 100000 --events-per-job 30000 --elebeam-events-per-job 30000 --run1a-mubeam-events-per-job 5000
+real    59m25.946s
+user    1318m45.128s
+sys     29m37.612s
+
+All-stage sequence complete. mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v12/mubeam_20260410_083903
+All-stage sequence complete. elebeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v12/elebeam_20260410_085644
+All-stage sequence complete. run1a_mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v12/run1a_mubeam_20260410_091608
+All-stage sequence complete. run1a_mustops run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v12/run1a_mustops_20260410_092152
+All-stage sequence complete. mustop run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v12/mustop_20260410_090753
+All-stage sequence complete. mustop_pileup run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v12/mustop_pileup_20260410_093145
+All-stage sequence complete. final run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v12/final_20260410_093813
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.0012980364
+  Calorimeter absolute muon stopping rate: 6.816896e-07
+  mubeam flash output absolute efficiency: 2.1842471e-05
+  mubeam average Edep / event: 2.30846 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 0
+  mubeam effective N(POT) simulated: 70413279
+  elebeam flash output absolute efficiency: 7.375905e-06
+  elebeam average Edep / event: 8.87009 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 0
+  elebeam effective N(POT) simulated: 10439397
+  mustop effective N(POT) simulated (per mode): 77977053
+  ce: abs eff (all)=2.0166189e-06, abs eff (Edep>50)=1.4369612e-06, MPV=-11.1 MeV, FWHM=8.381 MeV
+  ce_plus: abs eff (all)=2.0076419e-06, abs eff (Edep>50)=1.3786107e-06, MPV=-10.54 MeV, FWHM=7.311 MeV
+  flat_gamma: abs eff (all)=1.6479207e-06, abs eff (Edep>50)=1.3125656e-06, MPV=-1.85 MeV, FWHM=5.308 MeV
+  run1a target absolute muon stopping rate: 0.0025153465
+  run1a_mustops effective N(POT) simulated (per mode): 41348453
+  run1a ce: eff/mu stop (all)=0.06231, eff/mu stop (Edep>50)=0.04258, abs eff (all)=0.00015069488, abs eff (Edep>50)=0.00010297846, MPV=-16.68 MeV, FWHM=23.6 MeV, trk-front fit MPV=-10.83 MeV, FWHM=23.06 MeV
+  run1a ce_plus: eff/mu stop (all)=0.03325, eff/mu stop (Edep>50)=0.02019, abs eff (all)=8.0414133e-05, abs eff (Edep>50)=4.8828912e-05, MPV=-13.3 MeV, FWHM=20.3 MeV, trk-front fit MPV=-8.75 MeV, FWHM=19.57 MeV
+  run1a flat_gamma: eff/mu stop (all)=0.00129675, eff/mu stop (Edep>50)=0.001007, abs eff (all)=3.1361512e-06, abs eff (Edep>50)=2.4353994e-06, MPV=-1.65 MeV, FWHM=5.001 MeV, trk-front fit MPV=-0.1 MeV, FWHM=0.09 MeV
+  mustop_pileup effective N(POT) simulated: 2.3393116e+09
+  pileup: abs eff (all)=8.0622009e-06, abs eff (Edep>50)=1.2824286e-09, avg Edep/event=3.07399 MeV, effective N(POT) simulated=2.3393116e+09
+  Double-Edep expected/event (single,double,triple): 125.601, 0.8709, 0.003
+  Double-Edep estimated/event E(50,70,80,90): 0.0737645, 0.00279902, 0.000774307, 6.54469e-05
+  Rough sensitivity ce: MPV=90.5, FWHM=12, signal rate=348.544, background rate=64966200, s/sqrt(b)=0.0432428
+  Rough sensitivity ce_plus: MPV=79.5, FWHM=12, signal rate=380.903, background rate=2.28384e+08, s/sqrt(b)=0.0252047
+  Rough sensitivity flat_gamma: MPV=76.5, FWHM=15, signal rate=286640, background rate=1.67348e+08, s/sqrt(b)=22.1578
+
+*** Low stats config_v13
+time python scripts/run_configuration.py config_v13 30 --stage all --mustop-events-per-job 10000 --mustop-pileup-events-per-job 50000 --events-per-job 10000 --elebeam-events-per-job 10000 --run1a-mubeam-events-per-job 5000
+
+All-stage sequence complete. mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v13/mubeam_20260410_103122
+All-stage sequence complete. elebeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v13/elebeam_20260410_103932
+All-stage sequence complete. run1a_mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v13/run1a_mubeam_20260410_105337
+All-stage sequence complete. run1a_mustops run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v13/run1a_mustops_20260410_105943
+All-stage sequence complete. mustop run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v13/mustop_20260410_104432
+All-stage sequence complete. mustop_pileup run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v13/mustop_pileup_20260410_110936
+All-stage sequence complete. final run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v13/final_20260410_111334
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.0011924029
+  Calorimeter absolute muon stopping rate: 1.491196e-06
+  mubeam flash output absolute efficiency: 2.7523218e-05
+  mubeam average Edep / event: 2.59832 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 0
+  mubeam effective N(POT) simulated: 23471093
+  elebeam flash output absolute efficiency: 1.0920171e-05
+  elebeam average Edep / event: 10.5867 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 0
+  elebeam effective N(POT) simulated: 3479799
+  mustop effective N(POT) simulated (per mode): 85660923
+  ce: abs eff (all)=1.8348506e-06, abs eff (Edep>50)=1.4070009e-06, MPV=-9.95 MeV, FWHM=7.163 MeV
+  ce_plus: abs eff (all)=1.7519657e-06, abs eff (Edep>50)=1.2911371e-06, MPV=-8.33 MeV, FWHM=7.305 MeV
+  flat_gamma: abs eff (all)=1.5009761e-06, abs eff (Edep>50)=1.249111e-06, MPV=-1.65 MeV, FWHM=6.2 MeV
+  run1a target absolute muon stopping rate: 0.0022999091
+  run1a_mustops effective N(POT) simulated (per mode): 45241721
+  run1a ce: eff/mu stop (all)=0.09357, eff/mu stop (Edep>50)=0.065, abs eff (all)=0.00020682237, abs eff (Edep>50)=0.00014367269, MPV=-15.51 MeV, FWHM=15.66 MeV, trk-front fit MPV=-9.66 MeV, FWHM=13.96 MeV
+  run1a ce_plus: eff/mu stop (all)=0.05401, eff/mu stop (Edep>50)=0.03275, abs eff (all)=0.00011938096, abs eff (Edep>50)=7.2388934e-05, MPV=-13.3 MeV, FWHM=13.91 MeV, trk-front fit MPV=-9.15 MeV, FWHM=13.32 MeV
+  run1a flat_gamma: eff/mu stop (all)=0.00134525, eff/mu stop (Edep>50)=0.001038, abs eff (all)=2.9734722e-06, abs eff (Edep>50)=2.2943424e-06, MPV=-0.65 MeV, FWHM=5.8 MeV, trk-front fit MPV=-0.1 MeV, FWHM=0 MeV
+  mustop_pileup effective N(POT) simulated: 1.2849139e+09
+  pileup: abs eff (all)=7.4409658e-06, abs eff (Edep>50)=7.7826229e-10, avg Edep/event=3.19833 MeV, effective N(POT) simulated=1.2849139e+09
+  Double-Edep expected/event (single,double,triple): 148.125, 1.207, 0.0051
+  Double-Edep estimated/event E(50,70,80,90): 0.147132, 0.0108125, 0.00183523, 0.000156
+  Rough sensitivity ce: MPV=93.5, FWHM=9, signal rate=365.449, background rate=51890100, s/sqrt(b)=0.0507322
+  Rough sensitivity ce_plus: MPV=81.5, FWHM=10, signal rate=372.126, background rate=6.91665e+08, s/sqrt(b)=0.0141495
+  Rough sensitivity flat_gamma: MPV=85.5, FWHM=15, signal rate=298155, background rate=6.10293e+08, s/sqrt(b)=12.069
+
+real    42m30.586s
+user    827m32.109s
+sys     27m46.564s
+
+*** Low stats config_v14
+time python scripts/run_configuration.py config_v14 30 --stage all --mustop-events-per-job 10000 --mustop-pileup-events-per-job 50000 --events-per-job 10000 --elebeam-events-per-job 10000 --run1a-mubeam-events-per-job 5000
+
+All-stage sequence complete. mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v14/mubeam_20260410_094606
+All-stage sequence complete. elebeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v14/elebeam_20260410_095351
+All-stage sequence complete. run1a_mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v14/run1a_mubeam_20260410_100742
+All-stage sequence complete. run1a_mustops run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v14/run1a_mustops_20260410_101319
+All-stage sequence complete. mustop run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v14/mustop_20260410_095850
+All-stage sequence complete. mustop_pileup run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v14/mustop_pileup_20260410_102403
+All-stage sequence complete. final run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v14/final_20260410_102757
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.0012831955
+  Calorimeter absolute muon stopping rate: 1.6616184e-06
+  mubeam flash output absolute efficiency: 2.2708785e-05
+  mubeam average Edep / event: 2.31972 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 4.26056e-08
+  mubeam effective N(POT) simulated: 23471093
+  elebeam flash output absolute efficiency: 7.1843231e-06
+  elebeam average Edep / event: 7.94664 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 0
+  elebeam effective N(POT) simulated: 3479799
+  mustop effective N(POT) simulated (per mode): 79133827
+  ce: abs eff (all)=2.0282098e-06, abs eff (Edep>50)=1.3783612e-06, MPV=-11.86 MeV, FWHM=9.27 MeV
+  ce_plus: abs eff (all)=1.9606028e-06, abs eff (Edep>50)=1.2459905e-06, MPV=-11.28 MeV, FWHM=10.65 MeV
+  flat_gamma: abs eff (all)=1.6772221e-06, abs eff (Edep>50)=1.3372916e-06, MPV=-3.45 MeV, FWHM=5.9 MeV
+  run1a target absolute muon stopping rate: 0.00241133
+  run1a_mustops effective N(POT) simulated (per mode): 43160712
+  run1a ce: eff/mu stop (all)=0.08963, eff/mu stop (Edep>50)=0.06619, abs eff (all)=0.00020766571, abs eff (Edep>50)=0.00015335706, MPV=-7.64 MeV, FWHM=9.124 MeV, trk-front fit MPV=-0.49 MeV, FWHM=0.66 MeV
+  run1a ce_plus: eff/mu stop (all)=0.05661, eff/mu stop (Edep>50)=0.03905, abs eff (all)=0.00013116095, abs eff (Edep>50)=9.0475801e-05, MPV=-5.35 MeV, FWHM=7.043 MeV, trk-front fit MPV=-0.6 MeV, FWHM=0.78 MeV
+  run1a flat_gamma: eff/mu stop (all)=0.00151675, eff/mu stop (Edep>50)=0.00103225, abs eff (all)=3.5141913e-06, abs eff (Edep>50)=2.3916426e-06, MPV=-1.95 MeV, FWHM=4.9 MeV, trk-front fit MPV=-0.1 MeV, FWHM=0.07 MeV
+  mustop_pileup effective N(POT) simulated: 1.1870074e+09
+  pileup: abs eff (all)=8.3125008e-06, abs eff (Edep>50)=0, avg Edep/event=2.98528 MeV, effective N(POT) simulated=1.1870074e+09
+  Double-Edep expected/event (single,double,triple): 114.474, 0.727, 0.0019
+  Double-Edep estimated/event E(50,70,80,90): 0.0713161, 0.0012867, 0.000183063, 1.64715e-05
+  Rough sensitivity ce: MPV=89.5, FWHM=17, signal rate=389.239, background rate=38674500, s/sqrt(b)=0.0625899
+  Rough sensitivity ce_plus: MPV=78.5, FWHM=10, signal rate=276.102, background rate=94334700, s/sqrt(b)=0.0284271
+  Rough sensitivity flat_gamma: MPV=74.5, FWHM=15, signal rate=286552, background rate=58181100, s/sqrt(b)=37.5675
+
+real    42m9.606s
+user    847m4.176s
+sys     26m40.538s
+
+*** Low stats config_15 (2 cm Al, no poly, Col5 added)
+time python scripts/run_configuration.py config_v15 30 --stage all --mustop-events-per-job 10000 --mustop-pileup-events-per-job 50000 --events-per-job 10000 --elebeam-events-per-job 10000 --run1a-mubeam-events-per-job 5000
+
+
+*** Low stats config_v16 (degrader, 2 cm)
+time python scripts/run_configuration.py config_v16 30 --stage all --mustop-events-per-job 10000 --mustop-pileup-events-per-job 50000 --events-per-job 10000 --elebeam-events-per-job 10000 --run1a-mubeam-events-per-job 5000
+--> Had to restart with fixed Run 1A geom with degrader moved, lowered the run1a_mustops stats
+
+mubeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v16/mubeam_20260410_112336
+elebeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v16/elebeam_20260410_113111
+mustop: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v16/mustop_20260410_113609
+run1a_mubeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v16/run1a_mubeam_20260410_122034
+run1a_mustops: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v16/run1a_mustops_20260410_124435
+mustop_pileup: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v16/mustop_pileup_20260410_120028
+final: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v16/final_20260410_120425
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.000375824
+  Calorimeter absolute muon stopping rate: 8.52112e-07
+  mubeam flash output absolute efficiency: 2.0067238e-05
+  mubeam average Edep / event: 2.98807 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 0
+  mubeam effective N(POT) simulated: 23471093
+  elebeam flash output absolute efficiency: 4.3105939e-06
+  elebeam average Edep / event: 8.35151 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 0
+  elebeam effective N(POT) simulated: 3479799
+  mustop effective N(POT) simulated (per mode): 2.6137075e+08
+  ce: abs eff (all)=6.4180863e-07, abs eff (Edep>50)=4.463009e-07, MPV=-11.83 MeV, FWHM=8.448 MeV
+  ce_plus: abs eff (all)=6.0603569e-07, abs eff (Edep>50)=3.9273714e-07, MPV=-11.6 MeV, FWHM=8.7 MeV
+  flat_gamma: abs eff (all)=5.1535989e-07, abs eff (Edep>50)=4.0928452e-07, MPV=-2.95 MeV, FWHM=6.2 MeV
+  run1a target absolute muon stopping rate: 0.0007857648
+  run1a_mustops effective N(POT) simulated (per mode): 13211088
+  run1a ce: eff/mu stop (all)=0.5764, eff/mu stop (Edep>50)=0.5001, abs eff (all)=0.00043630016, abs eff (Edep>50)=0.00037854565, MPV=-13.91 MeV, FWHM=5.7 MeV, trk-front fit MPV=-7.26 MeV, FWHM=0 MeV
+  run1a ce_plus: eff/mu stop (all)=0.4924, eff/mu stop (Edep>50)=0.4028, abs eff (all)=0.00037271721, abs eff (Edep>50)=0.00030489539, MPV=-6.18 MeV, FWHM=5.146 MeV, trk-front fit MPV=-0.53 MeV, FWHM=0.69 MeV
+  run1a flat_gamma: eff/mu stop (all)=0.00232, eff/mu stop (Edep>50)=0.0018125, abs eff (all)=1.7561006e-06, abs eff (Edep>50)=1.3719536e-06, MPV=-1.55 MeV, FWHM=6.3 MeV, trk-front fit MPV=-0.1 MeV, FWHM=0 MeV
+  mustop_pileup effective N(POT) simulated: 3.9205612e+09
+  pileup: abs eff (all)=2.7240998e-06, abs eff (Edep>50)=7.6519658e-10, avg Edep/event=2.94651 MeV, effective N(POT) simulated=3.9205612e+09
+  Double-Edep expected/event (single,double,triple): 62.0201, 0.2225, 0.0004
+  Double-Edep estimated/event E(50,70,80,90): 0.0131101, 0.000422524, 2.38097e-05, 3.02577e-06
+  Rough sensitivity ce: MPV=90.5, FWHM=15, signal rate=125.374, background rate=4762620, s/sqrt(b)=0.0574493
+  Rough sensitivity ce_plus: MPV=78.5, FWHM=13, signal rate=107.199, background rate=59596900, s/sqrt(b)=0.0138861
+  Rough sensitivity flat_gamma: MPV=74.5, FWHM=15, signal rate=91938.6, background rate=12406400, s/sqrt(b)=26.1021
