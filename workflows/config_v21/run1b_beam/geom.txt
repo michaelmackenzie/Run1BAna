@@ -1,0 +1,24 @@
+#include "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+
+// Stopping target configuration: 2 cm thick main target region
+bool stoppingTarget.foilTarget_supportStructure = false;
+vector<double> stoppingTarget.halfThicknesses = { 6.5 };
+vector<double> stoppingTarget.radii  =  {600.00};
+double stoppingTarget.holeRadius = 50.;
+double stoppingTarget.z0InMu2e = 4188;
+
+// Use the TSdA as a thin section of stopping target in the center
+bool hasTSdA             = true;
+double tsda.z0           = 4197;
+double tsda.r4           = 60;                  // outer radius --> ensure we cover any gap
+double tsda.rin          = 0.001;               // effectively no hole
+double tsda.halfLength4  = 1.5;                 // 3 mm target
+string tsda.materialName = "StoppingTarget_Al"; // stopping target material to capture in the stops finder
+
+// include Col5
+string ts.coll5.material1Name = "G4_POLYETHYLENE";
+
+// This tells emacs to view this file in c++ mode.
+// Local Variables:
+// mode:c++
+// End:
