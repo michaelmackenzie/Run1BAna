@@ -1,0 +1,5 @@
+#include "Run1BAna/workflows/run1b_beam/mubeam.fcl"
+
+# Configuration info
+#include "Run1BAna/workflows/config_v23/run1b_beam/epilog_run.fcl"
+#include "Run1BAna/workflows/config_v23/run1b_beam/epilog_geom.fcl"
