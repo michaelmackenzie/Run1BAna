@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import re
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
@@ -76,12 +78,48 @@ _MUSTOP_EDEP_SAMPLES = {
         "label": "FlatGamma",
     },
 }
+_MUSTOP_MODES = ("ce", "ce_plus", "flat_gamma")
+_ROUGH_SENSITIVITY_PATTERN = re.compile(
+    r"Signal MPV\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
+    r"FWHM\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
+    r"signal rate\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
+    r"background rate\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
+    r"s/sqrt\(b\)\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"
+)
+_ROUGH_RUN1A_SENSITIVITY_PATTERN = re.compile(
+    r"Signal box\s*=\s*\[\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
+    r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*\]\s*MeV/c\s*,\s*"
+    r"signal\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
+    r"dio\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
+    r"cosmic\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*-->\s*"
+    r"bkg\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
+    r"S/sqrt\(B\)\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"
+)
 _MUBEAM_INPUT_EFFICIENCY_BY_FCL = {
     "run1b_beam/mubeam.fcl": 0.01278168,
     "run1a_beam/mubeam.fcl": 0.01278168, # 0.00213816
     "run1b_beam/elebeam.fcl": 0.086211877,
     "run1a_beam/elebeam.fcl": 0.01730766,
 }
+
+
+def _load_summary(summary_path: Path) -> dict:
+    if not summary_path.exists() or not summary_path.is_file():
+        raise SystemExit(f"Missing analysis summary: {summary_path}")
+    with summary_path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _find_latest_stage_run(stage_parent: Path, stage: str) -> Path | None:
+    if not stage_parent.exists() or not stage_parent.is_dir():
+        return None
+
+    stage_dir_pattern = re.compile(rf"^{re.escape(stage)}_\d{{8}}_\d{{6}}$")
+    candidates = sorted(
+        path for path in stage_parent.iterdir()
+        if path.is_dir() and stage_dir_pattern.match(path.name)
+    )
+    return candidates[-1] if candidates else None
 
 
 def _parse_events_from_command(command: object) -> int | None:
@@ -114,6 +152,372 @@ def _compute_total_simulated_events(status_rows: list[dict]) -> dict:
         "total_jobs": len(successful_rows),
         "total_jobs_all": len(status_rows),
         "total_events": total_events if jobs_with_known_events == len(successful_rows) else None,
+    }
+
+
+def _infer_mustop_mode_from_command(command: object) -> str | None:
+    if not isinstance(command, list):
+        return None
+
+    for i, token in enumerate(command):
+        if token == "-c" and i + 1 < len(command):
+            fcl_name = Path(command[i + 1]).name
+            for mode in _MUSTOP_MODES:
+                if fcl_name.startswith(f"{mode}_job_"):
+                    return mode
+    return None
+
+
+def _compute_simulated_events_by_mode(summary: dict | None) -> dict[str, int]:
+    totals: dict[str, int] = {}
+    if not summary:
+        return totals
+
+    for row in summary.get("jobs", []):
+        if row.get("returncode") != 0:
+            continue
+
+        mode = _infer_mustop_mode_from_command(row.get("command"))
+        events = _parse_events_from_command(row.get("command"))
+        if mode is None or events is None:
+            continue
+        totals[mode] = totals.get(mode, 0) + events
+
+    return totals
+
+
+def run_rough_sensitivity_analyses(
+    run_dir: Path,
+    workflows_dir: Path,
+    mustop_summary: dict,
+    sample_abs_efficiencies: dict[str, float | None],
+    double_edep_output_path: Path | None,
+    dry_run: bool,
+) -> dict[str, dict]:
+    analyses: dict[str, dict] = {}
+
+    for sample in _MUSTOP_MODES:
+        edep_root_path_str = mustop_summary.get("edep_analysis_by_sample", {}).get(sample, {}).get("nts_output_path")
+        abs_eff = sample_abs_efficiencies.get(sample)
+        command_path = run_dir / f"rough_sensitivity_{sample}_command.txt"
+        log_path = run_dir / f"rough_sensitivity_{sample}.log"
+
+        if not edep_root_path_str:
+            analyses[sample] = {
+                "ran": False,
+                "returncode": None,
+                "error": "Missing mustop sample edep output path",
+                "command": None,
+                "command_path": str(command_path),
+                "log_path": str(log_path),
+                "edep_root_path": None,
+                "absolute_efficiency": abs_eff,
+                "double_edep_output_path": str(double_edep_output_path) if double_edep_output_path else None,
+                "sensitivity_line": None,
+                "signal_mpv": None,
+                "signal_fwhm": None,
+                "signal_rate": None,
+                "background_rate": None,
+                "s_over_sqrt_b": None,
+            }
+            continue
+
+        edep_root_path = Path(edep_root_path_str)
+        if abs_eff is None or double_edep_output_path is None or not edep_root_path.exists():
+            analyses[sample] = {
+                "ran": False,
+                "returncode": None,
+                "error": "Missing required rough_sensitivity input(s)",
+                "command": None,
+                "command_path": str(command_path),
+                "log_path": str(log_path),
+                "edep_root_path": str(edep_root_path),
+                "absolute_efficiency": abs_eff,
+                "double_edep_output_path": str(double_edep_output_path) if double_edep_output_path else None,
+                "sensitivity_line": None,
+                "signal_mpv": None,
+                "signal_fwhm": None,
+                "signal_rate": None,
+                "background_rate": None,
+                "s_over_sqrt_b": None,
+            }
+            continue
+
+        macro_arg = (
+            f'"{edep_root_path}", {abs_eff:.16g}, '
+            f'"{double_edep_output_path}", "{sample}", "{run_dir}"'
+        )
+        command = ["root", "-q", "-b", f"scripts/rough_sensitivity.C({macro_arg})"]
+        command_path.write_text(shlex.join(command) + "\n", encoding="utf-8")
+
+        if dry_run:
+            log_path.write_text("DRY RUN\n", encoding="utf-8")
+            analyses[sample] = {
+                "ran": False,
+                "returncode": 0,
+                "error": None,
+                "command": command,
+                "command_path": str(command_path),
+                "log_path": str(log_path),
+                "edep_root_path": str(edep_root_path),
+                "absolute_efficiency": abs_eff,
+                "double_edep_output_path": str(double_edep_output_path),
+                "sensitivity_line": None,
+                "signal_mpv": None,
+                "signal_fwhm": None,
+                "signal_rate": None,
+                "background_rate": None,
+                "s_over_sqrt_b": None,
+            }
+            continue
+
+        try:
+            proc = subprocess.run(
+                command,
+                cwd=workflows_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            log_path.write_text("root executable not found on PATH\n", encoding="utf-8")
+            analyses[sample] = {
+                "ran": False,
+                "returncode": None,
+                "error": "root executable not found on PATH",
+                "command": command,
+                "command_path": str(command_path),
+                "log_path": str(log_path),
+                "edep_root_path": str(edep_root_path),
+                "absolute_efficiency": abs_eff,
+                "double_edep_output_path": str(double_edep_output_path),
+                "sensitivity_line": None,
+                "signal_mpv": None,
+                "signal_fwhm": None,
+                "signal_rate": None,
+                "background_rate": None,
+                "s_over_sqrt_b": None,
+            }
+            continue
+
+        text = proc.stdout + "\n" + proc.stderr
+        log_path.write_text(text, encoding="utf-8")
+
+        sensitivity_line = None
+        signal_mpv = None
+        signal_fwhm = None
+        signal_rate = None
+        background_rate = None
+        s_over_sqrt_b = None
+        for line in text.splitlines():
+            match = _ROUGH_SENSITIVITY_PATTERN.search(line.strip())
+            if match:
+                sensitivity_line = line.strip()
+                signal_mpv = float(match.group(1))
+                signal_fwhm = float(match.group(2))
+                signal_rate = float(match.group(3))
+                background_rate = float(match.group(4))
+                s_over_sqrt_b = float(match.group(5))
+
+        analyses[sample] = {
+            "ran": proc.returncode == 0,
+            "returncode": proc.returncode,
+            "error": None if proc.returncode == 0 else f"root exited with code {proc.returncode}",
+            "command": command,
+            "command_path": str(command_path),
+            "log_path": str(log_path),
+            "edep_root_path": str(edep_root_path),
+            "absolute_efficiency": abs_eff,
+            "double_edep_output_path": str(double_edep_output_path),
+            "sensitivity_line": sensitivity_line,
+            "signal_mpv": signal_mpv,
+            "signal_fwhm": signal_fwhm,
+            "signal_rate": signal_rate,
+            "background_rate": background_rate,
+            "s_over_sqrt_b": s_over_sqrt_b,
+        }
+
+    return analyses
+
+
+def run_rough_run1a_sensitivity_analysis(
+    run_dir: Path,
+    workflows_dir: Path,
+    run1a_mubeam_summary: dict,
+    run1a_mustops_summary: dict,
+    dry_run: bool,
+) -> dict:
+    command_path = run_dir / "rough_run1a_sensitivity_command.txt"
+    log_path = run_dir / "rough_run1a_sensitivity.log"
+
+    ce_stats = run1a_mustops_summary.get("edep_analysis_by_sample", {}).get("ce", {})
+    ce_edep_root_path_str = ce_stats.get("nts_output_path")
+    ce_seen = ce_stats.get("events_seen")
+    run1a_input_corr = run1a_mubeam_summary.get("input_efficiency", {}).get("correction_factor")
+    run1a_sim_total = run1a_mubeam_summary.get("simulation_events", {}).get("total_events")
+    run1a_n_muminus_stops = run1a_mubeam_summary.get("muminus_stops_events")
+    run1a_stopping_factor = (
+        run1a_n_muminus_stops / run1a_sim_total
+        if run1a_n_muminus_stops is not None and run1a_sim_total not in (None, 0)
+        else None
+    )
+
+    run1a_sim_by_mode = _compute_simulated_events_by_mode(run1a_mustops_summary)
+    ce_simulated_events = run1a_sim_by_mode.get("ce")
+    if ce_simulated_events in (None, 0):
+        ce_simulated_events = run1a_sim_by_mode.get("ce_plus")
+    if ce_simulated_events in (None, 0):
+        run1a_mustops_sim_total = run1a_mustops_summary.get("simulation_events", {}).get("total_events")
+        ce_simulated_events = (
+            run1a_mustops_sim_total / len(_MUSTOP_MODES)
+            if run1a_mustops_sim_total not in (None, 0)
+            else None
+        )
+
+    ce_scale = (
+        run1a_input_corr * run1a_stopping_factor / ce_simulated_events
+        if run1a_input_corr is not None
+        and run1a_stopping_factor is not None
+        and ce_simulated_events not in (None, 0)
+        else None
+    )
+    ce_abs_eff = ce_seen * ce_scale if ce_seen is not None and ce_scale is not None else None
+
+    if not ce_edep_root_path_str:
+        return {
+            "ran": False,
+            "returncode": None,
+            "error": "Missing run1a ce EdepAna output path",
+            "command": None,
+            "command_path": str(command_path),
+            "log_path": str(log_path),
+            "ce_edep_root_path": None,
+            "ce_absolute_efficiency": ce_abs_eff,
+            "summary_line": None,
+            "signal_box_low_mev": None,
+            "signal_box_high_mev": None,
+            "signal": None,
+            "dio": None,
+            "cosmic": None,
+            "background": None,
+            "s_over_sqrt_b": None,
+        }
+
+    ce_edep_root_path = Path(ce_edep_root_path_str)
+    if ce_abs_eff is None or not ce_edep_root_path.exists():
+        return {
+            "ran": False,
+            "returncode": None,
+            "error": "Missing required run1a rough sensitivity input(s)",
+            "command": None,
+            "command_path": str(command_path),
+            "log_path": str(log_path),
+            "ce_edep_root_path": str(ce_edep_root_path),
+            "ce_absolute_efficiency": ce_abs_eff,
+            "summary_line": None,
+            "signal_box_low_mev": None,
+            "signal_box_high_mev": None,
+            "signal": None,
+            "dio": None,
+            "cosmic": None,
+            "background": None,
+            "s_over_sqrt_b": None,
+        }
+
+    macro_arg = f'"{ce_edep_root_path}", {ce_abs_eff:.16g}, "{run_dir}"'
+    command = ["root", "-q", "-b", "-l", f"scripts/rough_run1a_sensitivity.C({macro_arg})"]
+    command_path.write_text(shlex.join(command) + "\n", encoding="utf-8")
+
+    if dry_run:
+        log_path.write_text("DRY RUN\n", encoding="utf-8")
+        return {
+            "ran": False,
+            "returncode": 0,
+            "error": None,
+            "command": command,
+            "command_path": str(command_path),
+            "log_path": str(log_path),
+            "ce_edep_root_path": str(ce_edep_root_path),
+            "ce_absolute_efficiency": ce_abs_eff,
+            "summary_line": None,
+            "signal_box_low_mev": None,
+            "signal_box_high_mev": None,
+            "signal": None,
+            "dio": None,
+            "cosmic": None,
+            "background": None,
+            "s_over_sqrt_b": None,
+        }
+
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=workflows_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        log_path.write_text("root executable not found on PATH\n", encoding="utf-8")
+        return {
+            "ran": False,
+            "returncode": None,
+            "error": "root executable not found on PATH",
+            "command": command,
+            "command_path": str(command_path),
+            "log_path": str(log_path),
+            "ce_edep_root_path": str(ce_edep_root_path),
+            "ce_absolute_efficiency": ce_abs_eff,
+            "summary_line": None,
+            "signal_box_low_mev": None,
+            "signal_box_high_mev": None,
+            "signal": None,
+            "dio": None,
+            "cosmic": None,
+            "background": None,
+            "s_over_sqrt_b": None,
+        }
+
+    text = proc.stdout + "\n" + proc.stderr
+    log_path.write_text(text, encoding="utf-8")
+
+    summary_line = None
+    signal_box_low_mev = None
+    signal_box_high_mev = None
+    signal = None
+    dio = None
+    cosmic = None
+    background = None
+    s_over_sqrt_b = None
+    for line in text.splitlines():
+        match = _ROUGH_RUN1A_SENSITIVITY_PATTERN.search(line.strip())
+        if match:
+            summary_line = line.strip()
+            signal_box_low_mev = float(match.group(1))
+            signal_box_high_mev = float(match.group(2))
+            signal = float(match.group(3))
+            dio = float(match.group(4))
+            cosmic = float(match.group(5))
+            background = float(match.group(6))
+            s_over_sqrt_b = float(match.group(7))
+
+    return {
+        "ran": proc.returncode == 0,
+        "returncode": proc.returncode,
+        "error": None if proc.returncode == 0 else f"root exited with code {proc.returncode}",
+        "command": command,
+        "command_path": str(command_path),
+        "log_path": str(log_path),
+        "ce_edep_root_path": str(ce_edep_root_path),
+        "ce_absolute_efficiency": ce_abs_eff,
+        "summary_line": summary_line,
+        "signal_box_low_mev": signal_box_low_mev,
+        "signal_box_high_mev": signal_box_high_mev,
+        "signal": signal,
+        "dio": dio,
+        "cosmic": cosmic,
+        "background": background,
+        "s_over_sqrt_b": s_over_sqrt_b,
     }
 
 
@@ -279,16 +683,25 @@ def _count_art_file_events(art_path: Path) -> int | None:
         return None
 
 
+def _count_art_file_events_parallel(art_paths: list[Path]) -> list[int | None]:
+    if not art_paths:
+        return []
+
+    max_workers = min(32, len(art_paths))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(executor.map(_count_art_file_events, art_paths))
+
+
 def _extract_art_event_counts(run_dir: Path) -> dict:
     art_files = sorted(run_dir.glob("job_*/*.art"))
+    event_counts = _count_art_file_events_parallel(art_files)
     per_file: list[dict] = []
     total_events_by_type: dict[str, int] = {}
     total_events = 0
     print(f">>> Counting events in {len(art_files)} art files")
 
-    for art_path in art_files:
+    for art_path, event_count in zip(art_files, event_counts):
         file_type = _classify_output(art_path)
-        event_count = _count_art_file_events(art_path)
 
         per_file.append({
             "path": str(art_path),
@@ -680,7 +1093,7 @@ def _build_mubeam_summary(run_dir: Path) -> dict:
     muminus_stops_files = sorted((run_dir / "mu_stops_job").glob("sim.mu2e.MuminusStopsCat.*.art"))
     muminus_stops_events: int | None = None
     if muminus_stops_files:
-        counts = [_count_art_file_events(p) for p in muminus_stops_files]
+        counts = _count_art_file_events_parallel(muminus_stops_files)
         if all(c is not None for c in counts):
             muminus_stops_events = sum(counts)  # type: ignore[arg-type]
 
@@ -827,7 +1240,7 @@ def _build_run1a_mubeam_summary(run_dir: Path) -> dict:
     muminus_stops_files = sorted((run_dir / "mu_stops_job").glob("sim.mu2e.MuminusStopsCat.*.art"))
     muminus_stops_events: int | None = None
     if muminus_stops_files:
-        counts = [_count_art_file_events(p) for p in muminus_stops_files]
+        counts = _count_art_file_events_parallel(muminus_stops_files)
         if all(c is not None for c in counts):
             muminus_stops_events = sum(counts)  # type: ignore[arg-type]
 
@@ -869,7 +1282,7 @@ def _build_run1a_mubeam_summary(run_dir: Path) -> dict:
     }
 
 
-def _build_run1a_mustops_summary(run_dir: Path) -> dict:
+def _build_run1a_mustops_summary(run_dir: Path, run1a_mubeam_run_dir: Path | None = None) -> dict:
     output_counts, output_bytes, status_rows, warnings = _collect_job_status(run_dir)
 
     total_jobs = len(status_rows)
@@ -880,7 +1293,7 @@ def _build_run1a_mustops_summary(run_dir: Path) -> dict:
     event_stats = _compute_total_simulated_events(status_rows)
     art_event_stats = _extract_art_event_counts(run_dir)
 
-    return {
+    summary = {
         "stage": "run1a_mustops",
         "run_dir": str(run_dir),
         "total_jobs": total_jobs,
@@ -895,6 +1308,43 @@ def _build_run1a_mustops_summary(run_dir: Path) -> dict:
         "jobs": status_rows,
         "warnings": warnings,
     }
+
+    selected_run1a_mubeam_dir = run1a_mubeam_run_dir
+    if selected_run1a_mubeam_dir is None:
+        selected_run1a_mubeam_dir = _find_latest_stage_run(run_dir.parent, "run1a_mubeam")
+
+    if selected_run1a_mubeam_dir is None:
+        summary["rough_run1a_sensitivity"] = {
+            "ran": False,
+            "returncode": None,
+            "error": "Could not locate run1a_mubeam run directory for rough_run1a_sensitivity",
+            "command": None,
+            "command_path": str(run_dir / "rough_run1a_sensitivity_command.txt"),
+            "log_path": str(run_dir / "rough_run1a_sensitivity.log"),
+            "ce_edep_root_path": None,
+            "ce_absolute_efficiency": None,
+            "summary_line": None,
+            "signal_box_low_mev": None,
+            "signal_box_high_mev": None,
+            "signal": None,
+            "dio": None,
+            "cosmic": None,
+            "background": None,
+            "s_over_sqrt_b": None,
+        }
+        return summary
+
+    run1a_mubeam_summary = _load_summary(selected_run1a_mubeam_dir / "analysis_summary.json")
+    workflows_dir = Path(__file__).resolve().parent.parent
+    summary["rough_run1a_sensitivity"] = run_rough_run1a_sensitivity_analysis(
+        run_dir,
+        workflows_dir,
+        run1a_mubeam_summary,
+        summary,
+        dry_run=False,
+    )
+
+    return summary
 
 
 def _build_mustop_pileup_summary(run_dir: Path) -> dict:
@@ -925,7 +1375,7 @@ def _build_mustop_pileup_summary(run_dir: Path) -> dict:
     }
 
 
-def build_summary(run_dir: Path, stage: str) -> dict:
+def build_summary(run_dir: Path, stage: str, run1a_mubeam_run_dir: Path | None = None) -> dict:
     if stage == "mubeam":
         return _build_mubeam_summary(run_dir)
     if stage == "elebeam":
@@ -937,7 +1387,7 @@ def build_summary(run_dir: Path, stage: str) -> dict:
     if stage == "run1a_mubeam":
         return _build_run1a_mubeam_summary(run_dir)
     if stage == "run1a_mustops":
-        return _build_run1a_mustops_summary(run_dir)
+        return _build_run1a_mustops_summary(run_dir, run1a_mubeam_run_dir)
     raise ValueError(f"Unsupported stage: {stage}")
 
 
@@ -963,6 +1413,14 @@ def parse_args() -> argparse.Namespace:
         "--output",
         default=None,
         help="Path to JSON summary (default: <run_dir>/analysis_summary.json)",
+    )
+    parser.add_argument(
+        "--run1a-mubeam-run-dir",
+        default=None,
+        help=(
+            "Directory containing run1a_mubeam outputs used for run1a rough sensitivity "
+            "(default: latest run1a_mubeam_* sibling of --run-dir)"
+        ),
     )
     parser.add_argument(
         "--pretty",
@@ -1013,6 +1471,29 @@ def _print_pretty_summary(summary: dict) -> None:
                 print(f"    {edep['primary_edep_minus_tracker_front_distribution_line']}")
             if edep["error"]:
                 print(f"    Note: {edep['error']}")
+
+        rough_by_sample = summary.get("rough_sensitivity_by_sample", {})
+        if rough_by_sample:
+            print("\nRough sensitivity summary (by sample):")
+            for sample_name in _MUSTOP_MODES:
+                rough = rough_by_sample.get(sample_name, {})
+                print(f"  Sample: {sample_name}")
+                if rough.get("sensitivity_line"):
+                    print(f"    {rough['sensitivity_line']}")
+                else:
+                    print("    Rough sensitivity summary line not found")
+                if rough.get("error"):
+                    print(f"    Note: {rough['error']}")
+
+        run1a_rough = summary.get("rough_run1a_sensitivity")
+        if run1a_rough:
+            print("\nRun1A rough sensitivity summary:")
+            if run1a_rough.get("summary_line"):
+                print(f"  {run1a_rough['summary_line']}")
+            else:
+                print("  Rough run1a sensitivity summary line not found")
+            if run1a_rough.get("error"):
+                print(f"  Note: {run1a_rough['error']}")
         return
 
     if stage == "mustop_pileup":
@@ -1205,7 +1686,8 @@ def main() -> int:
         if not run_dir.exists() or not run_dir.is_dir():
             raise SystemExit(f"Run directory does not exist: {run_dir}")
 
-        summary = build_summary(run_dir, args.stage)
+        run1a_mubeam_run_dir = Path(args.run1a_mubeam_run_dir).resolve() if args.run1a_mubeam_run_dir else None
+        summary = build_summary(run_dir, args.stage, run1a_mubeam_run_dir)
         output_path = Path(args.output).resolve() if args.output else run_dir / "analysis_summary.json"
         output_path.parent.mkdir(parents=True, exist_ok=True)
 

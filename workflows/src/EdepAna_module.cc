@@ -14,6 +14,7 @@
 #include "Offline/MCDataProducts/inc/PrimaryParticle.hh"
 #include "Offline/MCDataProducts/inc/CaloShowerStep.hh"
 #include "Offline/MCDataProducts/inc/StepPointMC.hh"
+#include "Offline/Mu2eUtilities/inc/StopWatch.hh"
 
 // ROOT
 #include "TH1.h"
@@ -59,6 +60,14 @@ namespace mu2e {
       TH1* h_trk_front_energy_edep_diff_;
     };
     enum {kMaxHists = 100};
+
+    // Event info
+    struct Info_t {
+      const SimParticle* primsim = nullptr;
+      const StepPointMC* front_trk_sp = nullptr;
+      double primsim_edep = 0.;
+      double calo_total_edep = 0.;
+    };
 
     using Parameters = art::EDAnalyzer::Table<Config>;
     explicit EdepAna(const Parameters& conf);
@@ -189,8 +198,10 @@ namespace mu2e {
     art::InputTag calo_shower_tag_;
     art::InputTag step_point_tag_;
     int debug_level_;
+    std::unique_ptr<StopWatch> watch_ = std::make_unique<StopWatch>();
 
     Hist_t* hists_[kMaxHists];
+    Info_t info_;
     const PrimaryParticle*                 primary_        = nullptr;
     const CaloClusterCollection*           cluster_col_    = nullptr;
     const CaloShowerStepCollection*        shower_col_     = nullptr;
@@ -220,6 +231,7 @@ namespace mu2e {
     bookHistograms(1, "edep 1 MeV");
     bookHistograms(2, "edep 10 MeV");
     bookHistograms(3, "edep 50 MeV");
+    watch_->Calibrate();
   }
 
   void EdepAna::bookHistograms(const int index, const char* title) {
@@ -247,28 +259,19 @@ namespace mu2e {
   }
 
   void EdepAna::fillHistograms(Hist_t* Hist) {
+    watch_->SetTime(__func__);
     if(!Hist) throw std::runtime_error("Uninitialized histogram book!");
 
-    const SimParticle* primsim = nullptr;
-    if(primary_ && !primary_->primarySimParticles().empty()) primsim = &(*primary_->primarySimParticles().front());
+    const SimParticle* primsim = info_.primsim;
+    const StepPointMC* front_trk_sp = info_.front_trk_sp;
+    const double primsim_edep = info_.primsim_edep;
 
-
-    // get the StepPointMC at the front of the tracker
-    const StepPointMC* front_trk_sp = nullptr;
-    if(step_point_col_ && primsim) {
-      for(const auto& sp : *step_point_col_) {
-        if(sp.simParticle()->id() == primsim->id() &&
-          (sp.volumeId() == VirtualDetectorId::TT_FrontHollow || sp.volumeId() == VirtualDetectorId::TT_FrontPA)) {
-          if(!front_trk_sp || sp.time() < front_trk_sp->time()) front_trk_sp = &sp;
-        }
-      }
-    }
 
     if(primsim) {
       Hist->h_primary_energy_->Fill(primsim->startMomentum().e());
       Hist->h_primary_pdg_->Fill(primsim->pdgId());
       if(debug_level_ > 1) std::cout << "EdepAna: primary energy " << primsim->startMomentum().e() << " PDG " << primsim->pdgId() << std::endl;
-      const double edep = edepBySim(primsim, true);
+      const double edep = primsim_edep;
       Hist->h_primary_edep_->Fill(edep);
       Hist->h_primary_energy_edep_diff_->Fill(edep - primsim->startMomentum().e());
       Hist->h_primary_vs_edep_->Fill(primsim->startMomentum().e(), edep);
@@ -293,19 +296,26 @@ namespace mu2e {
     }
 
     if(shower_col_) {
-      double totalCaloE = 0.;
       for(const auto& css : *shower_col_) {
         const double e = css.energyDepBirks();
-        totalCaloE += e;
         Hist->h_step_energy_->Fill(e);
         Hist->h_step_energy_vs_time_->Fill(css.time(), e);
       }
-      Hist->h_total_calo_energy_->Fill(totalCaloE);
+      Hist->h_total_calo_energy_->Fill(info_.calo_total_edep);
     }
+    watch_->StopTime(__func__);
   }
 
 
   void EdepAna::analyze(const art::Event& event) {
+    watch_->SetTime(__func__);
+
+    //-------------------------------------------------------------
+    // Retrieve data products for the event
+    //-------------------------------------------------------------
+
+    watch_->SetTime("data retrieval");
+
     // Primary particle
     art::Handle<PrimaryParticle> primaryH;
     event.getByLabel(primary_tag_, primaryH);
@@ -326,6 +336,14 @@ namespace mu2e {
     event.getByLabel(step_point_tag_, spH);
     step_point_col_ = (spH.isValid()) ? spH.product() : nullptr;
 
+    watch_->StopTime("data retrieval");
+
+    //-------------------------------------------------------------
+    // Compute event-level info
+    //-------------------------------------------------------------
+
+    watch_->SetTime("event info computation");
+
     double totalCaloE = 0.;
     if(shower_col_) {
       for(const auto& css : *shower_col_) {
@@ -333,20 +351,39 @@ namespace mu2e {
         totalCaloE += e;
       }
     }
+    info_.primsim = (primary_ && !primary_->primarySimParticles().empty()) ? &(*primary_->primarySimParticles().front()) : nullptr;
+    info_.front_trk_sp = nullptr;
+    if(info_.primsim && step_point_col_) {
+      for(const auto& sp : *step_point_col_) {
+        if(sp.simParticle()->id() == info_.primsim->id() &&
+          (sp.volumeId() == VirtualDetectorId::TT_FrontHollow || sp.volumeId() == VirtualDetectorId::TT_FrontPA)) {
+          if(!info_.front_trk_sp || sp.time() < info_.front_trk_sp->time()) info_.front_trk_sp = &sp;
+        }
+      }
+    }
+    info_.primsim_edep = edepBySim(info_.primsim, true);
+    info_.calo_total_edep = totalCaloE;
 
     ++total_events_;
     total_calo_edep_ += totalCaloE;
     if(totalCaloE > 50.) ++events_above_50_mev_;
 
+    watch_->StopTime("event info computation");
+
+    //-------------------------------------------------------------
     // Fill histograms
+    //-------------------------------------------------------------
+
     fillHistograms(hists_[0]);
     if(totalCaloE >  1.) fillHistograms(hists_[1]);
     if(totalCaloE > 10.) fillHistograms(hists_[2]);
     if(totalCaloE > 50.) fillHistograms(hists_[3]);
+    watch_->StopTime(__func__);
   }
 
 
   void EdepAna::endJob() {
+    std::cout << *watch_ << std::endl;
 
     // Fit the total gen -> calo edep response
     TH1* h = (hists_[2]) ? hists_[2]->h_primary_energy_edep_diff_ : nullptr;

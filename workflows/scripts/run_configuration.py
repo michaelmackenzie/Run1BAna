@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import extract_analysis_results
 import json
 import math
 import os
@@ -52,6 +53,15 @@ _ROUGH_SENSITIVITY_PATTERN = re.compile(
     r"signal rate\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
     r"background rate\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
     r"s/sqrt\(b\)\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"
+)
+_ROUGH_RUN1A_SENSITIVITY_PATTERN = re.compile(
+    r"Signal box\s*=\s*\[\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
+    r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*\]\s*MeV/c\s*,\s*"
+    r"signal\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
+    r"dio\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
+    r"cosmic\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*-->\s*"
+    r"bkg\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
+    r"S/sqrt\(B\)\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"
 )
 
 
@@ -454,150 +464,30 @@ def _run_rough_sensitivity_analyses(
     double_edep_output_path: Path | None,
     dry_run: bool,
 ) -> dict[str, dict]:
-    analyses: dict[str, dict] = {}
+    return extract_analysis_results.run_rough_sensitivity_analyses(
+        run_dir,
+        workflows_dir,
+        mustop_summary,
+        sample_abs_efficiencies,
+        double_edep_output_path,
+        dry_run,
+    )
 
-    for sample in _MUSTOP_MODES:
-        edep_root_path_str = mustop_summary.get("edep_analysis_by_sample", {}).get(sample, {}).get("nts_output_path")
-        abs_eff = sample_abs_efficiencies.get(sample)
-        command_path = run_dir / f"rough_sensitivity_{sample}_command.txt"
-        log_path = run_dir / f"rough_sensitivity_{sample}.log"
 
-        if not edep_root_path_str:
-            analyses[sample] = {
-                "ran": False,
-                "returncode": None,
-                "error": "Missing mustop sample edep output path",
-                "command": None,
-                "command_path": str(command_path),
-                "log_path": str(log_path),
-                "edep_root_path": None,
-                "absolute_efficiency": abs_eff,
-                "double_edep_output_path": str(double_edep_output_path) if double_edep_output_path else None,
-                "sensitivity_line": None,
-                "signal_mpv": None,
-                "signal_fwhm": None,
-                "signal_rate": None,
-                "background_rate": None,
-                "s_over_sqrt_b": None,
-            }
-            continue
-
-        edep_root_path = Path(edep_root_path_str)
-        if abs_eff is None or double_edep_output_path is None or not edep_root_path.exists():
-            analyses[sample] = {
-                "ran": False,
-                "returncode": None,
-                "error": "Missing required rough_sensitivity input(s)",
-                "command": None,
-                "command_path": str(command_path),
-                "log_path": str(log_path),
-                "edep_root_path": str(edep_root_path),
-                "absolute_efficiency": abs_eff,
-                "double_edep_output_path": str(double_edep_output_path) if double_edep_output_path else None,
-                "sensitivity_line": None,
-                "signal_mpv": None,
-                "signal_fwhm": None,
-                "signal_rate": None,
-                "background_rate": None,
-                "s_over_sqrt_b": None,
-            }
-            continue
-
-        macro_arg = (
-            f'"{edep_root_path}", {abs_eff:.16g}, '
-            f'"{double_edep_output_path}", "{sample}", "{run_dir}"'
-        )
-        command = ["root", "-q", "-b", f"scripts/rough_sensitivity.C({macro_arg})"]
-        command_path.write_text(shlex.join(command) + "\n", encoding="utf-8")
-
-        if dry_run:
-            log_path.write_text("DRY RUN\n", encoding="utf-8")
-            analyses[sample] = {
-                "ran": False,
-                "returncode": 0,
-                "error": None,
-                "command": command,
-                "command_path": str(command_path),
-                "log_path": str(log_path),
-                "edep_root_path": str(edep_root_path),
-                "absolute_efficiency": abs_eff,
-                "double_edep_output_path": str(double_edep_output_path),
-                "sensitivity_line": None,
-                "signal_mpv": None,
-                "signal_fwhm": None,
-                "signal_rate": None,
-                "background_rate": None,
-                "s_over_sqrt_b": None,
-            }
-            continue
-
-        try:
-            proc = subprocess.run(
-                command,
-                cwd=workflows_dir,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        except FileNotFoundError:
-            log_path.write_text("root executable not found on PATH\n", encoding="utf-8")
-            analyses[sample] = {
-                "ran": False,
-                "returncode": None,
-                "error": "root executable not found on PATH",
-                "command": command,
-                "command_path": str(command_path),
-                "log_path": str(log_path),
-                "edep_root_path": str(edep_root_path),
-                "absolute_efficiency": abs_eff,
-                "double_edep_output_path": str(double_edep_output_path),
-                "sensitivity_line": None,
-                "signal_mpv": None,
-                "signal_fwhm": None,
-                "signal_rate": None,
-                "background_rate": None,
-                "s_over_sqrt_b": None,
-            }
-            continue
-
-        text = proc.stdout + "\n" + proc.stderr
-        log_path.write_text(text, encoding="utf-8")
-
-        sensitivity_line = None
-        signal_mpv = None
-        signal_fwhm = None
-        signal_rate = None
-        background_rate = None
-        s_over_sqrt_b = None
-        for line in text.splitlines():
-            match = _ROUGH_SENSITIVITY_PATTERN.search(line.strip())
-            if match:
-                sensitivity_line = line.strip()
-                signal_mpv = float(match.group(1))
-                signal_fwhm = float(match.group(2))
-                signal_rate = float(match.group(3))
-                background_rate = float(match.group(4))
-                s_over_sqrt_b = float(match.group(5))
-
-        analyses[sample] = {
-            "ran": proc.returncode == 0,
-            "returncode": proc.returncode,
-            "error": None if proc.returncode == 0 else f"root exited with code {proc.returncode}",
-            "command": command,
-            "command_path": str(command_path),
-            "log_path": str(log_path),
-            "edep_root_path": str(edep_root_path),
-            "absolute_efficiency": abs_eff,
-            "double_edep_output_path": str(double_edep_output_path),
-            "sensitivity_line": sensitivity_line,
-            "signal_mpv": signal_mpv,
-            "signal_fwhm": signal_fwhm,
-            "signal_rate": signal_rate,
-            "background_rate": background_rate,
-            "s_over_sqrt_b": s_over_sqrt_b,
-        }
-
-    return analyses
+def _run_rough_run1a_sensitivity_analysis(
+    run_dir: Path,
+    workflows_dir: Path,
+    run1a_mubeam_summary: dict,
+    run1a_mustops_summary: dict,
+    dry_run: bool,
+) -> dict:
+    return extract_analysis_results.run_rough_run1a_sensitivity_analysis(
+        run_dir,
+        workflows_dir,
+        run1a_mubeam_summary,
+        run1a_mustops_summary,
+        dry_run,
+    )
 
 
 def _run_double_edep_analysis(
@@ -1028,6 +918,17 @@ def _print_all_stage_compact_summary(
             f"trk-front fit MPV={tracker_front_fit_mpv_str} MeV, FWHM={tracker_front_fit_fwhm_str} MeV"
         )
 
+    run1a_rough_sensitivity_line = (
+        run1a_mustops_summary.get("rough_run1a_sensitivity", {}).get("summary_line")
+        if run1a_mustops_summary is not None
+        else None
+    )
+    print(
+        f"  run1a rough sensitivity (ce): {run1a_rough_sensitivity_line}"
+        if run1a_rough_sensitivity_line
+        else "  run1a rough sensitivity (ce): unavailable"
+    )
+
     if mustop_pileup_summary is None:
         print("  pileup: summary unavailable")
         return
@@ -1323,7 +1224,7 @@ def main() -> int:
         )
         double_edep_output_path = _find_double_edep_output_path(run_dir)
         sample_abs_efficiencies = _compute_mustop_sample_absolute_efficiencies(mubeam_summary, mustop_summary)
-        rough_sensitivity_by_sample = _run_rough_sensitivity_analyses(
+        rough_sensitivity_by_sample = extract_analysis_results.run_rough_sensitivity_analyses(
             run_dir,
             workflows_dir,
             mustop_summary,
@@ -1787,6 +1688,8 @@ def main() -> int:
         str(summary_path),
         "--pretty",
     ]
+    if args.stage == "run1a_mustops" and args.run1a_mubeam_run_dir:
+        extractor_cmd.extend(["--run1a-mubeam-run-dir", str(Path(args.run1a_mubeam_run_dir).resolve())])
 
     print("Running analysis extractor...")
     extractor_command_path = run_dir / "extractor_command.txt"
