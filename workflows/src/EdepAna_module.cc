@@ -48,6 +48,8 @@ namespace mu2e {
     struct Hist_t {
       TH1* h_primary_energy_;
       TH1* h_primary_pdg_;
+      TH1* h_primary_start_z_;
+      TH1* h_primary_start_r_;
       TH1* h_nclusters_;
       TH1* h_cluster_energy_;
       TH1* h_max_cluster_energy_;
@@ -280,14 +282,16 @@ namespace mu2e {
     art::ServiceHandle<art::TFileService> tfs;
     art::TFileDirectory dir = tfs->mkdir(std::format("hist_{}", index), title);
 
-   Hist->h_primary_energy_     = dir.make<TH1F>("primary_energy"    , "Primary energy;Energy (MeV)"              , 150,    0., 150.);
-   Hist->h_primary_pdg_        = dir.make<TH1D>("primary_pdg"       , "Primary PDG ID;PDG ID"                    ,  50,  -25.,  25.);
-   Hist->h_nclusters_          = dir.make<TH1I>("nclusters"         , "Number of Calo clusters;N clusters"       , 100,    0 , 100 );
-   Hist->h_cluster_energy_     = dir.make<TH1F>("cluster_energy"    , "Calo cluster energy;Energy (MeV)"         , 150,    0., 150.);
-   Hist->h_max_cluster_energy_ = dir.make<TH1F>("max_cluster_energy", "Max cluster energy;Energy (MeV)"          , 150,    0., 150.);
-   Hist->h_total_calo_energy_  = dir.make<TH1F>("total_calo_energy" , "Total Calo energy from steps;Energy (MeV)", 200,    0., 200.);
-   Hist->h_step_energy_        = dir.make<TH1F>("calo_step_energy"  , "CaloShowerStep energy;E_{step} (MeV)"     , 100,    0., 100.);
-   Hist->h_trk_front_energy_   = dir.make<TH1F>("trk_front_energy"  , "Energy of StepPointMC at front of tracker;Energy (MeV)", 150, 0., 150.);
+   Hist->h_primary_energy_     = dir.make<TH1F>("primary_energy"    , "Primary energy;Energy (MeV)"              , 150,    0.,  150.);
+   Hist->h_primary_pdg_        = dir.make<TH1D>("primary_pdg"       , "Primary PDG ID;PDG ID"                    ,  50,  -25.,   25.);
+   Hist->h_primary_start_z_    = dir.make<TH1D>("primary_start_z"   , "Primary start z;Start z (mm)"             , 500, 3000., 8000.);
+   Hist->h_primary_start_r_    = dir.make<TH1D>("primary_start_r"   , "Primary start radius;Start radius (mm)"   , 100,    0.,  200.);
+   Hist->h_nclusters_          = dir.make<TH1I>("nclusters"         , "Number of Calo clusters;N clusters"       , 100,    0 ,  100 );
+   Hist->h_cluster_energy_     = dir.make<TH1F>("cluster_energy"    , "Calo cluster energy;Energy (MeV)"         , 150,    0.,  150.);
+   Hist->h_max_cluster_energy_ = dir.make<TH1F>("max_cluster_energy", "Max cluster energy;Energy (MeV)"          , 150,    0.,  150.);
+   Hist->h_total_calo_energy_  = dir.make<TH1F>("total_calo_energy" , "Total Calo energy from steps;Energy (MeV)", 200,    0.,  200.);
+   Hist->h_step_energy_        = dir.make<TH1F>("calo_step_energy"  , "CaloShowerStep energy;E_{step} (MeV)"     , 100,    0.,  100.);
+   Hist->h_trk_front_energy_   = dir.make<TH1F>("trk_front_energy"  , "Energy of StepPointMC at front of tracker;Energy (MeV)", 1500, 0., 150.);
    Hist->h_trk_front_energy_diff_ = dir.make<TH1F>("trk_front_energy_diff", "Energy difference of StepPointMC at front of tracker and primary;Energy (MeV)", 500, -100., 0.);
    Hist->h_primary_energy_edep_diff_ = dir.make<TH1F>("primary_energy_edep_diff", "Primary Edep - energy;Energy (MeV)", 300, -150., 0.);
    Hist->h_primary_edep_ = dir.make<TH1F>("primary_edep", "Primary Edep;Energy (MeV)", 300, 0., 150.);
@@ -309,6 +313,8 @@ namespace mu2e {
       Hist->h_primary_energy_->Fill(primsim->startMomentum().e(), Weight);
       Hist->h_primary_pdg_->Fill(primsim->pdgId(), Weight);
       if(debug_level_ > 1) std::cout << "EdepAna: primary energy " << primsim->startMomentum().e() << " PDG " << primsim->pdgId() << std::endl;
+      Hist->h_primary_start_z_->Fill(primsim->startPosition().z(), Weight);
+      Hist->h_primary_start_r_->Fill(std::sqrt(std::pow(primsim->startPosition().x()+3904.,2) + std::pow(primsim->startPosition().y(),2)), Weight);
       const double edep = primsim_edep;
       Hist->h_primary_edep_->Fill(edep, Weight);
       Hist->h_primary_energy_edep_diff_->Fill(edep - primsim->startMomentum().e(), Weight);

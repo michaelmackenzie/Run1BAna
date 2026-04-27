@@ -122,6 +122,8 @@ int rough_run1a_sensitivity(TString sig_file_name, double sig_eff,
     std::cerr << "Error: Signal trk energy/ediff histograms not found in file: " << sig_file_name << std::endl;
     return 1;
   }
+  const int rebin_sig = 2;
+  h_sig->Rebin(rebin_sig);
   h_sig->Scale(npot * signal_br * sig_eff / h_sig->GetEntries());
   response->Scale(sig_eff / response->GetEntries() / response->GetBinWidth(1));
   TH1* res = trk_resolution();
@@ -184,7 +186,11 @@ int rough_run1a_sensitivity(TString sig_file_name, double sig_eff,
   double x_1(0.), x_2(0.), signal_rate(0.), dio_bkg(0.), cosmic_bkg(0.), bkg_rate(0.), sensitivity = -1.;
 
   for(int ibin = 1; ibin <= h_sig->GetNbinsX(); ++ibin) {
+    if(h_sig->Integral(ibin, h_sig->GetNbinsX()) <= 0.) break;
+    if(h_sig->Integral(1, ibin) <= 0.) continue;
+
     for(int jbin = ibin; jbin <= h_sig->GetNbinsX(); ++jbin) {
+      if(h_sig->Integral(jbin, h_sig->GetNbinsX()) <= 0.) break;
       const double x_1_l = h_sig->GetBinCenter(ibin);
       const double x_2_l = h_sig->GetBinCenter(jbin);
       // if(x_1_l < mpv - 1.5*fwhm) continue;
@@ -196,6 +202,8 @@ int rough_run1a_sensitivity(TString sig_file_name, double sig_eff,
       const double bkg_rate_l    = dio_bkg_l + cosmic_bkg_l;
       if(signal_rate_l <= 0. || bkg_rate_l <= 0.) continue;
       const double sensitivity_l = signal_rate_l / std::sqrt(bkg_rate_l);
+      printf("  Test box = [%.1f, %.1f] MeV/c, signal = %.2g, dio = %.2g, cosmic = %.2g --> bkg = %.2g, S/sqrt(B) = %.3g\n",
+             x_1_l, x_2_l, signal_rate_l, dio_bkg_l, cosmic_bkg_l, bkg_rate_l, sensitivity_l);
       if(sensitivity_l > sensitivity) {
         x_1 = x_1_l;
         x_2 = x_2_l;
