@@ -9,6 +9,11 @@
 physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations: -1
 
 outputs.Output.fileName: "dts.mu2e.MuStopPileup.Run1A.%6r_%8s.art"
+outputs.Output.outputCommands : [
+  @sequence::outputs.Output.outputCommands,
+  "drop *MCTrajectory*_*_*_*",
+  "drop mu2e::SurfaceSteps_*_*_*"
+]
 services.SeedService.baseSeed: 1
 
 # # Adjust the generation range

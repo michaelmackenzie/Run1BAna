@@ -63,6 +63,7 @@ REFRUNA=$((REFRUN + 100))
 
 mkdir ${CONFIG}
 cp -r ${REFERENCE}/* ${CONFIG}/
+rm ${CONFIG}/*~ ${CONFIG}/*/*~ 2>/dev/null
 sed -i "s/${REFRUN}/${RUN}/g" ${CONFIG}/run1b_beam/epilog_run.fcl
 sed -i "s/${REFRUNA}/${RUNA}/g" ${CONFIG}/run1a_beam/epilog_run.fcl
 sed -i "s/${REFERENCE}/${CONFIG}/g" ${CONFIG}/*.fcl

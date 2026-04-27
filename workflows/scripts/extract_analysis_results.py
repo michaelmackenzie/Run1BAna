@@ -37,9 +37,9 @@ _ERROR_PATTERNS = [
 
 _COUNT_EVENTS_PATTERN = re.compile(r"^(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)$")
 _EDEP_SUMMARY_PATTERN = re.compile(
-    r"EdepAna summary:\s*Saw\s+(\d+)\s+events,\s*"
+    r"EdepAna summary:\s*Saw\s+([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+events,\s*"
     r"average calo energy deposition per event:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*MeV,\s*"
-    r"events with Edep > 50 MeV:\s*(\d+)"
+    r"events with Edep > 50 MeV:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"
 )
 _EDEP_FIT_PATTERN = re.compile(
     r"Primary energy - Edep fit:\s*status\s*=\s*(\d+)\s*,\s*mean\s*=\s*"
@@ -77,8 +77,14 @@ _MUSTOP_EDEP_SAMPLES = {
         "glob": "job_*/dts.mu2e.FlatGamma.Run1B.*_*.art",
         "label": "FlatGamma",
     },
+    "flat_electron": {
+        "glob": "job_*/dts.mu2e.FlateMinus.Run1B.*_*.art",
+        "label": "FlateMinus",
+    },
 }
-_MUSTOP_MODES = ("ce", "ce_plus", "flat_gamma")
+_DEFAULT_MUSTOP_MODES = ("ce", "flat_gamma", "flat_electron")
+_OPTIONAL_MUSTOP_MODE = "ce_plus"
+_ALL_MUSTOP_MODES = _DEFAULT_MUSTOP_MODES + (_OPTIONAL_MUSTOP_MODE,)
 _ROUGH_SENSITIVITY_PATTERN = re.compile(
     r"Signal MPV\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
     r"FWHM\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
@@ -101,6 +107,12 @@ _MUBEAM_INPUT_EFFICIENCY_BY_FCL = {
     "run1b_beam/elebeam.fcl": 0.086211877,
     "run1a_beam/elebeam.fcl": 0.01730766,
 }
+
+
+def _selected_mustop_modes(include_ce_plus: bool) -> tuple[str, ...]:
+    if include_ce_plus:
+        return _DEFAULT_MUSTOP_MODES + (_OPTIONAL_MUSTOP_MODE,)
+    return _DEFAULT_MUSTOP_MODES
 
 
 def _load_summary(summary_path: Path) -> dict:
@@ -162,7 +174,7 @@ def _infer_mustop_mode_from_command(command: object) -> str | None:
     for i, token in enumerate(command):
         if token == "-c" and i + 1 < len(command):
             fcl_name = Path(command[i + 1]).name
-            for mode in _MUSTOP_MODES:
+            for mode in _ALL_MUSTOP_MODES:
                 if fcl_name.startswith(f"{mode}_job_"):
                     return mode
     return None
@@ -195,8 +207,9 @@ def run_rough_sensitivity_analyses(
     dry_run: bool,
 ) -> dict[str, dict]:
     analyses: dict[str, dict] = {}
+    sample_names = tuple(mustop_summary.get("edep_analysis_by_sample", {}).keys())
 
-    for sample in _MUSTOP_MODES:
+    for sample in sample_names:
         edep_root_path_str = mustop_summary.get("edep_analysis_by_sample", {}).get(sample, {}).get("nts_output_path")
         abs_eff = sample_abs_efficiencies.get(sample)
         command_path = run_dir / f"rough_sensitivity_{sample}_command.txt"
@@ -369,7 +382,7 @@ def run_rough_run1a_sensitivity_analysis(
     if ce_simulated_events in (None, 0):
         run1a_mustops_sim_total = run1a_mustops_summary.get("simulation_events", {}).get("total_events")
         ce_simulated_events = (
-            run1a_mustops_sim_total / len(_MUSTOP_MODES)
+            run1a_mustops_sim_total / len(_DEFAULT_MUSTOP_MODES)
             if run1a_mustops_sim_total not in (None, 0)
             else None
         )
@@ -877,9 +890,9 @@ def _run_edep_analysis_for_files(
         match = _EDEP_SUMMARY_PATTERN.search(line)
         if match:
             summary_line = line.strip()
-            events_seen = int(match.group(1))
+            events_seen = float(match.group(1))
             average_calo_energy_mev = float(match.group(2))
-            events_edep_gt_50_mev = int(match.group(3))
+            events_edep_gt_50_mev = float(match.group(3))
         fit_match = _EDEP_FIT_PATTERN.search(line)
         if fit_match:
             primary_minus_edep_fit_line = line.strip()
@@ -962,7 +975,12 @@ def _run_elebeam_edep_analysis(run_dir: Path) -> dict:
     )
 
 
-def _run_mustop_edep_analyses(run_dir: Path, run_tag: str = "Run1B") -> dict[str, dict]:
+def _run_mustop_edep_analyses(
+    run_dir: Path,
+    run_tag: str = "Run1B",
+    *,
+    include_ce_plus: bool = False,
+) -> dict[str, dict]:
     tag_priority = [run_tag]
     for tag in ("Run1A", "Run1B"):
         if tag not in tag_priority:
@@ -972,10 +990,13 @@ def _run_mustop_edep_analyses(run_dir: Path, run_tag: str = "Run1B") -> dict[str
         "ce": "dts.mu2e.CeEndpoint",
         "ce_plus": "dts.mu2e.CePlusEndpoint",
         "flat_gamma": "dts.mu2e.FlatGamma",
+        "flat_electron": "dts.mu2e.FlateMinus",
     }
 
+    selected_modes = _selected_mustop_modes(include_ce_plus)
     analyses: dict[str, dict] = {}
-    for sample_name, sample_info in _MUSTOP_EDEP_SAMPLES.items():
+    for sample_name in selected_modes:
+        sample_info = _MUSTOP_EDEP_SAMPLES[sample_name]
         selected_files: list[Path] = []
         selected_tag = run_tag
         sample_prefix = sample_pattern_by_name[sample_name]
@@ -1179,7 +1200,7 @@ def _build_elebeam_summary(run_dir: Path) -> dict:
     }
 
 
-def _build_mustop_summary(run_dir: Path) -> dict:
+def _build_mustop_summary(run_dir: Path, include_ce_plus: bool = False) -> dict:
     output_counts, output_bytes, status_rows, warnings = _collect_job_status(run_dir)
 
     total_jobs = len(status_rows)
@@ -1201,7 +1222,11 @@ def _build_mustop_summary(run_dir: Path) -> dict:
         "output_total_bytes": output_bytes,
         "simulation_events": event_stats,
         "art_event_analysis": art_event_stats,
-        "edep_analysis_by_sample": _run_mustop_edep_analyses(run_dir, run_tag="Run1B"),
+        "edep_analysis_by_sample": _run_mustop_edep_analyses(
+            run_dir,
+            run_tag="Run1B",
+            include_ce_plus=include_ce_plus,
+        ),
         "jobs": status_rows,
         "warnings": warnings,
     }
@@ -1282,7 +1307,12 @@ def _build_run1a_mubeam_summary(run_dir: Path) -> dict:
     }
 
 
-def _build_run1a_mustops_summary(run_dir: Path, run1a_mubeam_run_dir: Path | None = None) -> dict:
+def _build_run1a_mustops_summary(
+    run_dir: Path,
+    run1a_mubeam_run_dir: Path | None = None,
+    *,
+    include_ce_plus: bool = False,
+) -> dict:
     output_counts, output_bytes, status_rows, warnings = _collect_job_status(run_dir)
 
     total_jobs = len(status_rows)
@@ -1304,7 +1334,11 @@ def _build_run1a_mustops_summary(run_dir: Path, run1a_mubeam_run_dir: Path | Non
         "output_total_bytes": output_bytes,
         "simulation_events": event_stats,
         "art_event_analysis": art_event_stats,
-        "edep_analysis_by_sample": _run_mustop_edep_analyses(run_dir, run_tag="Run1A"),
+        "edep_analysis_by_sample": _run_mustop_edep_analyses(
+            run_dir,
+            run_tag="Run1A",
+            include_ce_plus=include_ce_plus,
+        ),
         "jobs": status_rows,
         "warnings": warnings,
     }
@@ -1375,19 +1409,29 @@ def _build_mustop_pileup_summary(run_dir: Path) -> dict:
     }
 
 
-def build_summary(run_dir: Path, stage: str, run1a_mubeam_run_dir: Path | None = None) -> dict:
+def build_summary(
+    run_dir: Path,
+    stage: str,
+    run1a_mubeam_run_dir: Path | None = None,
+    *,
+    include_ce_plus: bool = False,
+) -> dict:
     if stage == "mubeam":
         return _build_mubeam_summary(run_dir)
     if stage == "elebeam":
         return _build_elebeam_summary(run_dir)
     if stage == "mustop":
-        return _build_mustop_summary(run_dir)
+        return _build_mustop_summary(run_dir, include_ce_plus)
     if stage == "mustop_pileup":
         return _build_mustop_pileup_summary(run_dir)
     if stage == "run1a_mubeam":
         return _build_run1a_mubeam_summary(run_dir)
     if stage == "run1a_mustops":
-        return _build_run1a_mustops_summary(run_dir, run1a_mubeam_run_dir)
+        return _build_run1a_mustops_summary(
+            run_dir,
+            run1a_mubeam_run_dir,
+            include_ce_plus=include_ce_plus,
+        )
     raise ValueError(f"Unsupported stage: {stage}")
 
 
@@ -1421,6 +1465,11 @@ def parse_args() -> argparse.Namespace:
             "Directory containing run1a_mubeam outputs used for run1a rough sensitivity "
             "(default: latest run1a_mubeam_* sibling of --run-dir)"
         ),
+    )
+    parser.add_argument(
+        "--include-ce-plus",
+        action="store_true",
+        help="Include ce_plus in mustop/run1a_mustops extraction (default: disabled)",
     )
     parser.add_argument(
         "--pretty",
@@ -1475,7 +1524,7 @@ def _print_pretty_summary(summary: dict) -> None:
         rough_by_sample = summary.get("rough_sensitivity_by_sample", {})
         if rough_by_sample:
             print("\nRough sensitivity summary (by sample):")
-            for sample_name in _MUSTOP_MODES:
+            for sample_name in sorted(rough_by_sample.keys()):
                 rough = rough_by_sample.get(sample_name, {})
                 print(f"  Sample: {sample_name}")
                 if rough.get("sensitivity_line"):
@@ -1687,7 +1736,12 @@ def main() -> int:
             raise SystemExit(f"Run directory does not exist: {run_dir}")
 
         run1a_mubeam_run_dir = Path(args.run1a_mubeam_run_dir).resolve() if args.run1a_mubeam_run_dir else None
-        summary = build_summary(run_dir, args.stage, run1a_mubeam_run_dir)
+        summary = build_summary(
+            run_dir,
+            args.stage,
+            run1a_mubeam_run_dir,
+            include_ce_plus=args.include_ce_plus,
+        )
         output_path = Path(args.output).resolve() if args.output else run_dir / "analysis_summary.json"
         output_path.parent.mkdir(parents=True, exist_ok=True)
 

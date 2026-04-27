@@ -1,0 +1,8 @@
+#include "Run1BAna/workflows/config_v33/run1b_beam/geom.txt"
+
+double degrader.rotation = 120.0; // out of the beam
+
+// This tells emacs to view this file in c++ mode.
+// Local Variables:
+// mode:c++
+// End:

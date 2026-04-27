@@ -19,6 +19,8 @@
 // ROOT
 #include "TH1.h"
 #include "TH2.h"
+#include "TTree.h"
+#include "TString.h"
 #include "TF1.h"
 #include "TFitResult.h"
 
@@ -67,6 +69,7 @@ namespace mu2e {
       const StepPointMC* front_trk_sp = nullptr;
       double primsim_edep = 0.;
       double calo_total_edep = 0.;
+      double weight_ = 1.;
     };
 
     using Parameters = art::EDAnalyzer::Table<Config>;
@@ -75,7 +78,7 @@ namespace mu2e {
     virtual void endJob() override;
 
     void bookHistograms(const int index, const char* title);
-    void fillHistograms(Hist_t* Hist);
+    void fillHistograms(Hist_t* Hist, const double Weight = 1.);
 
     bool isDescendant(const SimParticle* ancestor, const SimParticle* descendant) const {
       if(!ancestor || !descendant) return false;
@@ -192,6 +195,39 @@ namespace mu2e {
     return fit_res->Status();
   }
 
+  TH1* GetDIOSpectrum() {
+    TTree tree("t1","t1");
+    TString table = "/exp/mu2e/app/users/mmackenz/run1b/Run1BAna/data/heeck_finer_binning_2016_szafron.tbl";
+    int     nb    = 11000; //finer binning in this table
+    double  bin   = 0.01;
+    tree.ReadFile(table,"e/D:w/D");
+    const int n = tree.GetEntries();
+
+    const double emin = 0.;
+    const double emax = 110.;
+    TH1* h_dio = new TH1D("h_dio","DIO spectrum",nb,emin,emax);
+
+    double e, w;
+
+    tree.SetBranchAddress("e",&e);
+    tree.SetBranchAddress("w",&w);
+
+    int prev_bin = 0;
+    for (int i = 0; i < n; ++i) {
+      tree.GetEntry(i);
+      const int ibin = h_dio->FindBin(e-bin/2.);
+      if(prev_bin > 0 && prev_bin != ibin - 1) {
+        std::cout << "Bin " << ibin << " entry " << i << " E = " << e
+             << " but prev_bin = " << prev_bin << std::endl;
+      }
+      h_dio->SetBinContent(ibin,w);
+      prev_bin = ibin;
+    }
+    h_dio->Scale(1./(bin*h_dio->Integral()));
+    return h_dio;
+  }
+
+
   private:
     art::InputTag primary_tag_;
     art::InputTag cluster_tag_;
@@ -199,6 +235,7 @@ namespace mu2e {
     art::InputTag step_point_tag_;
     int debug_level_;
     std::unique_ptr<StopWatch> watch_ = std::make_unique<StopWatch>();
+    TH1* h_dio_spectrum_ = nullptr;
 
     Hist_t* hists_[kMaxHists];
     Info_t info_;
@@ -206,8 +243,8 @@ namespace mu2e {
     const CaloClusterCollection*           cluster_col_    = nullptr;
     const CaloShowerStepCollection*        shower_col_     = nullptr;
     const StepPointMCCollection*           step_point_col_ = nullptr;
-    unsigned long long total_events_ = 0;
-    unsigned long long events_above_50_mev_ = 0;
+    double total_events_ = 0.;
+    double events_above_50_mev_ = 0.;
     double total_calo_edep_ = 0.;
   };
 
@@ -232,6 +269,7 @@ namespace mu2e {
     bookHistograms(2, "edep 10 MeV");
     bookHistograms(3, "edep 50 MeV");
     watch_->Calibrate();
+    h_dio_spectrum_ = GetDIOSpectrum();
   }
 
   void EdepAna::bookHistograms(const int index, const char* title) {
@@ -258,7 +296,7 @@ namespace mu2e {
    Hist->h_trk_front_energy_edep_diff_ = dir.make<TH1F>("trk_front_energy_edep_diff", "Energy difference of StepPointMC at front of tracker and primary Edep;Energy (MeV)", 500, -50., 0.);
   }
 
-  void EdepAna::fillHistograms(Hist_t* Hist) {
+  void EdepAna::fillHistograms(Hist_t* Hist, const double Weight) {
     watch_->SetTime(__func__);
     if(!Hist) throw std::runtime_error("Uninitialized histogram book!");
 
@@ -268,19 +306,19 @@ namespace mu2e {
 
 
     if(primsim) {
-      Hist->h_primary_energy_->Fill(primsim->startMomentum().e());
-      Hist->h_primary_pdg_->Fill(primsim->pdgId());
+      Hist->h_primary_energy_->Fill(primsim->startMomentum().e(), Weight);
+      Hist->h_primary_pdg_->Fill(primsim->pdgId(), Weight);
       if(debug_level_ > 1) std::cout << "EdepAna: primary energy " << primsim->startMomentum().e() << " PDG " << primsim->pdgId() << std::endl;
       const double edep = primsim_edep;
-      Hist->h_primary_edep_->Fill(edep);
-      Hist->h_primary_energy_edep_diff_->Fill(edep - primsim->startMomentum().e());
+      Hist->h_primary_edep_->Fill(edep, Weight);
+      Hist->h_primary_energy_edep_diff_->Fill(edep - primsim->startMomentum().e(), Weight);
       Hist->h_primary_vs_edep_->Fill(primsim->startMomentum().e(), edep);
       if(debug_level_ > 1) std::cout << "EdepAna: primary Edep " << edep << " difference " << primsim->startMomentum().e() - edep << std::endl;
 
       if(front_trk_sp) {
-        Hist->h_trk_front_energy_->Fill(front_trk_sp->momentum().mag());
-        Hist->h_trk_front_energy_diff_->Fill(front_trk_sp->momentum().mag() - primsim->startMomentum().e());
-        Hist->h_trk_front_energy_edep_diff_->Fill(edep - front_trk_sp->momentum().mag());
+        Hist->h_trk_front_energy_->Fill(front_trk_sp->momentum().mag(), Weight);
+        Hist->h_trk_front_energy_diff_->Fill(front_trk_sp->momentum().mag() - primsim->startMomentum().e(), Weight);
+        Hist->h_trk_front_energy_edep_diff_->Fill(edep - front_trk_sp->momentum().mag(), Weight);
         if(debug_level_ > 1) std::cout << "EdepAna: front tracker StepPointMC energy " << front_trk_sp->momentum().mag() << " difference " << primsim->startMomentum().e() - front_trk_sp->momentum().mag() << std::endl;
       }
     }
@@ -290,18 +328,18 @@ namespace mu2e {
       const CaloCluster* max_cl = nullptr;
       for(const auto& cl : *cluster_col_) {
         if(!max_cl || cl.energyDep() > max_cl->energyDep()) max_cl = &cl;
-        Hist->h_cluster_energy_->Fill(cl.energyDep());
+        Hist->h_cluster_energy_->Fill(cl.energyDep(), Weight);
       }
-      if(max_cl) Hist->h_max_cluster_energy_->Fill(max_cl->energyDep());
+      if(max_cl) Hist->h_max_cluster_energy_->Fill(max_cl->energyDep(), Weight);
     }
 
     if(shower_col_) {
       for(const auto& css : *shower_col_) {
         const double e = css.energyDepBirks();
-        Hist->h_step_energy_->Fill(e);
-        Hist->h_step_energy_vs_time_->Fill(css.time(), e);
+        Hist->h_step_energy_->Fill(e, Weight);
+        Hist->h_step_energy_vs_time_->Fill(css.time(), e, Weight);
       }
-      Hist->h_total_calo_energy_->Fill(info_.calo_total_edep);
+      Hist->h_total_calo_energy_->Fill(info_.calo_total_edep, Weight);
     }
     watch_->StopTime(__func__);
   }
@@ -358,15 +396,24 @@ namespace mu2e {
         if(sp.simParticle()->id() == info_.primsim->id() &&
           (sp.volumeId() == VirtualDetectorId::TT_FrontHollow || sp.volumeId() == VirtualDetectorId::TT_FrontPA)) {
           if(!info_.front_trk_sp || sp.time() < info_.front_trk_sp->time()) info_.front_trk_sp = &sp;
+          break;
         }
       }
     }
     info_.primsim_edep = edepBySim(info_.primsim, true);
     info_.calo_total_edep = totalCaloE;
 
-    ++total_events_;
-    total_calo_edep_ += totalCaloE;
-    if(totalCaloE > 50.) ++events_above_50_mev_;
+    info_.weight_ = 1.; // can be used to apply event weights if needed
+    if(info_.primsim && info_.primsim->creationCode() == ProcessCode::mu2eFlateMinus) {
+      const double gen_energy = info_.primsim->startMomentum().e();
+      const double dio_weight = h_dio_spectrum_ ? h_dio_spectrum_->Interpolate(gen_energy) : 1.;
+      info_.weight_ = dio_weight;
+      if(debug_level_ > 1) std::cout << "EdepAna: DIO event with gen energy " << gen_energy << " weight " << dio_weight << std::endl;
+    }
+
+    total_events_ += info_.weight_;
+    total_calo_edep_ += info_.weight_ * totalCaloE;
+    if(totalCaloE > 50.) events_above_50_mev_ += info_.weight_;
 
     watch_->StopTime("event info computation");
 
@@ -374,10 +421,10 @@ namespace mu2e {
     // Fill histograms
     //-------------------------------------------------------------
 
-    fillHistograms(hists_[0]);
-    if(totalCaloE >  1.) fillHistograms(hists_[1]);
-    if(totalCaloE > 10.) fillHistograms(hists_[2]);
-    if(totalCaloE > 50.) fillHistograms(hists_[3]);
+    fillHistograms(hists_[0], info_.weight_);
+    if(totalCaloE >  1.) fillHistograms(hists_[1], info_.weight_);
+    if(totalCaloE > 10.) fillHistograms(hists_[2], info_.weight_);
+    if(totalCaloE > 50.) fillHistograms(hists_[3], info_.weight_);
     watch_->StopTime(__func__);
   }
 

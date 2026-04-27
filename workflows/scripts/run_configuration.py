@@ -30,7 +30,9 @@ _STAGES = (
     "all",
     "summary",
 )
-_MUSTOP_MODES = ("ce", "ce_plus", "flat_gamma")
+_DEFAULT_MUSTOP_MODES = ("ce", "flat_gamma", "flat_electron")
+_OPTIONAL_MUSTOP_MODE = "ce_plus"
+_ALL_MUSTOP_MODES = _DEFAULT_MUSTOP_MODES + (_OPTIONAL_MUSTOP_MODE,)
 _GEN_RESTRICTION_FACTOR = (1.0 - 0.95) / 2.0  # cos(theta) generation restriction correction
 _MUON_STOP_PRESCALE_CORRECTION = 10.0
 _DOUBLE_EDEP_PATTERNS = {
@@ -63,6 +65,24 @@ _ROUGH_RUN1A_SENSITIVITY_PATTERN = re.compile(
     r"bkg\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
     r"S/sqrt\(B\)\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"
 )
+
+
+def _selected_mustop_modes(include_ce_plus: bool) -> tuple[str, ...]:
+    if include_ce_plus:
+        return _DEFAULT_MUSTOP_MODES + (_OPTIONAL_MUSTOP_MODE,)
+    return _DEFAULT_MUSTOP_MODES
+
+
+def _mustop_modes_from_summary(summary: dict | None, *, include_ce_plus: bool = False) -> tuple[str, ...]:
+    fallback_modes = _selected_mustop_modes(include_ce_plus)
+    if not summary:
+        return fallback_modes
+
+    sample_names = tuple(summary.get("edep_analysis_by_sample", {}).keys())
+    if sample_names:
+        return sample_names
+
+    return fallback_modes
 
 
 @dataclass
@@ -239,6 +259,11 @@ def parse_args() -> argparse.Namespace:
         help="Number of jobs to launch for each mustop mode (ce/ce_plus/flat_gamma) (default: 10)",
     )
     parser.add_argument(
+        "--include-ce-plus",
+        action="store_true",
+        help="Include ce_plus in mustop/run1a_mustops modes (default: disabled)",
+    )
+    parser.add_argument(
         "--mustop-events-per-job",
         type=int,
         default=10000,
@@ -373,9 +398,10 @@ def _compute_mustop_sample_absolute_efficiencies(mubeam_summary: dict, mustop_su
     input_corr = mubeam_summary.get("input_efficiency", {}).get("correction_factor")
     sim_total = mubeam_summary.get("simulation_events", {}).get("total_events")
     n_muminus_stops = mubeam_summary.get("muminus_stops_events")
+    modes = _mustop_modes_from_summary(mustop_summary)
     mustop_sim_total = mustop_summary.get("simulation_events", {}).get("total_events")
     mustop_sim_per_mode = (
-        mustop_sim_total / len(_MUSTOP_MODES)
+        mustop_sim_total / len(modes)
         if mustop_sim_total not in (None, 0)
         else None
     )
@@ -386,7 +412,7 @@ def _compute_mustop_sample_absolute_efficiencies(mubeam_summary: dict, mustop_su
         or n_muminus_stops is None
         or mustop_sim_per_mode in (None, 0)
     ):
-        return {mode: None for mode in _MUSTOP_MODES}
+        return {mode: None for mode in modes}
 
     stopping_factor = n_muminus_stops / sim_total
     scale = (
@@ -398,7 +424,7 @@ def _compute_mustop_sample_absolute_efficiencies(mubeam_summary: dict, mustop_su
     )
 
     result: dict[str, float | None] = {}
-    for mode in _MUSTOP_MODES:
+    for mode in modes:
         sample_gt50 = mustop_summary.get("edep_analysis_by_sample", {}).get(mode, {}).get("events_edep_gt_50_mev")
         result[mode] = sample_gt50 * scale if sample_gt50 is not None else None
     return result
@@ -424,7 +450,7 @@ def _infer_mustop_mode_from_command(command: object) -> str | None:
     for i, token in enumerate(command):
         if token == "-c" and i + 1 < len(command):
             fcl_name = Path(command[i + 1]).name
-            for mode in _MUSTOP_MODES:
+            for mode in _ALL_MUSTOP_MODES:
                 if fcl_name.startswith(f"{mode}_job_"):
                     return mode
     return None
@@ -662,8 +688,9 @@ def _print_all_stage_compact_summary(
     )
 
     mustop_sim_total = mustop_summary.get("simulation_events", {}).get("total_events")
+    mustop_modes = _mustop_modes_from_summary(mustop_summary)
     mustop_sim_per_mode = (
-        mustop_sim_total / len(_MUSTOP_MODES)
+        mustop_sim_total / len(mustop_modes)
         if mustop_sim_total not in (None, 0)
         else None
     )
@@ -690,7 +717,7 @@ def _print_all_stage_compact_summary(
         if mustop_sim_per_mode not in (None, 0) and muon_stop_input_eff not in (None, 0)
         else None
     )
-
+    
     print("-----")
     print("Compact all-stage summary")
     print(f"  Target absolute muon stopping rate: {target_abs:.8g}" if target_abs is not None else "  Target absolute muon stopping rate: unavailable")
@@ -751,7 +778,13 @@ def _print_all_stage_compact_summary(
             / mustop_sim_per_mode
         )
 
-    for sample in _MUSTOP_MODES:
+
+    fgam_abs_50 = None
+    ce_abs_50 = None
+    ce_mpv = None
+
+    mustop_abs_eff_all_by_sample: dict[str, float | None] = {}
+    for sample in mustop_modes:
         sample_stats = mustop_summary.get("edep_analysis_by_sample", {}).get(sample, {})
         sample_seen = sample_stats.get("events_seen")
         sample_gt50 = sample_stats.get("events_edep_gt_50_mev")
@@ -773,6 +806,7 @@ def _print_all_stage_compact_summary(
 
         sample_abs_eff_all = sample_seen * scale if scale is not None and sample_seen is not None else None
         sample_abs_eff_gt50 = sample_gt50 * scale if scale is not None and sample_gt50 is not None else None
+        mustop_abs_eff_all_by_sample[sample] = sample_abs_eff_all
 
         eff_all_str = f"{sample_abs_eff_all:.8g}" if sample_abs_eff_all is not None else "unavailable"
         eff_gt50_str = f"{sample_abs_eff_gt50:.8g}" if sample_abs_eff_gt50 is not None else "unavailable"
@@ -780,6 +814,12 @@ def _print_all_stage_compact_summary(
         fwhm_str = f"{sample_fwhm:.4g}" if sample_fwhm is not None else "unavailable"
 
         print(f"  {sample}: abs eff (all)={eff_all_str}, abs eff (Edep>50)={eff_gt50_str}, MPV={mpv_str} MeV, FWHM={fwhm_str} MeV")
+        if sample == 'ce':
+            ce_abs_50 = sample_abs_eff_gt50
+            ce_mpv = sample_mpv
+        elif sample == 'flat_gamma':
+            fgam_abs_50 = sample_abs_eff_gt50
+
 
     run1a_target_abs = (
         run1a_mubeam_summary.get("target_al_analysis", {}).get("target_al_entries_absolute_efficiency")
@@ -794,6 +834,11 @@ def _print_all_stage_compact_summary(
 
     run1a_input_corr = (
         run1a_mubeam_summary.get("input_efficiency", {}).get("correction_factor")
+        if run1a_mubeam_summary is not None
+        else None
+    )
+    run1a_mubeam_flash_abs_eff = (
+        run1a_mubeam_summary.get("art_event_analysis", {}).get("absolute_efficiency_by_type", {}).get("FlashOutput")
         if run1a_mubeam_summary is not None
         else None
     )
@@ -817,8 +862,9 @@ def _print_all_stage_compact_summary(
         if run1a_mustops_summary is not None
         else None
     )
+    run1a_mustops_modes = _mustop_modes_from_summary(run1a_mustops_summary)
     run1a_mustops_sim_per_mode = (
-        run1a_mustops_sim_total / len(_MUSTOP_MODES)
+        run1a_mustops_sim_total / len(run1a_mustops_modes)
         if run1a_mustops_sim_total not in (None, 0)
         else None
     )
@@ -844,7 +890,11 @@ def _print_all_stage_compact_summary(
         else "  run1a_mustops effective N(POT) simulated (per mode): unavailable"
     )
 
-    for sample in _MUSTOP_MODES:
+    run1a_ce_abs_50 = None
+    run1a_ce_mpv = None
+    run1a_ce_sens = None
+    run1a_abs_eff_all_by_sample: dict[str, float | None] = {}
+    for sample in run1a_mustops_modes:
         sample_stats = run1a_mustops_summary.get("edep_analysis_by_sample", {}).get(sample, {}) if run1a_mustops_summary else {}
         sample_seen = sample_stats.get("events_seen")
         sample_gt50 = sample_stats.get("events_edep_gt_50_mev")
@@ -900,6 +950,7 @@ def _print_all_stage_compact_summary(
             if run1a_sample_scale is not None and sample_gt50 is not None
             else None
         )
+        run1a_abs_eff_all_by_sample[sample] = sample_abs_eff_all
 
         eff_per_mu_stop_all_str = f"{sample_eff_per_mu_stop_all:.8g}" if sample_eff_per_mu_stop_all is not None else "unavailable"
         eff_per_mu_stop_gt50_str = f"{sample_eff_per_mu_stop_gt50:.8g}" if sample_eff_per_mu_stop_gt50 is not None else "unavailable"
@@ -918,6 +969,10 @@ def _print_all_stage_compact_summary(
             f"trk-front fit MPV={tracker_front_fit_mpv_str} MeV, FWHM={tracker_front_fit_fwhm_str} MeV"
         )
 
+        if sample == 'ce':
+            run1a_ce_abs_50 = sample_abs_eff_all
+            run1a_ce_mpv = tracker_front_fit_mpv
+
     run1a_rough_sensitivity_line = (
         run1a_mustops_summary.get("rough_run1a_sensitivity", {}).get("summary_line")
         if run1a_mustops_summary is not None
@@ -927,6 +982,19 @@ def _print_all_stage_compact_summary(
         f"  run1a rough sensitivity (ce): {run1a_rough_sensitivity_line}"
         if run1a_rough_sensitivity_line
         else "  run1a rough sensitivity (ce): unavailable"
+    )
+    if run1a_rough_sensitivity_line: run1a_ce_sens = float(run1a_rough_sensitivity_line.split('=')[-1])
+
+    run1a_flat_electron_abs_eff_all = run1a_abs_eff_all_by_sample.get("flat_electron")
+    run1a_total_hit_eff_per_pot = (
+        run1a_mubeam_flash_abs_eff + run1a_flat_electron_abs_eff_all
+        if run1a_mubeam_flash_abs_eff is not None and run1a_flat_electron_abs_eff_all is not None
+        else None
+    )
+    print(
+        f"  run1a Total hit efficiency per POT (mubeam + flat_electron): {run1a_total_hit_eff_per_pot:.8g}"
+        if run1a_total_hit_eff_per_pot is not None
+        else "  run1a Total hit efficiency per POT (mubeam + flat_electron): unavailable"
     )
 
     if mustop_pileup_summary is None:
@@ -973,6 +1041,21 @@ def _print_all_stage_compact_summary(
         f"effective N(POT) simulated={pileup_effective_pot_str}"
     )
 
+    total_hit_eff_per_pot = (
+        mubeam_flash_abs_eff
+        + elebeam_flash_abs_eff
+        + pileup_abs_eff_all
+        if mubeam_flash_abs_eff is not None
+        and elebeam_flash_abs_eff is not None
+        and pileup_abs_eff_all is not None
+        else None
+    )
+    print(
+        f"  Total hit efficiency per POT (mubeam + elebeam + pileup): {total_hit_eff_per_pot:.8g}"
+        if total_hit_eff_per_pot is not None
+        else "  Total hit efficiency per POT (mubeam + elebeam + pileup): unavailable"
+    )
+
     if final_summary is None:
         print("  Double-Edep expected/event (single,double,triple): unavailable")
         return
@@ -996,7 +1079,7 @@ def _print_all_stage_compact_summary(
     print(f"  Double-Edep estimated/event E(50,70,80,90): {e50_str}, {e70_str}, {e80_str}, {e90_str}")
 
     rough = final_summary.get("rough_sensitivity_by_sample", {}) if final_summary else {}
-    for sample in _MUSTOP_MODES:
+    for sample in sorted(rough.keys()):
         stats = rough.get(sample, {})
         sens = stats.get("s_over_sqrt_b")
         sig = stats.get("signal_rate")
@@ -1012,6 +1095,35 @@ def _print_all_stage_compact_summary(
             f"  Rough sensitivity {sample}: MPV={mpv_str}, FWHM={fwhm_str}, "
             f"signal rate={sig_str}, background rate={bkg_str}, s/sqrt(b)={sens_str}"
         )
+
+    compact_line = '| config | '
+    if target_abs : compact_line += '%8.2e' % (target_abs)
+    compact_line += ' | '
+    if target_abs : compact_line += '%9.2e' % (calo_abs)
+    compact_line += ' | '
+    if total_hit_eff_per_pot : compact_line += '%10.2e' % (total_hit_eff_per_pot)
+    compact_line += ' | '
+    if fgam_abs_50: compact_line += '%8.2e' % (fgam_abs_50)
+    compact_line += ' | '
+    if ce_abs_50: compact_line += '%8.2e' % (ce_abs_50)
+    compact_line += ' | '
+    if ce_mpv: compact_line += '%6.1f' % (ce_mpv)
+    compact_line += ' | '
+    if run1a_ce_abs_50: compact_line += '%8.2e' % (run1a_ce_abs_50)
+    compact_line += ' | '
+    if run1a_ce_mpv: compact_line += '%10.2f' % (run1a_ce_mpv)
+    compact_line += ' | '
+    if run1a_ce_sens: compact_line += '%9.2f' % (run1a_ce_sens)
+    compact_line += ' | '
+    if run1a_total_hit_eff_per_pot : compact_line += '%13.2e' % (run1a_total_hit_eff_per_pot)
+    compact_line += ' | '
+
+    print('|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|')
+    print('| Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |   CE eff | CE MPV |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |')
+    print('|        | per POT  |  per POT  |    Eff     | Edep(50) | Edep(50) |        |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    |')
+    print('|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|')
+    print(compact_line)
+    print('|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|')
 
 
 def main() -> int:
@@ -1290,6 +1402,8 @@ def main() -> int:
             "--elebeam-events-per-job",
             str(args.elebeam_events_per_job),
         ]
+        if args.include_ce_plus:
+            base_cmd.append("--include-ce-plus")
         if args.max_workers is not None:
             base_cmd.extend(["--max-workers", str(args.max_workers)])
         if args.dry_run:
@@ -1493,8 +1607,9 @@ def main() -> int:
         print(f"MuminusStopsCat input files: {len(muminus_stop_files)}")
 
         job_specs = []
+        selected_modes = _selected_mustop_modes(args.include_ce_plus)
         mustop_fragment = "run1b_mustop" if args.stage == "mustop" else "run1a_mustop"
-        for mode in _MUSTOP_MODES:
+        for mode in selected_modes:
             mode_fcl_path = workflows_dir / args.config_version / mustop_fragment / f"{mode}.fcl"
             include_fcl_path = Path("Run1BAna") / "workflows" / args.config_version / mustop_fragment / f"{mode}.fcl"
             if not mode_fcl_path.exists():
@@ -1573,11 +1688,12 @@ def main() -> int:
         print(f"FCL: {workflows_dir / args.config_version / 'run1b_mustop' / 'pileup.fcl'}")
     else:
         mustop_fragment = "run1b_mustop" if args.stage == "mustop" else "run1a_mustop"
+        selected_modes = _selected_mustop_modes(args.include_ce_plus)
         print(
             "FCLs: "
             + ", ".join(
                 str(workflows_dir / args.config_version / mustop_fragment / f"{mode}.fcl")
-                for mode in _MUSTOP_MODES
+                for mode in selected_modes
             )
         )
     print(f"Run directory: {run_dir}")
@@ -1690,6 +1806,8 @@ def main() -> int:
     ]
     if args.stage == "run1a_mustops" and args.run1a_mubeam_run_dir:
         extractor_cmd.extend(["--run1a-mubeam-run-dir", str(Path(args.run1a_mubeam_run_dir).resolve())])
+    if args.stage in ("mustop", "run1a_mustops") and args.include_ce_plus:
+        extractor_cmd.append("--include-ce-plus")
 
     print("Running analysis extractor...")
     extractor_command_path = run_dir / "extractor_command.txt"

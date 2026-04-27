@@ -188,7 +188,8 @@ int rough_run1a_sensitivity(TString sig_file_name, double sig_eff,
       const double x_1_l = h_sig->GetBinCenter(ibin);
       const double x_2_l = h_sig->GetBinCenter(jbin);
       // if(x_1_l < mpv - 1.5*fwhm) continue;
-      if(x_2_l < mpv) continue;
+      if(x_1_l < 50.) continue; // Assume DIO is much too high at this point, from any source
+      // if(x_2_l < mpv) continue;
       const double signal_rate_l = h_sig   ->Integral(h_sig   ->FindBin(x_1_l), h_sig   ->FindBin(x_2_l));
       const double dio_bkg_l     = dio_resp->Integral(dio_resp->FindBin(x_1_l), dio_resp->FindBin(x_2_l));
       const double cosmic_bkg_l  = cosmic  ->Integral(cosmic  ->FindBin(x_1_l), cosmic  ->FindBin(x_2_l));

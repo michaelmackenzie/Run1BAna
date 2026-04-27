@@ -10,6 +10,12 @@ physics.producers.generate.czMin    : 0.95
 physics.producers.generate.czMax    : 1.00
 
 outputs.PrimaryOutput.fileName: "dts.mu2e.FlatGamma.Run1A.%6r_%8s.art"
+outputs.PrimaryOutput.outputCommands : [
+  @sequence::outputs.PrimaryOutput.outputCommands,
+  "drop *MCTrajectory*_*_*_*",
+  "drop mu2e::SurfaceSteps_*_*_*",
+  "drop mu2e::StrawGasSteps_*_*_*"
+]
 services.SeedService.baseSeed: 1
 
 # Configuration info

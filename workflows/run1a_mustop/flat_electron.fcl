@@ -1,0 +1,29 @@
+#include "Production/JobConfig/primary/FlateMinus.fcl"
+
+# physics.filters.PrimaryFilter.StrawGasSteps: []
+physics.filters.PrimaryFilter.MinimumSumCaloStepE: 20.
+physics.filters.PrimaryFilter.MinimumPartMom: 0.
+
+physics.producers.generate.startMom : 1.0
+physics.producers.generate.endMom   : 105.
+
+outputs.PrimaryOutput.fileName: "dts.mu2e.FlateMinus.Run1A.%6r_%8s.art"
+outputs.PrimaryOutput.outputCommands : [
+  @sequence::outputs.PrimaryOutput.outputCommands,
+  "drop *MCTrajectory*_*_*_*",
+  "drop mu2e::SurfaceSteps_*_*_*",
+  "drop mu2e::StrawGasSteps_*_*_*"
+]
+services.SeedService.baseSeed: 1
+
+# Configuration info
+source.firstRun: 1560
+source.firstSubRun: 0
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_v01.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+
+# Input dataset: sim.mu2e.MuminusStopsCat.MDC2025ac.art
+physics.filters.TargetStopResampler.mu2e.MaxEventsToSkip: 100720
+physics.filters.TargetStopResampler.fileNames: [
+  "/pnfs/mu2e/persistent/datasets/phy-sim/sim/mu2e/MuminusStopsCat/MDC2025ac/art/95/88/sim.mu2e.MuminusStopsCat.MDC2025ac.001430_00000000.art"
+]
