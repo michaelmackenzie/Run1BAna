@@ -45,6 +45,40 @@ int rough_sensitivity(TString sig_file_name, double sig_eff,
   gStyle->SetOptStat(0);
   TCanvas c("c", "Double Edep", 800, 600);
 
+  // Plot the signal ediff
+  TH1* sig_ediff = (TH1*) sig_file->Get("EDepAna/hist_2/primary_energy_edep_diff");
+  sig_ediff->SetLineWidth(2);
+  sig_ediff->Draw("hist");
+  c.SaveAs(Form("%s/%s_signal_ediff.png", fig_dir, name.Data()));
+
+  // Plot the signal edep
+  h_sig_edep->SetLineWidth(2);
+  h_sig_edep->Draw("hist");
+  c.SaveAs(Form("%s/%s_signal_edep.png", fig_dir, name.Data()));
+
+  // Plot the energy losses
+  TH1* trk_diff = (TH1*) sig_file->Get("EDepAna/hist_1/trk_front_energy_diff");
+  trk_diff->SetLineWidth(2);
+  trk_diff->Draw("hist");
+  c.SaveAs(Form("%s/%s_trk_front_diff.png", fig_dir, name.Data()));
+
+  // draw additional histograms
+  TH1* h_z = (TH1*) sig_file->Get("EDepAna/hist_2/primary_start_z");
+  if(h_z) {
+    h_z->SetLineWidth(2);
+    h_z->SetLineColor(kBlue);
+    h_z->Draw("hist");
+    c.SaveAs(Form("%s/%s_z.png", fig_dir, name.Data()));
+  }
+
+  TH1* h_r = (TH1*) sig_file->Get("EDepAna/hist_2/primary_start_r");
+  if(h_r) {
+    h_r->SetLineWidth(2);
+    h_r->SetLineColor(kBlue);
+    h_r->Draw("hist");
+    c.SaveAs(Form("%s/%s_r.png", fig_dir, name.Data()));
+  }
+
   // Plot the result
   h_sig_edep->SetLineColor(kBlue);
   h_bkg_edep->SetLineColor(kRed);

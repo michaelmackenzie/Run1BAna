@@ -1440,7 +1440,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--stage",
         choices=_STAGES,
-        default="mubeam",
+        default="",
         help="Workflow stage to analyze (default: mubeam)",
     )
     parser.add_argument(
@@ -1713,14 +1713,23 @@ def _print_pretty_summary(summary: dict) -> None:
 
 def main() -> int:
     args = parse_args()
+    if not args.run_dir:
+        raise SystemExit("--run-dir is required")
+    run_dir = Path(args.run_dir).resolve()
+    if not run_dir.exists() or not run_dir.is_dir():
+        raise SystemExit(f"Run directory does not exist: {run_dir}")
+
+    # If the stage isn't given, try to determine from the run dir
+    if args.stage == "":
+        curr_stage = ""
+        for stage in _STAGES:
+            if stage in args.run_dir and len(stage) > len(curr_stage): curr_stage = stage
+        if curr_stage != "":
+            args.stage
+            print(f"Assuming stage {curr_stage} for run-dir {run_dir}")
+        else:
+            raise SystemExit("Could not determine the stage")
     if args.from_json:
-        if not args.run_dir:
-            raise SystemExit("--run-dir is required when --from-json is used")
-
-        run_dir = Path(args.run_dir).resolve()
-        if not run_dir.exists() or not run_dir.is_dir():
-            raise SystemExit(f"Run directory does not exist: {run_dir}")
-
         json_path = run_dir / "analysis_summary.json"
         if not json_path.exists() or not json_path.is_file():
             raise SystemExit(f"Summary JSON does not exist: {json_path}")
@@ -1728,13 +1737,6 @@ def main() -> int:
             summary = json.load(handle)
         print(f"Loaded summary: {json_path}")
     else:
-        if not args.run_dir:
-            raise SystemExit("--run-dir is required unless --from-json is used")
-
-        run_dir = Path(args.run_dir).resolve()
-        if not run_dir.exists() or not run_dir.is_dir():
-            raise SystemExit(f"Run directory does not exist: {run_dir}")
-
         run1a_mubeam_run_dir = Path(args.run1a_mubeam_run_dir).resolve() if args.run1a_mubeam_run_dir else None
         summary = build_summary(
             run_dir,

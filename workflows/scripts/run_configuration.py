@@ -631,6 +631,11 @@ def _print_all_stage_compact_summary(
         .get("absolute_efficiency_by_type", {})
         .get("FlashOutput")
     )
+    mubeam_edep_avg = (
+        elebeam_summary.get("edep_analysis", {}).get("average_calo_energy_mev")
+        if mubeam_summary is not None
+        else None
+    )
     elebeam_flash_abs_eff = (
         elebeam_summary.get("art_event_analysis", {}).get("absolute_efficiency_by_type", {}).get("EleFlashOutput")
         if elebeam_summary is not None
@@ -810,13 +815,15 @@ def _print_all_stage_compact_summary(
 
         eff_all_str = f"{sample_abs_eff_all:.8g}" if sample_abs_eff_all is not None else "unavailable"
         eff_gt50_str = f"{sample_abs_eff_gt50:.8g}" if sample_abs_eff_gt50 is not None else "unavailable"
-        mpv_str = f"{sample_mpv:.4g}" if sample_mpv is not None else "unavailable"
-        fwhm_str = f"{sample_fwhm:.4g}" if sample_fwhm is not None else "unavailable"
+        mpv_str  = f"{tracker_front_fit_mpv:.4g}"  if tracker_front_fit_mpv is not None else "unavailable"
+        fwhm_str = f"{tracker_front_fit_fwhm:.4g}" if tracker_front_fit_fwhm is not None else "unavailable"
+        # mpv_str = f"{sample_mpv:.4g}" if sample_mpv is not None else "unavailable"
+        # fwhm_str = f"{sample_fwhm:.4g}" if sample_fwhm is not None else "unavailable"
 
-        print(f"  {sample}: abs eff (all)={eff_all_str}, abs eff (Edep>50)={eff_gt50_str}, MPV={mpv_str} MeV, FWHM={fwhm_str} MeV")
+        print(f"  {sample}: abs eff (all)={eff_all_str}, abs eff (Edep>50)={eff_gt50_str}, Trk MPV={mpv_str} MeV, Trk FWHM={fwhm_str} MeV")
         if sample == 'ce':
             ce_abs_50 = sample_abs_eff_gt50
-            ce_mpv = sample_mpv
+            ce_mpv = tracker_front_fit_mpv
         elif sample == 'flat_gamma':
             fgam_abs_50 = sample_abs_eff_gt50
 
@@ -1050,6 +1057,15 @@ def _print_all_stage_compact_summary(
         and pileup_abs_eff_all is not None
         else None
     )
+    total_edep_per_pot = (
+        mubeam_flash_abs_eff*mubeam_edep_avg
+        + elebeam_flash_abs_eff*elebeam_edep_avg
+        + pileup_abs_eff_all*pileup_avg
+        if mubeam_flash_abs_eff is not None
+        and elebeam_flash_abs_eff is not None
+        and pileup_abs_eff_all is not None
+        else None
+    )
     print(
         f"  Total hit efficiency per POT (mubeam + elebeam + pileup): {total_hit_eff_per_pot:.8g}"
         if total_hit_eff_per_pot is not None
@@ -1101,7 +1117,8 @@ def _print_all_stage_compact_summary(
     compact_line += ' | '
     if target_abs : compact_line += '%9.2e' % (calo_abs)
     compact_line += ' | '
-    if total_hit_eff_per_pot : compact_line += '%10.2e' % (total_hit_eff_per_pot)
+    if total_hit_eff_per_pot : compact_line += '%10.2e' % (total_edep_per_pot)
+    # if total_hit_eff_per_pot : compact_line += '%10.2e' % (total_hit_eff_per_pot)
     compact_line += ' | '
     if fgam_abs_50: compact_line += '%8.2e' % (fgam_abs_50)
     compact_line += ' | '
@@ -1119,8 +1136,8 @@ def _print_all_stage_compact_summary(
     compact_line += ' | '
 
     print('|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|')
-    print('| Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |   CE eff | CE MPV |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |')
-    print('|        | per POT  |  per POT  |    Eff     | Edep(50) | Edep(50) |        |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    |')
+    print('| Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |   CE eff | CE TRK |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |')
+    print('|        | per POT  |  per POT  |  <edep>    | Edep(50) | Edep(50) |  MPV   |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    |')
     print('|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|')
     print(compact_line)
     print('|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|')

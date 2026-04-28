@@ -27,38 +27,49 @@ config_v30: 1.3 cm target on the degrader, 125 mm radius, no poly shield. 2 cm A
 config_v31: 1.3 cm target on the degrader, 120 mm radius, no poly shield. 2 cm Al plate with 115 mm hole. COL5, IPA, OPA, and original target included. 
 config_v32: Stuck degrader in Run 1A, 1.3 cm target on the degrader, 120 mm radius, 2 cm Al plate with 115 mm hole
 config_v33: 1.5 cm target on the degrader, 160 mm radius, No plate. TSdA, COL5, IPA, OPA, and original target included. 
+config_v34: 1.5 cm target on the degrader, 150 mm radius, no poly shield. 2 cm Al plate with 130 mm hole. COL5, IPA, OPA, and original target included. 
+config_v35: 1.5 cm target on the degrader, 150 mm radius, no poly shield. 1.5 cm Al plate with 130 mm hole. COL5, IPA, OPA, and original target included. 
+config_v36: 1.5 cm target on the degrader, 150 mm radius, 1 cm poly shield. 1.5 cm Al plate with 130 mm hole. COL5, IPA, OPA, and original target included. 
+config_v37: 1.5 cm target on the degrader, 140 mm radius, no poly shield. 1.5 cm Al plate with 130 mm hole. COL5, IPA, OPA, and original target included. 
+config_v38: 2 cm target on the degrader, 140 mm radius, no poly shield. 2 cm Al plate with 130 mm hole. COL5, IPA, OPA, and original target included. 
+config_v39: 1.75 cm target on the degrader, 140 mm radius, no poly shield. 1.75 cm Al plate with 130 mm hole. COL5, IPA, OPA, and original target included. 
 |--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
-| Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |   CE eff | CE MPV |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |
-|        | per POT  |  per POT  |    Eff     | Edep(50) | Edep(50) |        |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    |
+| Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |   CE eff | CE Trk |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |
+|        | per POT  |  per POT  | <edep>/POT | Edep(50) | Edep(50) |  MPV   |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    |
 |--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
-| v00    | 4.64e-06 | 2.45e-05  |            | 7.72e-09 | 8.44e-09 | -6.25  | 3.73e-04 |   -0.46    |   3.35    |               |
+| v00    | 4.64e-06 | 2.45e-05  |  1.39e-03  | 7.72e-09 | 8.44e-09 |  -0.4  | 3.73e-04 |   -0.46    |   3.35    |               |
 |--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
-| v03    | 9.62e-04 | 1.24e-05  |  7.78e-05  | 1.02e-06 | 1.18e-06 | -6.18  | 2.79e-04 |   -2.04    |   0.987   |               |
-| v06    | 1.29e-03 | 0.00e-00  |  2.32e-05  | 1.22e-06 | 9.06e-07 | -35.6  | 6.23e-06 |   -48.0    |  0.0642   |               |
-| v10    | 1.29e-03 | 0.00e-00  |            | 1.33e-06 | 1.27e-06 | -22.1  | 3.25e-05 |   -29.9    |           |               |
-| v11    | 1.29e-03 | 2.13e-07  |            | 1.30e-06 | 1.41e-06 | -13.2  | 1.00e-04 |   -16.5    |           |               |
-| v12    | 1.30e-03 | 6.82e-07  |            | 1.31e-06 | 1.44e-06 | -11.1  | 1.03e-04 |   -10.8    |           |               |
-| v13    | 1.19e-03 | 1.49e-06  |            | 1.25e-06 | 1.41e-06 | -10.0  | 1.44e-04 |    -9.7    |   0.400   |               |
-| v14    | 1.28e-03 | 1.66e-06  |            | 1.34e-06 | 1.38e-06 | -11.9  | 1.53e-04 |   -0.49    |           |               |
-| v15    | 5.07e-04 | 8.52e-08  |            | 5.12e-07 | 6.68e-07 | -12.1  | 1.04e-04 |   -11.9    |   0.178   |               |
-| v16    | 3.76e-04 | 8.52e-07  |            | 4.09e-07 | 4.46e-07 | -11.8  | 3.79e-04 |   -0.49    |           |               |
-| v17    | 4.33e-04 | 1.28e-07  |            | 4.56e-07 | 4.90e-07 | -11.3  | 3.72e-04 |   -0.46    |           |               |
-| v18    | 4.95e-04 | 1.24e-07  |            | 5.16e-07 | 5.53e-07 | -12.5  | 1.20e-04 |   -0.49    |   0.423   |               |
-| v19    | 1.18e-03 | 5.41e-06  |            | 1.27e-06 | 1.41e-06 | -16.7  | 2.20e-04 |   -5.00    |           |               |
-| v20    | 4.71e-04 | 2.28e-06  |            | 5.04e-07 | 5.76e-07 |  -8.8  | 1.81e-04 |    0.00    |   0.521   |               |
-| v21    | 4.55e-04 | 4.00e-06  |            | 4.96e-07 | 5.45e-07 |  -7.7  | 2.01e-04 |    0.00    |   0.628   |               |
-| v22    | 5.12e-04 |     0     |            | 5.16e-07 | 4.76e-07 | -16.1  | 3.42e-04 |   -0.47    |   2.63    |               |
-| v23    | 5.12e-04 | 1.28e-07  |            | 5.36e-07 | 5.34e-07 | -12.4  | 4.52e-04 |   -0.46    |   3.21    |               |
-| v24    | 5.10e-04 |     0     |            | 5.29e-07 | 5.31e-07 | -13.5  | 3.77e-04 |   -0.46    |   3.38    |               |
-| v25    | 5.06e-04 | 1.28e-07  |            | 5.34e-07 | 5.70e-07 |  -9.5  | 3.77e-04 |   -0.46    |   3.39    |               |
-| v26    | 4.87e-04 | 1.11e-06  |  2.26e-05  | 5.33e-07 | 5.52e-07 |  -8.2  | 3.75e-04 |   -0.46    |   3.32    |   1.34e-05    |
-| v27    | 5.08e-04 | 2.98e-07  |            | 5.51e-07 | 5.88e-07 |  -9.6  | 3.87e-04 |   -0.46    |   3.37    |               |
-| v28    | 5.12e-04 | 3.41e-07  |            | 5.33e-07 | 5.88e-07 | -10.5  | 3.72e-04 |   -4.97    |   2.99    |               |
-| v29    | 4.82e-04 | 6.82e-07  |  2.18e-05  | 5.16e-07 | 5.52e-07 | -10.0  | 3.78e-04 |   -0.42    |   3.38    |   1.36e-05    |
-| v30    | 5.00e-04 | 5.96e-07  |  1.86e-05  | 5.29e-07 | 5.83e-07 |  -9.3  | 3.85e-04 |   -0.46    |   3.33    |   1.19e-05    |
-| v31    | 4.89e-04 | 5.54e-07  |  1.77e-05  | 5.18e-07 | 5.69e-07 |  -9.4  | 3.88e-04 |   -0.46    |   3.35    |   1.23e-05    |
-| v32    | 4.89e-04 | 5.54e-07  |  1.77e-05  | 5.18e-07 | 5.69e-07 |  -9.4  | 1.62e-04 |   -0.54    |   0.44    |   4.61e-06    |
-| v33    | 3.96e-04 | 1.02e-06  |  2.48e-05  | 4.38e-07 | 4.77e-07 |  -9.2  | 3.70e-04 |   -0.46    |   3.29    |   1.41e-05    |
+| v03    | 9.62e-04 | 1.24e-05  |  7.64e-04  | 1.02e-06 | 1.18e-06 |  -1.1  | 2.79e-04 |   -2.04    |   0.987   |               |
+| v06    | 1.29e-03 | 0.00e-00  |  1.08e-04  | 1.22e-06 | 9.06e-07 | -32.2  | 6.23e-06 |   -48.0    |  0.0642   |               |
+| v10    | 1.29e-03 | 0.00e-00  |  1.62e-04  | 1.33e-06 | 1.27e-06 | -17.4  | 3.25e-05 |   -29.9    |           |               |
+| v11    | 1.29e-03 | 2.13e-07  |  3.02e-04  | 1.30e-06 | 1.41e-06 |  -9.0  | 1.00e-04 |   -16.5    |           |               |
+| v12    | 1.30e-03 | 6.82e-07  |  2.84e-04  | 1.31e-06 | 1.44e-06 |  -7.2  | 1.03e-04 |   -10.8    |           |               |
+| v13    | 1.19e-03 | 1.49e-06  |  4.31e-04  | 1.25e-06 | 1.41e-06 |  -5.0  | 1.44e-04 |    -9.7    |   0.400   |               |
+| v14    | 1.28e-03 | 1.66e-06  |  2.62e-04  | 1.34e-06 | 1.38e-06 |  -7.6  | 1.53e-04 |   -0.49    |           |               |
+| v15    | 5.07e-04 | 8.52e-08  |  1.45e-04  | 5.12e-07 | 6.68e-07 |  -7.3  | 1.04e-04 |   -11.9    |   0.178   |               |
+| v16    | 3.76e-04 | 8.52e-07  |  2.12e-04  | 4.09e-07 | 4.46e-07 |  -7.9  | 3.79e-04 |   -0.49    |           |               |
+| v17    | 4.33e-04 | 1.28e-07  |  1.56e-04  | 4.56e-07 | 4.90e-07 |  -7.7  | 3.72e-04 |   -0.46    |           |               |
+| v18    | 4.95e-04 | 1.24e-07  |  1.47e-04  | 5.16e-07 | 5.53e-07 |  -8.2  | 1.20e-04 |   -0.49    |   0.423   |               |
+| v19    | 1.18e-03 | 5.41e-06  |  4.04e-04  | 1.27e-06 | 1.41e-06 | -11.6  | 2.20e-04 |   -5.00    |           |               |
+| v20    | 4.71e-04 | 2.28e-06  |  2.03e-04  | 5.04e-07 | 5.76e-07 |  -3.0  | 1.81e-04 |    0.00    |   0.52    |               |
+| v21    | 4.55e-04 | 4.00e-06  |  3.46e-04  | 4.96e-07 | 5.45e-07 |  -2.7  | 2.01e-04 |    0.00    |   0.62    |               |
+| v22    | 5.12e-04 |     0     |  6.11e-05  | 5.16e-07 | 4.76e-07 | -12.3  | 3.42e-04 |   -0.47    |   2.63    |               |
+| v23    | 5.12e-04 | 1.28e-07  |  7.90e-05  | 5.36e-07 | 5.34e-07 |  -8.1  | 4.52e-04 |   -0.46    |   3.21    |               |
+| v24    | 5.10e-04 |     0     |  1.12e-04  | 5.29e-07 | 5.31e-07 |  -7.9  | 3.77e-04 |   -0.46    |   3.38    |               |
+| v25    | 5.06e-04 | 1.28e-07  |  7.70e-05  | 5.34e-07 | 5.70e-07 |  -5.7  | 3.77e-04 |   -0.46    |   3.39    |               |
+| v26    | 4.87e-04 | 1.11e-06  |  2.16e-04  | 5.33e-07 | 5.52e-07 |  -3.1  | 3.75e-04 |   -0.46    |   3.32    |   1.34e-05    |
+| v27    | 5.08e-04 | 2.98e-07  |  2.25e-04  | 5.51e-07 | 5.88e-07 |  -5.9  | 3.87e-04 |   -0.46    |   3.37    |               |
+| v28    | 5.12e-04 | 3.41e-07  |  8.99e-05  | 5.33e-07 | 5.88e-07 |  -6.5  | 3.72e-04 |   -4.97    |   2.99    |               |
+| v29    | 4.82e-04 | 6.82e-07  |  8.43e-05  | 5.16e-07 | 5.52e-07 |  -5.9  | 3.78e-04 |   -0.42    |   3.38    |   1.36e-05    |
+| v30    | 5.00e-04 | 5.96e-07  |  1.25e-04  | 5.29e-07 | 5.83e-07 |  -5.1  | 3.85e-04 |   -0.46    |   3.33    |   1.19e-05    |
+| v31    | 4.89e-04 | 5.54e-07  |  1.32e-04  | 5.18e-07 | 5.69e-07 |  -5.0  | 3.88e-04 |   -0.46    |   3.35    |   1.23e-05    |
+| v32    | 4.89e-04 | 5.54e-07  |  1.32e-04  | 5.18e-07 | 5.69e-07 |  -5.0  | 1.62e-04 |   -0.54    |   0.44    |   4.61e-06    |
+| v33    | 3.96e-04 | 1.02e-06  |  1.73e-04  | 4.38e-07 | 4.77e-07 |  -5.3  | 3.70e-04 |   -0.46    |   3.29    |   1.41e-05    |
+| v34    | 5.03e-04 | 4.26e-07  |  2.34e-04  | 5.32e-07 | 5.61e-07 |  -5.7  | 4.40e-04 |   -0.46    |   3.36    |   1.37e-05    |
+| v35    | 5.07e-04 | 4.69e-07  |  1.54e-04  | 5.30e-07 | 5.72e-07 |  -5.5  | 4.36e-04 |   -0.46    |   3.34    |   1.30e-05    |
+| v36    | 5.03e-04 | 2.56e-07  |  1.22e-04  | 5.42e-07 | 5.82e-07 |  -5.6  | 4.37e-04 |   -0.46    |   3.33    |   1.59e-05    |
+| v37    | 4.96e-04 | 5.11e-07  |  1.62e-04  | 5.31e-07 | 5.76e-07 |  -5.2  | 4.35e-04 |   -0.46    |   3.33    |   1.40e-05    |
+| v38    | 5.05e-04 | 4.26e-08  |  8.59e-05  | 5.34e-07 | 5.67e-07 |  -7.8  | 4.39e-04 |   -0.46    |   3.35    |   1.30e-05    |
 |--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
 | <l>    |   <c>    |    <c>    |    <c>     |   <c>    |      <r> |  <c>   |   <c>    |    <c>     |    <c>    |      <c>      |
 |--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
@@ -1184,3 +1195,249 @@ Compact all-stage summary
 real    45m38.645s
 user    882m2.774s
 sys     31m19.461s
+
+*** Low stats config_v34 (1.5 cm, r = 150 mm degrader, Al plate with 130 mm hole)
+All-stage sequence complete. mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v34/mubeam_20260427_152341
+All-stage sequence complete. elebeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v34/elebeam_20260427_152940
+All-stage sequence complete. run1a_mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v34/run1a_mubeam_20260427_154149
+All-stage sequence complete. run1a_mustops run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v34/run1a_mustops_20260427_154546
+All-stage sequence complete. mustop run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v34/mustop_20260427_153350
+All-stage sequence complete. mustop_pileup run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v34/mustop_pileup_20260427_160221
+All-stage sequence complete. final run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v34/final_20260427_160556
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.00050257566
+  Calorimeter absolute muon stopping rate: 4.26056e-07
+  mubeam flash output absolute efficiency: 1.0140133e-05
+  mubeam average Edep / event: 2.51245 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 0
+  mubeam effective N(POT) simulated: 23471093
+  elebeam flash output absolute efficiency: 5.4600855e-06
+  elebeam average Edep / event: 14.3117 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 0
+  elebeam effective N(POT) simulated: 3479799
+  mustop effective N(POT) simulated (per mode): 2.0129582e+08
+  ce: abs eff (all)=7.941049e-07, abs eff (Edep>50)=5.6136286e-07, MPV=-10.43 MeV, FWHM=10.16 MeV
+  flat_electron: abs eff (all)=2.561926e-09, abs eff (Edep>50)=1.8605826e-12, MPV=-8.37 MeV, FWHM=7.319 MeV
+  flat_gamma: abs eff (all)=6.5898039e-07, abs eff (Edep>50)=5.3180438e-07, MPV=-1.95 MeV, FWHM=8.4 MeV
+  run1a target absolute muon stopping rate: 0.00079537309
+  run1a_mustops effective N(POT) simulated (per mode): 1.3045494e+08
+  run1a ce: eff/mu stop (all)=0.57336, eff/mu stop (Edep>50)=0.49207, abs eff (all)=0.00043950808, abs eff (Edep>50)=0.00037719537, MPV=-6.81 MeV, FWHM=7.03 MeV, trk-front fit MPV=-0.46 MeV, FWHM=0.65 MeV
+  run1a flat_electron: eff/mu stop (all)=1.34028e-06, eff/mu stop (Edep>50)=6.59846e-08, abs eff (all)=1.0273892e-09, abs eff (Edep>50)=5.0580376e-11, MPV=-28.73 MeV, FWHM=15.5 MeV, trk-front fit MPV=-2.68 MeV, FWHM=0 MeV
+  run1a flat_gamma: eff/mu stop (all)=0.002294, eff/mu stop (Edep>50)=0.001793, abs eff (all)=1.7584616e-06, abs eff (Edep>50)=1.3744209e-06, MPV=-0.95 MeV, FWHM=6 MeV, trk-front fit MPV=-0.1 MeV, FWHM=0 MeV
+  run1a rough sensitivity (ce): Signal box = [103.9, 104.7] MeV/c, signal = 47, dio = 3e-05, cosmic = 1.9e+02 --> bkg = 1.9e+02, S/sqrt(B) = 3.36
+  run1a Total hit efficiency per POT (mubeam + flat_electron): 1.3664203e-05
+  mustop_pileup effective N(POT) simulated: 3.0194374e+09
+  pileup: abs eff (all)=3.4917101e-06, abs eff (Edep>50)=9.9356259e-10, avg Edep/event=2.99312 MeV, effective N(POT) simulated=3.0194374e+09
+  Total hit efficiency per POT (mubeam + elebeam + pileup): 1.9091928e-05
+  Double-Edep expected/event (single,double,triple): 62.5951, 0.2253, 0.0008
+  Double-Edep estimated/event E(50,70,80,90): 0.0251573, 0.00247849, 0.000169657, 1.26153e-05
+  Rough sensitivity ce: MPV=92.5, FWHM=12, signal rate=137.93, background rate=6472960, s/sqrt(b)=0.0542134
+  Rough sensitivity flat_electron: MPV=28.5, FWHM=17, signal rate=6.76038e-06, background rate=1.30762e+12, s/sqrt(b)=5.91194e-12
+  Rough sensitivity flat_gamma: MPV=71.5, FWHM=15, signal rate=115101, background rate=1.0371e+08, s/sqrt(b)=11.3023
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+| Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |   CE eff | CE MPV |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |
+|        | per POT  |  per POT  |    Eff     | Edep(50) | Edep(50) |        |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    |
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+| config | 5.03e-04 |  4.26e-07 |   1.91e-05 | 5.32e-07 | 5.61e-07 |  -10.4 | 4.40e-04 |      -0.46 |      3.36 |      1.37e-05 | 
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+
+real    42m33.952s
+user    882m37.382s
+sys     29m56.974s
+
+*** Low stats config_v35 (1.5 cm, r = 150 mm degrader, 1.5 cm Al plate with 130 mm hole)
+All-stage sequence complete. mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v35/mubeam_20260427_161044
+All-stage sequence complete. elebeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v35/elebeam_20260427_161646
+All-stage sequence complete. run1a_mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v35/run1a_mubeam_20260427_162908
+All-stage sequence complete. run1a_mustops run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v35/run1a_mustops_20260427_163303
+All-stage sequence complete. mustop run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v35/mustop_20260427_162058
+All-stage sequence complete. mustop_pileup run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v35/mustop_pileup_20260427_164917
+All-stage sequence complete. final run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v35/final_20260427_165248
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.00050739009
+  Calorimeter absolute muon stopping rate: 4.686616e-07
+  mubeam flash output absolute efficiency: 1.0736611e-05
+  mubeam average Edep / event: 2.44781 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 0
+  mubeam effective N(POT) simulated: 23471093
+  elebeam flash output absolute efficiency: 5.1727126e-06
+  elebeam average Edep / event: 9.00785 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 0
+  elebeam effective N(POT) simulated: 3479799
+  mustop effective N(POT) simulated (per mode): 1.9941455e+08
+  ce: abs eff (all)=8.0422916e-07, abs eff (Edep>50)=5.7192415e-07, MPV=-10.37 MeV, FWHM=7.968 MeV
+  flat_electron: abs eff (all)=2.6528781e-09, abs eff (Edep>50)=1.4682354e-12, MPV=-8.67 MeV, FWHM=5.654 MeV
+  flat_gamma: abs eff (all)=6.571737e-07, abs eff (Edep>50)=5.3042768e-07, MPV=-1.76 MeV, FWHM=5.406 MeV
+  run1a target absolute muon stopping rate: 0.00078964338
+  run1a_mustops effective N(POT) simulated (per mode): 1.3142217e+08
+  run1a ce: eff/mu stop (all)=0.57299, eff/mu stop (Edep>50)=0.49317, abs eff (all)=0.00043599189, abs eff (Edep>50)=0.00037525632, MPV=-8.31 MeV, FWHM=7.527 MeV, trk-front fit MPV=-0.46 MeV, FWHM=0.64 MeV
+  run1a flat_electron: eff/mu stop (all)=1.73278e-06, eff/mu stop (Edep>50)=4.27845e-08, abs eff (all)=1.3184838e-09, abs eff (Edep>50)=3.255501e-11, MPV=-28.56 MeV, FWHM=15.23 MeV, trk-front fit MPV=-3.41 MeV, FWHM=4.32 MeV
+  run1a flat_gamma: eff/mu stop (all)=0.002311, eff/mu stop (Edep>50)=0.001799, abs eff (all)=1.7584552e-06, abs eff (Edep>50)=1.368871e-06, MPV=-2.45 MeV, FWHM=6.2 MeV, trk-front fit MPV=-0.1 MeV, FWHM=0 MeV
+  run1a rough sensitivity (ce): Signal box = [103.9, 104.7] MeV/c, signal = 46, dio = 2.9e-05, cosmic = 1.9e+02 --> bkg = 1.9e+02, S/sqrt(B) = 3.34
+  run1a Total hit efficiency per POT (mubeam + flat_electron): 1.3047447e-05
+  mustop_pileup effective N(POT) simulated: 2.9912183e+09
+  pileup: abs eff (all)=3.558082e-06, abs eff (Edep>50)=3.3431194e-10, avg Edep/event=3.06062 MeV, effective N(POT) simulated=2.9912183e+09
+  Total hit efficiency per POT (mubeam + elebeam + pileup): 1.9467406e-05
+  Double-Edep expected/event (single,double,triple): 55.032, 0.1769, 0.0003
+  Double-Edep estimated/event E(50,70,80,90): 0.00542201, 7.41797e-05, 5.97218e-06, 4.24312e-07
+  Rough sensitivity ce: MPV=93.5, FWHM=12, signal rate=146.612, background rate=251778, s/sqrt(b)=0.292188
+  Rough sensitivity flat_electron: MPV=22.5, FWHM=14, signal rate=4.83274e-06, background rate=4.81761e+11, s/sqrt(b)=6.9627e-12
+  Rough sensitivity flat_gamma: MPV=70.5, FWHM=15, signal rate=119774, background rate=2878240, s/sqrt(b)=70.5992
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+| Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |   CE eff | CE MPV |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |
+|        | per POT  |  per POT  |    Eff     | Edep(50) | Edep(50) |        |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    |
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+| config | 5.07e-04 |  4.69e-07 |   1.95e-05 | 5.30e-07 | 5.72e-07 |  -10.4 | 4.36e-04 |      -0.46 |      3.34 |      1.30e-05 | 
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+
+real    42m22.407s
+user    879m55.423s
+sys     29m24.299s
+
+*** Low stats config_v36 (1.5 cm, r = 150 mm degrader, 1.5 cm Al plate with 130 mm hole, 1 cm poly)
+mubeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v36/mubeam_20260427_213147
+elebeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v36/elebeam_20260427_213749
+mustop: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v36/mustop_20260427_214203
+run1a_mubeam: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v36/run1a_mubeam_20260428_075223
+run1a_mustops: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v36/run1a_mustops_20260428_075743
+mustop_pileup: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v36/mustop_pileup_20260427_221140
+final: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v36/final_20260427_221516
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.00050278869
+  Calorimeter absolute muon stopping rate: 2.556336e-07
+  mubeam flash output absolute efficiency: 1.1205273e-05
+  mubeam average Edep / event: 2.48837 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 4.26056e-08
+  mubeam effective N(POT) simulated: 23471093
+  elebeam flash output absolute efficiency: 3.735848e-06
+  elebeam average Edep / event: 6.98072 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 0
+  elebeam effective N(POT) simulated: 3479799
+  mustop effective N(POT) simulated (per mode): 1.9707047e+08
+  ce: abs eff (all)=8.2635415e-07, abs eff (Edep>50)=5.8240588e-07, MPV=-9.09 MeV, FWHM=8.218 MeV
+  flat_electron: abs eff (all)=2.754332e-09, abs eff (Edep>50)=1.4598712e-12, MPV=-8.83 MeV, FWHM=5.669 MeV
+  flat_gamma: abs eff (all)=6.6803514e-07, abs eff (Edep>50)=5.4193812e-07, MPV=-2.85 MeV, FWHM=5.606 MeV
+  run1a target absolute muon stopping rate: 0.00078805668
+  run1a_mustops effective N(POT) simulated (per mode): 1.313613e+08
+  run1a ce: eff/mu stop (all)=0.57349, eff/mu stop (Edep>50)=0.49149, abs eff (all)=0.00043657456, abs eff (Edep>50)=0.0003741513, MPV=-7.51 MeV, FWHM=7.329 MeV, trk-front fit MPV=-0.46 MeV, FWHM=0.65 MeV
+  run1a flat_electron: eff/mu stop (all)=1.2626e-06, eff/mu stop (Edep>50)=3.59771e-08, abs eff (all)=9.611659e-10, abs eff (Edep>50)=2.7387899e-11, MPV=-20.23 MeV, FWHM=0.9141 MeV, trk-front fit MPV=-0.78 MeV, FWHM=0.16 MeV
+  run1a flat_gamma: eff/mu stop (all)=0.002309, eff/mu stop (Edep>50)=0.00178925, abs eff (all)=1.7577476e-06, abs eff (Edep>50)=1.3620831e-06, MPV=-1.65 MeV, FWHM=6.6 MeV, trk-front fit MPV=-0.1 MeV, FWHM=0 MeV
+  run1a rough sensitivity (ce): Signal box = [103.9, 104.7] MeV/c, signal = 46, dio = 2.9e-05, cosmic = 1.9e+02 --> bkg = 1.9e+02, S/sqrt(B) = 3.33
+  run1a Total hit efficiency per POT (mubeam + flat_electron): 1.5867874e-05
+  mustop_pileup effective N(POT) simulated: 2.9560571e+09
+  pileup: abs eff (all)=3.5171852e-06, abs eff (Edep>50)=6.7657693e-10, avg Edep/event=3.01 MeV, effective N(POT) simulated=2.9560571e+09
+  Total hit efficiency per POT (mubeam + elebeam + pileup): 1.8458306e-05
+  Double-Edep expected/event (single,double,triple): 50.9271, 0.1533, 0.0002
+  Double-Edep estimated/event E(50,70,80,90): 0.0643416, 0.000269356, 1.62263e-05, 3.26167e-06
+  Rough sensitivity ce: MPV=92.5, FWHM=15, signal rate=163.703, background rate=1714150, s/sqrt(b)=0.125035
+  Rough sensitivity flat_electron: MPV=27.5, FWHM=16, signal rate=5.36592e-06, background rate=3.22952e+11, s/sqrt(b)=9.44224e-12
+  Rough sensitivity flat_gamma: MPV=79.5, FWHM=15, signal rate=122631, background rate=5136840, s/sqrt(b)=54.1067
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+| Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |   CE eff | CE MPV |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |
+|        | per POT  |  per POT  |    Eff     | Edep(50) | Edep(50) |        |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    |
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+| config | 5.03e-04 |  2.56e-07 |   1.85e-05 | 5.42e-07 | 5.82e-07 |   -9.1 | 4.37e-04 |      -0.46 |      3.33 |      1.59e-05 | 
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+
+*** Low stats config_v37 (1.5 cm, r = 140 mm degrader, 1.5 cm Al plate with 130 mm hole)
+All-stage sequence complete. mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v37/mubeam_20260428_114159
+All-stage sequence complete. elebeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v37/elebeam_20260428_114759
+All-stage sequence complete. run1a_mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v37/run1a_mubeam_20260428_120550
+All-stage sequence complete. run1a_mustops run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v37/run1a_mustops_20260428_120954
+All-stage sequence complete. mustop run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v37/mustop_20260428_115751
+All-stage sequence complete. mustop_pileup run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v37/mustop_pileup_20260428_122644
+All-stage sequence complete. final run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v37/final_20260428_123016
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.00049631263
+  Calorimeter absolute muon stopping rate: 5.112672e-07
+  mubeam flash output absolute efficiency: 1.2227807e-05
+  mubeam average Edep / event: 2.60852 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 0
+  mubeam effective N(POT) simulated: 23471093
+  elebeam flash output absolute efficiency: 4.8853397e-06
+  elebeam average Edep / event: 8.8161 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 0
+  elebeam effective N(POT) simulated: 10439397
+  mustop effective N(POT) simulated (per mode): 2.0095114e+08
+  ce: abs eff (all)=7.9795517e-07, abs eff (Edep>50)=5.7588626e-07, Trk MPV=-5.24 MeV, Trk FWHM=6.54 MeV
+  flat_electron: abs eff (all)=2.7608453e-09, abs eff (Edep>50)=9.9072964e-13, Trk MPV=-5.3 MeV, Trk FWHM=5.45 MeV
+  flat_gamma: abs eff (all)=6.5575642e-07, abs eff (Edep>50)=5.3122366e-07, Trk MPV=-0.1 MeV, Trk FWHM=0.29 MeV
+  run1a target absolute muon stopping rate: 0.00078752779
+  run1a_mustops effective N(POT) simulated (per mode): 1.3172738e+08
+  run1a ce: eff/mu stop (all)=0.57258, eff/mu stop (Edep>50)=0.49136, abs eff (all)=0.00043467047, abs eff (Edep>50)=0.00037301282, MPV=-7.31 MeV, FWHM=7.13 MeV, trk-front fit MPV=-0.46 MeV, FWHM=0.65 MeV
+  run1a flat_electron: eff/mu stop (all)=2.82622e-06, eff/mu stop (Edep>50)=2.87257e-08, abs eff (all)=2.1455069e-09, abs eff (Edep>50)=2.1806933e-11, MPV=-47.25 MeV, FWHM=11.2 MeV, trk-front fit MPV=-38.2 MeV, FWHM=0.13 MeV
+  run1a flat_gamma: eff/mu stop (all)=0.002279, eff/mu stop (Edep>50)=0.0017815, abs eff (all)=1.7300884e-06, abs eff (Edep>50)=1.3524144e-06, MPV=-1.33 MeV, FWHM=5.6 MeV, trk-front fit MPV=-0.08 MeV, FWHM=0.06 MeV
+  run1a rough sensitivity (ce): Signal box = [103.9, 104.7] MeV/c, signal = 46, dio = 2.9e-05, cosmic = 1.9e+02 --> bkg = 1.9e+02, S/sqrt(B) = 3.33
+  run1a Total hit efficiency per POT (mubeam + flat_electron): 1.4017919e-05
+  mustop_pileup effective N(POT) simulated: 3.0142671e+09
+  pileup: abs eff (all)=3.5358512e-06, abs eff (Edep>50)=9.9526682e-10, avg Edep/event=3.06451 MeV, effective N(POT) simulated=3.0142671e+09
+  Total hit efficiency per POT (mubeam + elebeam + pileup): 2.0648998e-05
+  Double-Edep expected/event (single,double,triple): 63.1613, 0.2313, 0.0005
+  Double-Edep estimated/event E(50,70,80,90): 0.0240536, 0.00108415, 0.000269952, 1.1186e-05
+  Rough sensitivity ce: MPV=90.5, FWHM=13, signal rate=155.279, background rate=13006100, s/sqrt(b)=0.0430566
+  Rough sensitivity flat_electron: MPV=22.5, FWHM=16, signal rate=3.66779e-06, background rate=5.48064e+11, s/sqrt(b)=4.95437e-12
+  Rough sensitivity flat_gamma: MPV=73.5, FWHM=15, signal rate=119076, background rate=73851800, s/sqrt(b)=13.8562
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+| Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |   CE eff | CE TRK |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |
+|        | per POT  |  per POT  |  <edep>    | Edep(50) | Edep(50) |  MPV   |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    |
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+| config | 4.96e-04 |  5.11e-07 |   1.62e-04 | 5.31e-07 | 5.76e-07 |   -5.2 | 4.35e-04 |      -0.46 |      3.33 |      1.40e-05 | 
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+
+real    48m36.255s
+user    1029m52.756s
+sys     30m15.007s
+
+*** Low stats config_v38 (2 cm, r = 140 mm degrader, 2 cm Al plate with 130 mm hole)
+All-stage sequence complete. mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v38/mubeam_20260428_124959
+All-stage sequence complete. elebeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v38/elebeam_20260428_125553
+All-stage sequence complete. run1a_mubeam run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v38/run1a_mubeam_20260428_131408
+All-stage sequence complete. run1a_mustops run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v38/run1a_mustops_20260428_131810
+All-stage sequence complete. mustop run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v38/mustop_20260428_130557
+All-stage sequence complete. mustop_pileup run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v38/mustop_pileup_20260428_133427
+All-stage sequence complete. final run: /exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/runs/config_v38/final_20260428_133757
+-----
+Compact all-stage summary
+  Target absolute muon stopping rate: 0.00050487636
+  Calorimeter absolute muon stopping rate: 4.26056e-08
+  mubeam flash output absolute efficiency: 8.2654864e-06
+  mubeam average Edep / event: 2.08251 MeV
+  mubeam events with Edep > 50 per simulated event (absolute): 0
+  mubeam effective N(POT) simulated: 23471093
+  elebeam flash output absolute efficiency: 4.0232209e-06
+  elebeam average Edep / event: 6.15769 MeV
+  elebeam events with Edep > 50 per simulated event (absolute): 0
+  elebeam effective N(POT) simulated: 10439397
+  mustop effective N(POT) simulated (per mode): 1.9740196e+08
+  ce: abs eff (all)=8.205339e-07, abs eff (Edep>50)=5.6673703e-07, Trk MPV=-7.76 MeV, Trk FWHM=8.08 MeV
+  flat_electron: abs eff (all)=2.1503459e-09, abs eff (Edep>50)=1.0995825e-12, Trk MPV=-7.69 MeV, Trk FWHM=6.75 MeV
+  flat_gamma: abs eff (all)=6.7755153e-07, abs eff (Edep>50)=5.3444252e-07, Trk MPV=-0.1 MeV, Trk FWHM=0.09 MeV
+  run1a target absolute muon stopping rate: 0.00079255231
+  run1a_mustops effective N(POT) simulated (per mode): 1.306653e+08
+  run1a ce: eff/mu stop (all)=0.57302, eff/mu stop (Edep>50)=0.49036, abs eff (all)=0.00043854029, abs eff (Edep>50)=0.00037527943, MPV=-7.51 MeV, FWHM=7.428 MeV, trk-front fit MPV=-0.46 MeV, FWHM=0.64 MeV
+  run1a flat_electron: eff/mu stop (all)=3.17926e-06, eff/mu stop (Edep>50)=3.41034e-08, abs eff (all)=2.4331325e-09, abs eff (Edep>50)=2.6099813e-11, MPV=-4.65 MeV, FWHM=24.12 MeV, trk-front fit MPV=-0.9 MeV, FWHM=0.87 MeV
+  run1a flat_gamma: eff/mu stop (all)=0.00232175, eff/mu stop (Edep>50)=0.001815, abs eff (all)=1.776868e-06, abs eff (Edep>50)=1.3890451e-06, MPV=-1.25 MeV, FWHM=5.6 MeV, trk-front fit MPV=-0.1 MeV, FWHM=0 MeV
+  run1a rough sensitivity (ce): Signal box = [103.9, 104.7] MeV/c, signal = 47, dio = 3e-05, cosmic = 1.9e+02 --> bkg = 1.9e+02, S/sqrt(B) = 3.35
+  run1a Total hit efficiency per POT (mubeam + flat_electron): 1.3048562e-05
+  mustop_pileup effective N(POT) simulated: 2.9610294e+09
+  pileup: abs eff (all)=3.4697393e-06, abs eff (Edep>50)=1.0131612e-09, avg Edep/event=2.93998 MeV, effective N(POT) simulated=2.9610294e+09
+  Total hit efficiency per POT (mubeam + elebeam + pileup): 1.5758447e-05
+  Double-Edep expected/event (single,double,triple): 52.7282, 0.1643, 0.0004
+  Double-Edep estimated/event E(50,70,80,90): 0.00586291, 0.000499231, 6.58628e-06, 5.99393e-07
+  Rough sensitivity ce: MPV=90.5, FWHM=17, signal rate=163.434, background rate=2183610, s/sqrt(b)=0.1106
+  Rough sensitivity flat_electron: MPV=29.5, FWHM=13, signal rate=3.1508e-06, background rate=1.80908e+11, s/sqrt(b)=7.40785e-12
+  Rough sensitivity flat_gamma: MPV=73.5, FWHM=15, signal rate=113713, background rate=5139660, s/sqrt(b)=50.1585
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+| Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |   CE eff | CE TRK |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |
+|        | per POT  |  per POT  |  <edep>    | Edep(50) | Edep(50) |  MPV   |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    |
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+| config | 5.05e-04 |  4.26e-08 |   8.59e-05 | 5.34e-07 | 5.67e-07 |   -7.8 | 4.39e-04 |      -0.46 |      3.35 |      1.30e-05 | 
+|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|
+
+real    48m15.850s
+user    1039m0.521s
+sys     30m35.763s

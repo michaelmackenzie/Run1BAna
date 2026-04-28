@@ -140,6 +140,23 @@ int rough_run1a_sensitivity(TString sig_file_name, double sig_eff,
   res->Draw("hist");
   c.SaveAs(Form("%s/res.png", fig_dir));
 
+  // draw additional histograms
+  TH1* h_z = (TH1*) sig_file->Get("EDepAna/hist_2/primary_start_z");
+  if(h_z) {
+    h_z->SetLineWidth(2);
+    h_z->SetLineColor(kBlue);
+    h_z->Draw("hist");
+    c.SaveAs(Form("%s/ce_z.png", fig_dir));
+  }
+
+  TH1* h_r = (TH1*) sig_file->Get("EDepAna/hist_2/primary_start_r");
+  if(h_r) {
+    h_r->SetLineWidth(2);
+    h_r->SetLineColor(kBlue);
+    h_r->Draw("hist");
+    c.SaveAs(Form("%s/ce_r.png", fig_dir));
+  }
+
   // Get the DIO contribution
   TH1* dio = get_dio_spectrum();
   dio->Scale(0.39*sig_eff*npot); // DIO rate
