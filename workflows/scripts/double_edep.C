@@ -88,6 +88,7 @@ int double_edep(vector<TString> file_names,
   // Get the total calo energy deposit per simulated particle histograms
   TH1* h_edep = nullptr;
   vector<TH1*> h_edeps;
+  vector<TH1*> h_edeps_orig;
   for(size_t index = 0; index < n_bkgs; ++index) {
     TH1* h = dynamic_cast<TH1*>(files[index]->Get("EDepAna/hist_1/total_calo_energy")); // ignore E < 1 MeV steps
     TH1* h_norm = dynamic_cast<TH1*>(files[index]->Get("EDepAna/hist_0/total_calo_energy")); // for absolute rates
@@ -98,6 +99,8 @@ int double_edep(vector<TString> file_names,
     h = (TH1*) h->Clone(Form("h_edep_%zu", index));
     h->SetDirectory(0);
     h->Scale(efficiencies[index] / h_norm->GetEntries());
+    h_edeps_orig.push_back((TH1*) h->Clone(Form("h_edep_orig_%zu", index)));
+    h_edeps_orig.back()->SetDirectory(0);
     fill_gaps(h);
     h->SetLineWidth(2);
     if(h_edep) {
@@ -131,6 +134,22 @@ int double_edep(vector<TString> file_names,
   h_edeps[0]->GetYaxis()->SetRangeUser(1.e-8*max_val, 20.*max_val);
   c.SetLogy();
   c.SaveAs(Form("%s/edeps_log.png", fig_dir));
+  c.SetLogy(false);
+
+  // Original edep distributions
+  max_val = 0.;
+  for(size_t index = 0; index < n_bkgs; ++index) {
+    if(index == 0) h_edeps_orig[index]->Draw("hist");
+    else           h_edeps_orig[index]->Draw("hist same");
+    h_edeps_orig[index]->SetLineColor(index + 2);
+    max_val = max(max_val, h_edeps_orig[index]->GetMaximum());
+  }
+  leg_edeps.Draw();
+  h_edeps_orig[0]->GetYaxis()->SetRangeUser(0., 1.3*max_val);
+  c.SaveAs(Form("%s/edeps_orig.png", fig_dir));
+  h_edeps_orig[0]->GetYaxis()->SetRangeUser(1.e-8*max_val, 20.*max_val);
+  c.SetLogy();
+  c.SaveAs(Form("%s/edeps_orig_log.png", fig_dir));
   c.SetLogy(false);
 
   const double eff   = h_edep->Integral(); // total efficiency per POT
