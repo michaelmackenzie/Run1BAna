@@ -8,11 +8,13 @@ outputs.EarlyFlashOutput.fileName: "dts.mu2e.EarlyMuBeamFlash.Run1B.%6r_%8s.art"
 outputs.FlashOutput.fileName: "dts.mu2e.MuBeamFlash.Run1B.%6r_%8s.art"
 outputs.IPAStopOutput.fileName: "sim.mu2e.IPAStops.Run1B.%6r_%8s.art"
 outputs.TargetStopOutput.fileName: "sim.mu2e.TargetStops.Run1B.%6r_%8s.art"
+outputs.PolyStopOutput.fileName: "sim.mu2e.PolyStops.Run1B.%6r_%8s.art"
 services.TFileService.fileName : "nts.mu2e.mubeam.Run1B.%6r_%8s.root"
 services.SeedService.baseSeed: 1
 
 # Adjust the target stop prescale
 physics.filters.TargetStopPrescaleFilter.nPrescale : 10
+physics.filters.PolyStopPrescaleFilter.nPrescale   : 10
 
 # Drop data not needed
 outpus.TargetStopOutput.outputCommands : [
