@@ -1,6 +1,20 @@
 // Optimize the hole shape for the Run 1B target + Run 1A running
 
 TString fig_dir_ = "figures";
+bool smooth_inputs_ = true; // Smooth the 2D distributions
+
+//--------------------------------------------------------------------------------------------------------------------
+// Evaluate Run 1A metric
+double evaluate_run1a_metric(const double run1a_stops) {
+  return run1a_stops; // assume background is constant, so just maximize the signal rate
+}
+
+//--------------------------------------------------------------------------------------------------------------------
+// Evaluate Run 1B metric
+double evaluate_run1b_metric(const double run1b_muons, const double calo_stops) {
+  constexpr double dio_eff = 1.e-3; // Approximate efficiency for Run 1B target -> calo disk 0
+  return (run1b_muons <= 0.) ? 0. : dio_eff*run1b_muons / sqrt(std::pow(run1b_muons*dio_eff, 2) + 2.*dio_eff*run1b_muons*calo_stops + std::pow(calo_stops, 2));
+}
 
 //--------------------------------------------------------------------------------------------------------------------
 // Evaluate the metrics for a given set of histograms
@@ -9,13 +23,113 @@ std::pair<double,double> evaluate_metrics(TH2* h_run1a_stops, TH2* h_run1b_muons
   const double run1b_muons = h_run1b_muons     ->Integral();
   const double run1a_stops = h_run1a_stops     ->Integral();
 
-  constexpr double dio_eff = 1.e-3; // Approximate efficiency for Run 1B target -> calo disk 0
-  const double run1b_metric = (run1b_muons <= 0.) ? 0. : dio_eff*run1b_muons / sqrt(std::pow(run1b_muons*dio_eff, 2)
-                                                                                    + 2.*dio_eff*run1b_muons*calo_stops
-                                                                                    + std::pow(calo_stops, 2));
-  const double run1a_metric = (run1a_stops <= 0.) ? 0. : run1a_stops; // assume background is constant, so just maximize the signal rate
+  const double run1b_metric = evaluate_run1b_metric(run1b_muons, calo_stops);
+  const double run1a_metric = evaluate_run1a_metric(run1a_stops);
 
   return std::make_pair(run1a_metric, run1b_metric);
+}
+
+//--------------------------------------------------------------------------------------------------------------------
+// Metric-ordered bin scan
+TGraph* metric_ordered_bin_scan(TH2* h_run1a_stops, TH2* h_run1b_muons, TH2* h_run1b_calo_stops,
+                                const double run1a_metric, const double run1b_metric, TGraph* g_circle_hole_metric) {
+  TH2* h_run1a_metrics      = (TH2*) h_run1a_stops     ->Clone("h_run1a_metrics");
+  TH2* h_run1b_metrics      = (TH2*) h_run1b_muons     ->Clone("h_run1b_metrics");
+  TH2* total_metrics        = (TH2*) h_run1a_stops     ->Clone("total_metrics");
+  for(int ix = 1; ix <= h_run1a_stops->GetNbinsX(); ++ix) {
+    for(int iy = 1; iy <= h_run1a_stops->GetNbinsY(); ++iy) {
+        const double run1a_stops = h_run1a_stops->GetBinContent(ix, iy);
+        const double run1b_muons = h_run1b_muons->GetBinContent(ix, iy);
+        const double calo_stops  = h_run1b_calo_stops->GetBinContent(ix, iy);
+        const double run1a_metric_bin = evaluate_run1a_metric(run1a_stops) / run1a_metric; // Relative to optimal
+        const double run1b_metric_bin = evaluate_run1b_metric(run1b_muons, calo_stops);
+        const double total_metric_bin = (calo_stops > 0.) ? run1a_stops / calo_stops : (run1a_stops > 0.) ? 10. : 0.;
+        h_run1a_metrics->SetBinContent(ix, iy, run1a_metric_bin);
+        h_run1b_metrics->SetBinContent(ix, iy, run1b_metric_bin);
+        total_metrics->SetBinContent(ix, iy, total_metric_bin);
+    }
+  }
+
+  //---------------------------------------------------------------------
+  // Plot the histograms
+  //---------------------------------------------------------------------
+
+  TCanvas c_metrics("c_metrics", "Metrics", 1000, 1000);
+  h_run1a_stops->Draw("COLZ");
+  c_metrics.SaveAs(fig_dir_ + "/run1a_stops.png");
+  h_run1a_metrics->Draw("COLZ");
+  c_metrics.SaveAs(fig_dir_ + "/run1a_metric_bins.png");
+  h_run1b_muons->Draw("COLZ");
+  c_metrics.SaveAs(fig_dir_ + "/run1b_muons.png");
+  h_run1b_metrics->Draw("COLZ");
+  c_metrics.SaveAs(fig_dir_ + "/run1b_metric_bins.png");
+  total_metrics->Draw("COLZ");
+  total_metrics->SetTitle("Run 1A Stops / Run 1B Calo Stops by bin;X (mm);Y (mm)");
+  c_metrics.SaveAs(fig_dir_ + "/total_metric_bins.png");
+  h_run1b_calo_stops->Draw("COLZ");
+  c_metrics.SaveAs(fig_dir_ + "/run1b_calo_stops.png");
+
+  //---------------------------------------------------------------------
+  // Add hole bins ordered by total metric
+  //---------------------------------------------------------------------
+
+  TGraph* g_run1a_metric_vs_run1b_metric = new TGraph();
+  TH2* h_run1a_stops_hole      = (TH2*) h_run1a_stops     ->Clone("h_run1a_stops_hole");
+  TH2* h_run1b_muons_hole      = (TH2*) h_run1b_muons     ->Clone("h_run1b_muons_hole");
+  TH2* h_run1b_calo_stops_hole = (TH2*) h_run1b_calo_stops->Clone("h_run1b_calo_stops_hole");
+  h_run1a_stops_hole->Reset();
+  h_run1b_calo_stops_hole->Reset();
+  TH2* h_run1a_best = nullptr;
+  TH2* h_run1b_best = nullptr;
+  TH2* h_calo_stops_best = nullptr;
+  const int max_bins = std::min(1000, h_run1a_stops->GetNbinsX() * h_run1a_stops->GetNbinsY()); // Limit to top 1000 bins for speed
+  for(int bin = 1; bin <= max_bins; ++bin) {
+    // Get maximum bin
+    const int max_bin = total_metrics->GetMaximumBin();
+    // Add the bin as a hole
+    h_run1a_stops_hole->SetBinContent(max_bin, h_run1a_stops->GetBinContent(max_bin));
+    h_run1b_calo_stops_hole->SetBinContent(max_bin, h_run1b_calo_stops->GetBinContent(max_bin));
+    h_run1b_muons_hole->SetBinContent(max_bin, 0.); // not stopped in the plate
+    // Re-evaluate the metrics
+    auto [run1a_metric_step, run1b_metric_step] = evaluate_metrics(h_run1a_stops_hole, h_run1b_muons_hole, h_run1b_calo_stops_hole);
+    g_run1a_metric_vs_run1b_metric->AddPoint(run1a_metric_step / run1a_metric, run1b_metric_step / run1b_metric);
+    // Set the bin to 0 in the total metric to avoid picking it again
+    total_metrics->SetBinContent(max_bin, 0.);
+    if(!h_run1a_best && run1a_metric_step > 0.5*run1a_metric) {
+      h_run1a_best = (TH2*) h_run1a_stops_hole->Clone("h_run1a_best");
+      h_run1b_best = (TH2*) h_run1b_muons_hole->Clone("h_run1b_best");
+      h_calo_stops_best = (TH2*) h_run1b_calo_stops_hole->Clone("h_calo_stops_best");
+    }
+  }
+
+  //---------------------------------------------------------------------
+  // Plot the Run 1A and Run 1B metrics
+  //----------------------------------------------------------------------
+  TCanvas c_metric_correlation("c_metric_correlation", "Run 1A vs Run 1B Metric", 800, 600);
+  g_run1a_metric_vs_run1b_metric->Draw("AP");
+  g_run1a_metric_vs_run1b_metric->SetMarkerStyle(20);
+  g_run1a_metric_vs_run1b_metric->SetMarkerSize(0.8);
+  g_run1a_metric_vs_run1b_metric->SetMarkerColor(kBlack);
+  g_run1a_metric_vs_run1b_metric->SetTitle("Run 1A vs Run 1B Metric;Run 1A Metric (relative);Run 1B Metric (relative)");
+  g_circle_hole_metric->SetLineColor(kRed);
+  g_circle_hole_metric->SetLineWidth(2);
+  g_circle_hole_metric->Draw("L SAME");
+  TLegend leg(0.6, 0.75, 0.89, 0.89);
+  leg.SetBorderSize(0); leg.SetFillStyle(0);
+  leg.AddEntry(g_run1a_metric_vs_run1b_metric, "Metric-ordered Scan", "p");
+  leg.AddEntry(g_circle_hole_metric, "Hole Radius Scan", "l");
+  leg.Draw();
+  c_metric_correlation.SaveAs(fig_dir_ + "/metric_ordered_correlation.png");
+
+  if(h_run1a_best && h_run1b_best && h_calo_stops_best) {
+    TCanvas c_best("c_best", "Best Hole", 1200, 400);
+    c_best.Divide(3, 1);
+    c_best.cd(1); h_run1a_best->Draw("COLZ"); c_best.Update();
+    c_best.cd(2); h_run1b_best->Draw("COLZ"); c_best.Update();
+    c_best.cd(3); h_calo_stops_best->Draw("COLZ"); c_best.Update();
+    c_best.SaveAs(fig_dir_ + "/best_hole.png");
+  }
+  return nullptr;
 }
 
 //--------------------------------------------------------------------------------------------------------------------
@@ -263,6 +377,12 @@ int optimize_hole() {
   f_run1b_muons     ->Close();
   f_run1b_calo_stops->Close();
 
+  if(smooth_inputs_) {
+    h_run1a_stops     ->Smooth(1);
+    h_run1b_muons     ->Smooth(1);
+    h_run1b_calo_stops->Smooth(1);
+  }
+
   //----------------------------------------------------------------------
   // Make the output directory for the plots
   //----------------------------------------------------------------------
@@ -305,6 +425,12 @@ int optimize_hole() {
   //----------------------------------------------------------------------
 
   TGraph* g_run1a_metric_vs_run1b_metric = optimize_hole_radius(h_run1a_stops, h_run1b_muons, h_run1b_calo_stops, run1a_metric, run1b_metric);
+
+  //----------------------------------------------------------------------
+  // Evaluate the metrics for each bin and plot
+  //----------------------------------------------------------------------
+
+  TGraph* g_metric_ordered_scan = metric_ordered_bin_scan(h_run1a_stops, h_run1b_muons, h_run1b_calo_stops, run1a_metric, run1b_metric, g_run1a_metric_vs_run1b_metric);
 
   //---------------------------------------------------------------------
   // Test random geometries
