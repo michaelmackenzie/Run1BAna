@@ -122,12 +122,62 @@ TGraph* metric_ordered_bin_scan(TH2* h_run1a_stops, TH2* h_run1b_muons, TH2* h_r
   c_metric_correlation.SaveAs(fig_dir_ + "/metric_ordered_correlation.png");
 
   if(h_run1a_best && h_run1b_best && h_calo_stops_best) {
+    // Calculate the effective hole area/center
+    double x(0.), y(0.), area(0.); int n_bins_hole(0);
+    for(int ix = 1; ix <= h_run1a_stops->GetNbinsX(); ++ix) {
+      for(int iy = 1; iy <= h_run1a_stops->GetNbinsY(); ++iy) {
+        if(h_run1a_best->GetBinContent(ix, iy) > 0.) {
+          double bin_x = h_run1a_best->GetXaxis()->GetBinCenter(ix);
+          double bin_y = h_run1a_best->GetYaxis()->GetBinCenter(iy);
+          x += bin_x + 3904.; // Shift to solenoid center
+          y += bin_y;
+          const double bin_width = h_run1a_best->GetXaxis()->GetBinWidth(ix);
+          const double bin_height = h_run1a_best->GetYaxis()->GetBinWidth(iy);
+          area += bin_width * bin_height;
+          n_bins_hole++;
+        }
+      }
+    }
+    if(n_bins_hole > 0) {
+      x /= n_bins_hole;
+      y /= n_bins_hole;
+    }
+    const double radius = std::sqrt(area / M_PI);
+
+    TEllipse* hole_ellipse = new TEllipse(x-3904., y, radius);
+    hole_ellipse->SetLineColor(kRed);
+    hole_ellipse->SetLineWidth(1);
+    hole_ellipse->SetFillStyle(0);
+
     TCanvas c_best("c_best", "Best Hole", 1200, 400);
     c_best.Divide(3, 1);
-    c_best.cd(1); h_run1a_best->Draw("COLZ"); c_best.Update();
+    auto pad = c_best.cd(1); h_run1a_best->Draw("COLZ"); c_best.Update(); pad->SetGrid();
+    hole_ellipse->Draw("SAME");
     c_best.cd(2); h_run1b_best->Draw("COLZ"); c_best.Update();
+    hole_ellipse->Draw("SAME");
     c_best.cd(3); h_calo_stops_best->Draw("COLZ"); c_best.Update();
+    hole_ellipse->Draw("SAME");
     c_best.SaveAs(fig_dir_ + "/best_hole.png");
+
+    // Print the best hole rates/information
+    const double run1a_stops      = h_run1a_stops     ->Integral();
+    const double run1b_muons      = h_run1b_muons     ->Integral();
+    const double run1b_calo_stops = h_run1b_calo_stops->Integral();
+    const double best_calo_stops  = h_calo_stops_best->Integral();
+    const double best_run1b_muons = h_run1b_best->Integral();
+    const double best_run1a_stops = h_run1a_best->Integral();
+    const double best_run1b_metric = evaluate_run1b_metric(best_run1b_muons, best_calo_stops);
+    const double best_run1a_metric = evaluate_run1a_metric(best_run1a_stops);
+    printf("-----------------------------------------------------------------\n");
+    printf("Best hole metric information:\n");
+    printf("Run 1A Stops     : %.3e (%.1f%% of optimal)\n", best_run1a_stops, 100.*best_run1a_stops/run1a_stops);
+    printf("Run 1B Muons     : %.3e (%.1f%% of optimal)\n", best_run1b_muons, 100.*best_run1b_muons/run1b_muons);
+    printf("Run 1B Calo Stops: %.3e (%.1f%% removed)\n", best_calo_stops, 100.*(1. - best_calo_stops/run1b_calo_stops));
+    printf("Run 1A metric    : %.3e (%.1f%% of optimal)\n", best_run1a_metric, 100.*best_run1a_metric/run1a_metric);
+    printf("Run 1B metric    : %.3e (%.1f%% of optimal)\n", best_run1b_metric, 100.*best_run1b_metric/run1b_metric);
+    printf("Effective hole area: %.1f mm^2 --> radius = %.2f\n", area, radius);
+    printf("Effective hole center: (%.1f, %.1f) mm\n", x, y);
+    printf("-----------------------------------------------------------------\n");
   }
   return nullptr;
 }
@@ -394,8 +444,8 @@ int optimize_hole() {
   // Normalize the histograms given the sim number of protons on target
   //----------------------------------------------------------------------
 
-  const double n_protons_run1a = 1.0e9; // Example value, replace with actual number
-  const double n_protons_run1b = 1.0e9; // Example value, replace with actual number
+  const double n_protons_run1a = 15.3e6*(5e7 / 639084.); // Simulated 15.3M events
+  const double n_protons_run1b = 15.3e6*(5e7 / 639084.);
 
   h_run1a_stops      ->Scale(1.0 / n_protons_run1a);
   h_run1b_muons      ->Scale(1.0 / n_protons_run1b);
@@ -436,8 +486,8 @@ int optimize_hole() {
   // Test random geometries
   //----------------------------------------------------------------------
 
-  test_random_geometries(h_run1a_stops, h_run1b_muons, h_run1b_calo_stops, run1a_metric, run1b_metric, g_run1a_metric_vs_run1b_metric);
-  test_random_holes     (h_run1a_stops, h_run1b_muons, h_run1b_calo_stops, run1a_metric, run1b_metric, g_run1a_metric_vs_run1b_metric);
+  // test_random_geometries(h_run1a_stops, h_run1b_muons, h_run1b_calo_stops, run1a_metric, run1b_metric, g_run1a_metric_vs_run1b_metric);
+  // test_random_holes     (h_run1a_stops, h_run1b_muons, h_run1b_calo_stops, run1a_metric, run1b_metric, g_run1a_metric_vs_run1b_metric);
 
   return 0;
 }
