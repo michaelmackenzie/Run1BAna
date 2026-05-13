@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import extract_analysis_results
 import json
 import math
 import os
@@ -18,6 +17,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import extract_analysis_results
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
 
 _STAGES = (
     "mubeam",
@@ -31,63 +35,101 @@ _STAGES = (
     "minimal",
     "summary",
 )
+
 _DEFAULT_MUSTOP_MODES = ("ce", "flat_gamma", "flat_electron")
 _OPTIONAL_MUSTOP_MODE = "ce_plus"
 _ALL_MUSTOP_MODES = _DEFAULT_MUSTOP_MODES + (_OPTIONAL_MUSTOP_MODE,)
-_GEN_RESTRICTION_FACTOR = (1.0 - 0.95) / 2.0  # cos(theta) generation restriction correction
+
+# cos(theta) generation restriction correction: (1 - 0.95) / 2
+_GEN_RESTRICTION_FACTOR = (1.0 - 0.95) / 2.0
 _MUON_STOP_PRESCALE_CORRECTION = 10.0
-_DOUBLE_EDEP_PATTERNS = {
-    "pot_per_event_average": re.compile(r"N\(POT\)\s*/\s*event average:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"),
-    "single_edep_efficiency_per_pot": re.compile(r"Efficiency for single edep / POT:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"),
-    "expected_per_event_single_edep": re.compile(r"Expected per event for single edep:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"),
-    "expected_per_event_double_edep": re.compile(r"Expected per event for double edep:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"),
-    "expected_per_event_triple_edep": re.compile(r"Expected per event for triple edep:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"),
+
+# Regex for a floating-point number (with optional exponent).
+_FLOAT = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
+
+_DOUBLE_EDEP_PATTERNS: dict[str, re.Pattern[str]] = {
+    "pot_per_event_average": re.compile(
+        rf"N\(POT\)\s*/\s*event average:\s*({_FLOAT})"
+    ),
+    "single_edep_efficiency_per_pot": re.compile(
+        rf"Efficiency for single edep / POT:\s*({_FLOAT})"
+    ),
+    "expected_per_event_single_edep": re.compile(
+        rf"Expected per event for single edep:\s*({_FLOAT})"
+    ),
+    "expected_per_event_double_edep": re.compile(
+        rf"Expected per event for double edep:\s*({_FLOAT})"
+    ),
+    "expected_per_event_triple_edep": re.compile(
+        rf"Expected per event for triple edep:\s*({_FLOAT})"
+    ),
 }
+
 _DOUBLE_EDEP_THRESHOLDS_PATTERN = re.compile(
-    r"Estimated rates per event:\s*"
-    r"E\(50\)\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
-    r"E\(70\)\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
-    r"E\(80\)\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
-    r"E\(90\)\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"
+    rf"Estimated rates per event:\s*"
+    rf"E\(50\)\s*=\s*({_FLOAT})\s+"
+    rf"E\(70\)\s*=\s*({_FLOAT})\s+"
+    rf"E\(80\)\s*=\s*({_FLOAT})\s+"
+    rf"E\(90\)\s*=\s*({_FLOAT})"
 )
+
 _ROUGH_SENSITIVITY_PATTERN = re.compile(
-    r"Signal MPV\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
-    r"FWHM\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
-    r"signal rate\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
-    r"background rate\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s+"
-    r"s/sqrt\(b\)\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"
+    rf"Signal MPV\s*=\s*({_FLOAT})\s+"
+    rf"FWHM\s*=\s*({_FLOAT})\s+"
+    rf"signal rate\s*=\s*({_FLOAT})\s+"
+    rf"background rate\s*=\s*({_FLOAT})\s+"
+    rf"s/sqrt\(b\)\s*=\s*({_FLOAT})"
 )
+
 _ROUGH_RUN1A_SENSITIVITY_PATTERN = re.compile(
-    r"Signal box\s*=\s*\[\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
-    r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*\]\s*MeV/c\s*,\s*"
-    r"signal\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
-    r"dio\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
-    r"cosmic\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*-->\s*"
-    r"bkg\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*,\s*"
-    r"S/sqrt\(B\)\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"
+    rf"Signal box\s*=\s*\[\s*({_FLOAT})\s*,\s*"
+    rf"({_FLOAT})\s*\]\s*MeV/c\s*,\s*"
+    rf"signal\s*=\s*({_FLOAT})\s*,\s*"
+    rf"dio\s*=\s*({_FLOAT})\s*,\s*"
+    rf"cosmic\s*=\s*({_FLOAT})\s*-->\s*"
+    rf"bkg\s*=\s*({_FLOAT})\s*,\s*"
+    rf"S/sqrt\(B\)\s*=\s*({_FLOAT})"
 )
 
+# Stage -> (beam_fragment, fcl_name, job_fcl_prefix)
+_BEAM_STAGE_CONFIG: dict[str, tuple[str, str, str]] = {
+    "mubeam":      ("run1b_beam", "mubeam.fcl",  "mubeam_job.fcl"),
+    "run1a_mubeam": ("run1a_beam", "mubeam.fcl", "run1a_mubeam_job.fcl"),
+    "elebeam":     ("run1b_beam", "elebeam.fcl",  "elebeam_job.fcl"),
+}
 
-def _selected_mustop_modes(include_ce_plus: bool) -> tuple[str, ...]:
+
+# ---------------------------------------------------------------------------
+# Mustop mode helpers
+# ---------------------------------------------------------------------------
+
+def _selected_mustop_modes(include_ce_plus: bool, ce_only: bool = False) -> tuple[str, ...]:
+    """Return the mustop modes to process based on user flags."""
+    if ce_only:
+        return ("ce",)
     if include_ce_plus:
         return _DEFAULT_MUSTOP_MODES + (_OPTIONAL_MUSTOP_MODE,)
     return _DEFAULT_MUSTOP_MODES
 
 
-def _mustop_modes_from_summary(summary: dict | None, *, include_ce_plus: bool = False) -> tuple[str, ...]:
-    fallback_modes = _selected_mustop_modes(include_ce_plus)
+def _mustop_modes_from_summary(
+    summary: dict | None, *, include_ce_plus: bool = False
+) -> tuple[str, ...]:
+    """Read sample names from a summary dict, with fallback to configured modes."""
+    fallback = _selected_mustop_modes(include_ce_plus)
     if not summary:
-        return fallback_modes
-
+        return fallback
     sample_names = tuple(summary.get("edep_analysis_by_sample", {}).keys())
-    if sample_names:
-        return sample_names
+    return sample_names if sample_names else fallback
 
-    return fallback_modes
 
+# ---------------------------------------------------------------------------
+# Data types
+# ---------------------------------------------------------------------------
 
 @dataclass
 class JobResult:
+    """Outcome of a single mu2e job."""
     index: int
     job_dir: Path
     command: list[str]
@@ -96,225 +138,260 @@ class JobResult:
     log_path: Path
 
 
-def _run_one_job(index: int, command: list[str], job_dir: Path, env: dict[str, str], dry_run: bool) -> JobResult:
+# ---------------------------------------------------------------------------
+# Low-level job helpers
+# ---------------------------------------------------------------------------
+
+def _run_one_job(
+    index: int,
+    command: list[str],
+    job_dir: Path,
+    env: dict[str, str],
+    dry_run: bool,
+) -> JobResult:
+    """Execute a single job (or fake it under *dry_run*)."""
     log_path = job_dir / "job.log"
     start = time.perf_counter()
 
     if dry_run:
-        log_path.write_text("DRY RUN: " + shlex.join(command) + "\n", encoding="utf-8")
-        return JobResult(
-            index=index,
-            job_dir=job_dir,
-            command=command,
-            returncode=0,
-            duration_s=0.0,
-            log_path=log_path,
-        )
+        log_path.write_text(f"DRY RUN: {shlex.join(command)}\n", encoding="utf-8")
+        return JobResult(index=index, job_dir=job_dir, command=command,
+                         returncode=0, duration_s=0.0, log_path=log_path)
 
-    with log_path.open("w", encoding="utf-8") as log_file:
-        process = subprocess.run(
-            command,
-            cwd=job_dir,
-            env=env,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            text=True,
-            check=False,
+    with log_path.open("w", encoding="utf-8") as fh:
+        proc = subprocess.run(
+            command, cwd=job_dir, env=env,
+            stdout=fh, stderr=subprocess.STDOUT,
+            text=True, check=False,
         )
 
     duration = time.perf_counter() - start
-    return JobResult(
-        index=index,
-        job_dir=job_dir,
-        command=command,
-        returncode=process.returncode,
-        duration_s=duration,
-        log_path=log_path,
-    )
+    return JobResult(index=index, job_dir=job_dir, command=command,
+                     returncode=proc.returncode, duration_s=duration,
+                     log_path=log_path)
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--stage",
-        choices=_STAGES,
-        default="mubeam",
-        help="Processing stage to run (default: mubeam)",
-    )
-    parser.add_argument("config_version", help="Configuration folder name (for example: config_v06)")
-    parser.add_argument(
-        "parallel_jobs",
-        type=int,
-        nargs="?",
-        default=None,
-        help=(
-            "Number of jobs to launch "
-            "(required for stage mubeam/elebeam/mustop_pileup/run1a_mubeam/all)"
-        ),
-    )
-    parser.add_argument(
-        "--events-per-job",
-        type=int,
-        default=0,
-        help="Number of events per job passed as '-n <events>' to mu2e (required for mubeam/mustop_pileup/all)",
-    )
-    parser.add_argument(
-        "--run1a-mubeam-events-per-job",
-        type=int,
-        default=5000,
-        help="Number of events per run1a_mubeam job (default: 5000)",
-    )
-    parser.add_argument(
-        "--elebeam-events-per-job",
-        type=int,
-        default=0,
-        help="Number of events per elebeam job (default: 0, uses --events-per-job if not specified)",
-    )
-    parser.add_argument(
-        "--mu2e-command",
-        default="mu2e",
-        help="Executable used to run jobs (default: mu2e)",
-    )
-    parser.add_argument(
-        "--seed-start",
-        type=int,
-        default=1,
-        help="First seed value; each job gets seed_start + job_index",
-    )
-    parser.add_argument(
-        "--run-root",
-        default=None,
-        help="Directory where run outputs are written (default: ../runs from this script)",
-    )
-    parser.add_argument(
-        "--max-workers",
-        type=int,
-        default=None,
-        help="Thread workers used to launch jobs (default: parallel_jobs)",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print and stage commands without executing mu2e",
-    )
-    parser.add_argument(
-        "--mubeam-run-dir",
-        default=None,
-        help=(
-            "Directory containing mubeam job_* outputs used as TargetStopResampler inputs "
-            "for --stage mustop (default: latest mubeam_* under run-root/config_version)"
-        ),
-    )
-    parser.add_argument(
-        "--run1a-mubeam-run-dir",
-        default=None,
-        help=(
-            "Directory containing run1a_mubeam job_* outputs used as TargetStopResampler inputs "
-            "for --stage run1a_mustops (default: latest run1a_mubeam_* under run-root/config_version)"
-        ),
-    )
-    parser.add_argument(
-        "--elebeam-run-dir",
-        default=None,
-        help=(
-            "Directory containing elebeam job_* outputs for --stage final/summary "
-            "(default: latest elebeam_* under run-root/config_version)"
-        ),
-    )
-    parser.add_argument(
-        "--mustop-run-dir",
-        default=None,
-        help=(
-            "Directory containing mustop job_* outputs for --stage summary "
-            "(default: latest mustop_* under run-root/config_version)"
-        ),
-    )
-    parser.add_argument(
-        "--run1a-mustops-run-dir",
-        default=None,
-        help=(
-            "Directory containing run1a_mustops job_* outputs for --stage summary "
-            "(default: latest run1a_mustops_* under run-root/config_version)"
-        ),
-    )
-    parser.add_argument(
-        "--mustop-pileup-run-dir",
-        default=None,
-        help=(
-            "Directory containing mustop_pileup job_* outputs for --stage summary "
-            "(default: latest mustop_pileup_* under run-root/config_version)"
-        ),
-    )
-    parser.add_argument(
-        "--final-run-dir",
-        default=None,
-        help=(
-            "Directory containing final stage outputs for --stage summary "
-            "(default: latest final_* under run-root/config_version)"
-        ),
-    )
-    parser.add_argument(
-        "--mustop-jobs-per-mode",
-        type=int,
-        default=10,
-        help="Number of jobs to launch for each mustop mode (ce/ce_plus/flat_gamma) (default: 10)",
-    )
-    parser.add_argument(
-        "--include-ce-plus",
-        action="store_true",
-        help="Include ce_plus in mustop/run1a_mustops modes (default: disabled)",
-    )
-    parser.add_argument(
-        "--mustop-events-per-job",
-        type=int,
-        default=10000,
-        help="Number of events per mustop job (default: 10000)",
-    )
-    parser.add_argument(
-        "--mustop-pileup-events-per-job",
-        type=int,
-        default=100000,
-        help="Number of events per mustop_pileup job (default: 100000)",
-    )
-    parser.add_argument(
-        "--clean",
-        action="store_true",
-        help="Delete intermediate sim.*.art and dts.*.art files (only for --stage all)",
-    )
-    return parser.parse_args()
+def _write_job_status(result: JobResult) -> None:
+    """Persist a compact JSON status file next to the job log."""
+    status = {
+        "job_index": result.index,
+        "job_dir": str(result.job_dir),
+        "command": result.command,
+        "returncode": result.returncode,
+        "duration_s": round(result.duration_s, 3),
+        "log_path": str(result.log_path),
+    }
+    with (result.job_dir / "job_status.json").open("w", encoding="utf-8") as fh:
+        json.dump(status, fh, indent=2, sort_keys=True)
 
 
-def _find_latest_stage_run(run_root: Path, config_version: str, stage: str) -> Path | None:
-    stage_parent = run_root / config_version
-    if not stage_parent.exists() or not stage_parent.is_dir():
+# ---------------------------------------------------------------------------
+# File-discovery helpers
+# ---------------------------------------------------------------------------
+
+def _find_latest_stage_run(
+    run_root: Path, config_version: str, stage: str
+) -> Path | None:
+    """Return the most-recent timestamped directory for *stage*, or ``None``."""
+    parent = run_root / config_version
+    if not parent.is_dir():
         return None
 
-    # Match only canonical stage timestamp directories, e.g. "mustop_YYYYMMDD_HHMMSS".
-    # This avoids prefix collisions such as "mustop" matching "mustop_pileup_*".
-    stage_dir_pattern = re.compile(rf"^{re.escape(stage)}_\d{{8}}_\d{{6}}$")
-    candidates = sorted(
-        path for path in stage_parent.iterdir()
-        if path.is_dir() and stage_dir_pattern.match(path.name)
-    )
+    # Match only canonical stage timestamp dirs, e.g. "mustop_YYYYMMDD_HHMMSS".
+    # Avoids prefix collisions like "mustop" matching "mustop_pileup_*".
+    pat = re.compile(rf"^{re.escape(stage)}_\d{{8}}_\d{{6}}$")
+    candidates = sorted(p for p in parent.iterdir() if p.is_dir() and pat.match(p.name))
     return candidates[-1] if candidates else None
 
 
+def _resolve_stage_dir(
+    explicit: str | None, run_root: Path, config_version: str, stage: str,
+) -> Path | None:
+    """Resolve an explicit path or fall back to the latest timestamped run."""
+    if explicit:
+        return Path(explicit).resolve()
+    return _find_latest_stage_run(run_root, config_version, stage)
+
+
+def _require_stage_dir(
+    explicit: str | None, run_root: Path, config_version: str, stage: str,
+) -> Path:
+    """Like ``_resolve_stage_dir`` but raises ``SystemExit`` on failure."""
+    result = _resolve_stage_dir(explicit, run_root, config_version, stage)
+    if result is None:
+        raise SystemExit(
+            f"Could not locate {stage} run directory; "
+            f"pass --{stage.replace('_', '-')}-run-dir explicitly"
+        )
+    return result
+
+
 def _collect_target_stop_files(run_dir: Path) -> list[Path]:
+    """Glob for TargetStops .art files across all job_* directories."""
     files = sorted(run_dir.glob("job_*/sim.mu2e.TargetStops.Run1A.*_*.art"))
     files.extend(sorted(run_dir.glob("job_*/sim.mu2e.TargetStops.Run1B.*_*.art")))
     return sorted(files)
 
 
 def _collect_muminus_stop_files(mubeam_run_dir: Path) -> list[Path]:
-    run_dir = mubeam_run_dir / "mu_stops_job"
-    files = sorted(run_dir.glob("sim.mu2e.MuminusStopsCat.Run1A.*_*.art"))
-    files.extend(sorted(run_dir.glob("sim.mu2e.MuminusStopsCat.Run1B.*_*.art")))
+    """Glob for concatenated MuminusStops .art files."""
+    mu_dir = mubeam_run_dir / "mu_stops_job"
+    files = sorted(mu_dir.glob("sim.mu2e.MuminusStopsCat.Run1A.*_*.art"))
+    files.extend(sorted(mu_dir.glob("sim.mu2e.MuminusStopsCat.Run1B.*_*.art")))
     return sorted(files)
 
 
-def _format_fhicl_string_list(paths: list[Path], indent: str = "    ") -> str:
-    return ",\n".join(f'{indent}"{path}"' for path in paths)
+def _find_double_edep_output_path(run_dir: Path) -> Path | None:
+    """Find the ROOT output from the double-edep analysis in *run_dir*."""
+    roots = sorted(run_dir.glob("*.root"))
+    if not roots:
+        return None
+    preferred = [p for p in roots if "double" in p.name.lower()]
+    return preferred[-1] if preferred else roots[-1]
 
+
+# ---------------------------------------------------------------------------
+# FHiCL helpers
+# ---------------------------------------------------------------------------
+
+def _format_fhicl_string_list(paths: list[Path], indent: str = "    ") -> str:
+    """Format a list of paths as a FHiCL string list body."""
+    return ",\n".join(f'{indent}"{p}"' for p in paths)
+
+
+# ---------------------------------------------------------------------------
+# Summary I/O
+# ---------------------------------------------------------------------------
+
+def _load_summary(summary_path: Path) -> dict:
+    """Load a JSON summary; raise ``SystemExit`` if missing."""
+    if not summary_path.is_file():
+        raise SystemExit(f"Missing analysis summary: {summary_path}")
+    with summary_path.open("r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _load_summary_optional(summary_path: Path) -> dict | None:
+    """Load a JSON summary, returning ``None`` on any failure."""
+    if not summary_path.is_file():
+        return None
+    try:
+        with summary_path.open("r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Physics calculations
+# ---------------------------------------------------------------------------
+
+def _safe_get(d: dict, *keys, default=None):
+    """Nested dict get that returns *default* on any missing key."""
+    for k in keys:
+        if not isinstance(d, dict):
+            return default
+        d = d.get(k, default)
+        if d is default:
+            return default
+    return d
+
+
+def _compute_mustop_pileup_absolute_efficiency(
+    mubeam_summary: dict, pileup_summary: dict,
+) -> float | None:
+    """Absolute efficiency for mustop pileup hits given beam and pileup summaries."""
+    input_corr = _safe_get(mubeam_summary, "input_efficiency", "correction_factor")
+    sim_total = _safe_get(mubeam_summary, "simulation_events", "total_events")
+    n_stops = mubeam_summary.get("muminus_stops_events")
+    pileup_sim = _safe_get(pileup_summary, "simulation_events", "total_events")
+    pileup_seen = _safe_get(pileup_summary, "edep_analysis", "events_seen")
+
+    if any(v is None for v in (input_corr, n_stops, pileup_seen)):
+        return None
+    if sim_total in (None, 0) or pileup_sim in (None, 0):
+        return None
+
+    stopping_factor = n_stops / sim_total
+    return (pileup_seen / pileup_sim) * input_corr * stopping_factor * _MUON_STOP_PRESCALE_CORRECTION
+
+
+def _compute_mustop_sample_absolute_efficiencies(
+    mubeam_summary: dict, mustop_summary: dict,
+) -> dict[str, float | None]:
+    """Per-mode absolute efficiency for mustop samples (Edep > 50 MeV)."""
+    input_corr = _safe_get(mubeam_summary, "input_efficiency", "correction_factor")
+    sim_total = _safe_get(mubeam_summary, "simulation_events", "total_events")
+    n_stops = mubeam_summary.get("muminus_stops_events")
+    modes = _mustop_modes_from_summary(mustop_summary)
+    mustop_sim = _safe_get(mustop_summary, "simulation_events", "total_events")
+    sim_per_mode = mustop_sim / len(modes) if mustop_sim not in (None, 0) else None
+
+    if (
+        input_corr is None or sim_total in (None, 0)
+        or n_stops is None or sim_per_mode in (None, 0)
+    ):
+        return {m: None for m in modes}
+
+    stopping_factor = n_stops / sim_total
+    scale = (
+        input_corr * stopping_factor * _GEN_RESTRICTION_FACTOR
+        * _MUON_STOP_PRESCALE_CORRECTION / sim_per_mode
+    )
+
+    result: dict[str, float | None] = {}
+    for mode in modes:
+        gt50 = _safe_get(
+            mustop_summary, "edep_analysis_by_sample", mode, "events_edep_gt_50_mev"
+        )
+        result[mode] = gt50 * scale if gt50 is not None else None
+    return result
+
+
+def _parse_events_from_command(command: object) -> int | None:
+    """Extract the ``-n <events>`` value from a mu2e command list."""
+    if not isinstance(command, list):
+        return None
+    for i, tok in enumerate(command):
+        if tok == "-n" and i + 1 < len(command):
+            try:
+                return int(command[i + 1])
+            except ValueError:
+                return None
+    return None
+
+
+def _infer_mustop_mode_from_command(command: object) -> str | None:
+    """Infer the mustop mode from the ``-c <fcl>`` argument in *command*."""
+    if not isinstance(command, list):
+        return None
+    for i, tok in enumerate(command):
+        if tok == "-c" and i + 1 < len(command):
+            fcl_name = Path(command[i + 1]).name
+            for mode in _ALL_MUSTOP_MODES:
+                if fcl_name.startswith(f"{mode}_job_"):
+                    return mode
+    return None
+
+
+def _compute_simulated_events_by_mode(summary: dict | None) -> dict[str, int]:
+    """Sum events per mustop mode from completed jobs in a run summary."""
+    totals: dict[str, int] = {}
+    if not summary:
+        return totals
+    for row in summary.get("jobs", []):
+        if row.get("returncode") != 0:
+            continue
+        mode = _infer_mustop_mode_from_command(row.get("command"))
+        events = _parse_events_from_command(row.get("command"))
+        if mode is not None and events is not None:
+            totals[mode] = totals.get(mode, 0) + events
+    return totals
+
+
+# ---------------------------------------------------------------------------
+# Mu-stops concatenation job
+# ---------------------------------------------------------------------------
 
 def _run_mu_stops_job(
     run_dir: Path,
@@ -325,6 +402,7 @@ def _run_mu_stops_job(
     env: dict,
     dry_run: bool,
 ) -> JobResult:
+    """Concatenate TargetStops into a single MuminusStopsCat file."""
     target_stop_files = _collect_target_stop_files(run_dir)
     if not target_stop_files:
         raise SystemExit(f"No TargetStops files found in {run_dir} for mu_stops job")
@@ -332,15 +410,13 @@ def _run_mu_stops_job(
     job_dir = run_dir / "mu_stops_job"
     job_dir.mkdir(parents=True, exist_ok=False)
 
-    include_fcl_path = Path("Run1BAna") / "workflows" / config_version / beam_fragment / "mu_stops.fcl"
+    include_fcl = Path("Run1BAna") / "workflows" / config_version / beam_fragment / "mu_stops.fcl"
     file_list = _format_fhicl_string_list(target_stop_files)
     job_fcl = job_dir / "mu_stops_job.fcl"
     job_fcl.write_text(
-        f"#include \"{include_fcl_path.as_posix()}\"\n"
+        f'#include "{include_fcl.as_posix()}"\n'
         "\n"
-        f"source.fileNames: [\n"
-        f"{file_list}\n"
-        "]\n",
+        f"source.fileNames: [\n{file_list}\n]\n",
         encoding="utf-8",
     )
 
@@ -349,17 +425,7 @@ def _run_mu_stops_job(
 
     print(f"Running mu_stops job with {len(target_stop_files)} TargetStops input files...")
     result = _run_one_job(0, command, job_dir, env, dry_run)
-
-    status = {
-        "job_index": 0,
-        "job_dir": str(result.job_dir),
-        "command": result.command,
-        "returncode": result.returncode,
-        "duration_s": round(result.duration_s, 3),
-        "log_path": str(result.log_path),
-    }
-    with (job_dir / "job_status.json").open("w", encoding="utf-8") as handle:
-        json.dump(status, handle, indent=2, sort_keys=True)
+    _write_job_status(result)
 
     print(
         f"mu_stops job: returncode={result.returncode}, "
@@ -368,170 +434,9 @@ def _run_mu_stops_job(
     return result
 
 
-def _load_summary(summary_path: Path) -> dict:
-    if not summary_path.exists() or not summary_path.is_file():
-        raise SystemExit(f"Missing analysis summary: {summary_path}")
-    with summary_path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def _load_summary_optional(summary_path: Path) -> dict | None:
-    """Load a summary file, returning None if it doesn't exist."""
-    if not summary_path.exists() or not summary_path.is_file():
-        return None
-    try:
-        with summary_path.open("r", encoding="utf-8") as handle:
-            return json.load(handle)
-    except (OSError, json.JSONDecodeError):
-        return None
-
-
-def _compute_mustop_pileup_absolute_efficiency(mubeam_summary: dict, mustop_pileup_summary: dict) -> float | None:
-    input_corr = mubeam_summary.get("input_efficiency", {}).get("correction_factor")
-    sim_total = mubeam_summary.get("simulation_events", {}).get("total_events")
-    n_muminus_stops = mubeam_summary.get("muminus_stops_events")
-    pileup_sim_total = mustop_pileup_summary.get("simulation_events", {}).get("total_events")
-    pileup_seen = mustop_pileup_summary.get("edep_analysis", {}).get("events_seen")
-
-    if (
-        input_corr is None
-        or sim_total in (None, 0)
-        or n_muminus_stops is None
-        or pileup_sim_total in (None, 0)
-        or pileup_seen is None
-    ):
-        return None
-
-    stopping_factor = n_muminus_stops / sim_total
-    return (
-        (pileup_seen / pileup_sim_total)
-        * input_corr
-        * stopping_factor
-        * _MUON_STOP_PRESCALE_CORRECTION
-    )
-
-
-def _compute_mustop_sample_absolute_efficiencies(mubeam_summary: dict, mustop_summary: dict) -> dict[str, float | None]:
-    input_corr = mubeam_summary.get("input_efficiency", {}).get("correction_factor")
-    sim_total = mubeam_summary.get("simulation_events", {}).get("total_events")
-    n_muminus_stops = mubeam_summary.get("muminus_stops_events")
-    modes = _mustop_modes_from_summary(mustop_summary)
-    mustop_sim_total = mustop_summary.get("simulation_events", {}).get("total_events")
-    mustop_sim_per_mode = (
-        mustop_sim_total / len(modes)
-        if mustop_sim_total not in (None, 0)
-        else None
-    )
-
-    if (
-        input_corr is None
-        or sim_total in (None, 0)
-        or n_muminus_stops is None
-        or mustop_sim_per_mode in (None, 0)
-    ):
-        return {mode: None for mode in modes}
-
-    stopping_factor = n_muminus_stops / sim_total
-    scale = (
-        input_corr
-        * stopping_factor
-        * _GEN_RESTRICTION_FACTOR
-        * _MUON_STOP_PRESCALE_CORRECTION
-        / mustop_sim_per_mode
-    )
-
-    result: dict[str, float | None] = {}
-    for mode in modes:
-        sample_gt50 = mustop_summary.get("edep_analysis_by_sample", {}).get(mode, {}).get("events_edep_gt_50_mev")
-        result[mode] = sample_gt50 * scale if sample_gt50 is not None else None
-    return result
-
-
-def _parse_events_from_command(command: object) -> int | None:
-    if not isinstance(command, list):
-        return None
-
-    for i, token in enumerate(command):
-        if token == "-n" and i + 1 < len(command):
-            try:
-                return int(command[i + 1])
-            except ValueError:
-                return None
-    return None
-
-
-def _infer_mustop_mode_from_command(command: object) -> str | None:
-    if not isinstance(command, list):
-        return None
-
-    for i, token in enumerate(command):
-        if token == "-c" and i + 1 < len(command):
-            fcl_name = Path(command[i + 1]).name
-            for mode in _ALL_MUSTOP_MODES:
-                if fcl_name.startswith(f"{mode}_job_"):
-                    return mode
-    return None
-
-
-def _compute_simulated_events_by_mode(summary: dict | None) -> dict[str, int]:
-    totals: dict[str, int] = {}
-    if not summary:
-        return totals
-
-    for row in summary.get("jobs", []):
-        if row.get("returncode") != 0:
-            continue
-
-        mode = _infer_mustop_mode_from_command(row.get("command"))
-        events = _parse_events_from_command(row.get("command"))
-        if mode is None or events is None:
-            continue
-        totals[mode] = totals.get(mode, 0) + events
-
-    return totals
-
-
-def _find_double_edep_output_path(run_dir: Path) -> Path | None:
-    roots = sorted(run_dir.glob("*.root"))
-    if not roots:
-        return None
-    preferred = [path for path in roots if "double" in path.name.lower()]
-    return preferred[-1] if preferred else roots[-1]
-
-
-def _run_rough_sensitivity_analyses(
-    run_dir: Path,
-    workflows_dir: Path,
-    mustop_summary: dict,
-    sample_abs_efficiencies: dict[str, float | None],
-    double_edep_output_path: Path | None,
-    dry_run: bool,
-) -> dict[str, dict]:
-    return extract_analysis_results.run_rough_sensitivity_analyses(
-        run_dir,
-        workflows_dir,
-        mustop_summary,
-        sample_abs_efficiencies,
-        double_edep_output_path,
-        dry_run,
-    )
-
-
-def _run_rough_run1a_sensitivity_analysis(
-    run_dir: Path,
-    workflows_dir: Path,
-    run1a_mubeam_summary: dict,
-    run1a_mustops_summary: dict,
-    dry_run: bool,
-) -> dict:
-    return extract_analysis_results.run_rough_run1a_sensitivity_analysis(
-        run_dir,
-        workflows_dir,
-        run1a_mubeam_summary,
-        run1a_mustops_summary,
-        dry_run,
-    )
-
+# ---------------------------------------------------------------------------
+# Double-edep analysis (ROOT macro)
+# ---------------------------------------------------------------------------
 
 def _run_double_edep_analysis(
     run_dir: Path,
@@ -544,6 +449,7 @@ def _run_double_edep_analysis(
     pileup_abs_eff: float,
     dry_run: bool,
 ) -> dict:
+    """Run the double_edep.C ROOT macro and parse its output."""
     script_path = Path("scripts") / "double_edep.C"
     macro_arg = (
         f'{{"{mubeam_edep_root}", "{elebeam_edep_root}", "{pileup_edep_root}"}}, '
@@ -554,65 +460,57 @@ def _run_double_edep_analysis(
 
     command_path = run_dir / "final_command.txt"
     command_path.write_text(shlex.join(command) + "\n", encoding="utf-8")
-
     log_path = run_dir / "final.log"
+
     if dry_run:
         log_path.write_text("DRY RUN\n", encoding="utf-8")
         return {
-            "ran": False,
-            "returncode": 0,
-            "command": command,
-            "command_path": str(command_path),
-            "log_path": str(log_path),
-            "metrics": {},
-            "error": None,
+            "ran": False, "returncode": 0,
+            "command": command, "command_path": str(command_path),
+            "log_path": str(log_path), "metrics": {}, "error": None,
         }
 
     try:
         proc = subprocess.run(
-            command,
-            cwd=workflows_dir,
-            capture_output=True,
-            text=True,
-            check=False,
+            command, cwd=workflows_dir,
+            capture_output=True, text=True, check=False,
         )
     except FileNotFoundError:
         log_path.write_text("root executable not found on PATH\n", encoding="utf-8")
         return {
-            "ran": False,
-            "returncode": None,
-            "command": command,
-            "command_path": str(command_path),
-            "log_path": str(log_path),
-            "metrics": {},
+            "ran": False, "returncode": None,
+            "command": command, "command_path": str(command_path),
+            "log_path": str(log_path), "metrics": {},
             "error": "root executable not found on PATH",
         }
 
-    text = proc.stdout + "\n" + proc.stderr
+    text = f"{proc.stdout}\n{proc.stderr}"
     log_path.write_text(text, encoding="utf-8")
 
-    metrics: dict[str, float | None] = {key: None for key in _DOUBLE_EDEP_PATTERNS}
+    # Parse metrics from output.
+    metrics: dict[str, float | None] = {k: None for k in _DOUBLE_EDEP_PATTERNS}
     metric_lines: dict[str, str] = {}
-    threshold_rates = {
+    threshold_rates: dict[str, float | None] = {
         "estimated_rate_per_event_e50": None,
         "estimated_rate_per_event_e70": None,
         "estimated_rate_per_event_e80": None,
         "estimated_rate_per_event_e90": None,
     }
+
     for line in text.splitlines():
         stripped = line.strip()
         for key, pattern in _DOUBLE_EDEP_PATTERNS.items():
-            match = pattern.search(stripped)
-            if match:
-                metrics[key] = float(match.group(1))
+            m = pattern.search(stripped)
+            if m:
+                metrics[key] = float(m.group(1))
                 metric_lines[key] = stripped
-        threshold_match = _DOUBLE_EDEP_THRESHOLDS_PATTERN.search(stripped)
-        if threshold_match:
+        m = _DOUBLE_EDEP_THRESHOLDS_PATTERN.search(stripped)
+        if m:
             threshold_rates = {
-                "estimated_rate_per_event_e50": float(threshold_match.group(1)),
-                "estimated_rate_per_event_e70": float(threshold_match.group(2)),
-                "estimated_rate_per_event_e80": float(threshold_match.group(3)),
-                "estimated_rate_per_event_e90": float(threshold_match.group(4)),
+                "estimated_rate_per_event_e50": float(m.group(1)),
+                "estimated_rate_per_event_e70": float(m.group(2)),
+                "estimated_rate_per_event_e80": float(m.group(3)),
+                "estimated_rate_per_event_e90": float(m.group(4)),
             }
             metric_lines["estimated_rates_per_event"] = stripped
 
@@ -630,6 +528,60 @@ def _run_double_edep_analysis(
     }
 
 
+# ---------------------------------------------------------------------------
+# Summary printing helpers
+# ---------------------------------------------------------------------------
+
+def _fmt(value: object, fmt: str = ".8g", na: str = "unavailable") -> str:
+    """Format a numeric value, returning *na* when ``None``."""
+    if value is None:
+        return na
+    return f"{value:{fmt}}"
+
+
+def _fmt_col(value: object, width: int, fmt: str = ".2e", na: str = "N/A") -> str:
+    """Format a value right-aligned inside *width* chars, centred *na* on ``None``."""
+    if value is None:
+        return na.center(width)
+    return f"{value:{width}{fmt}}"
+
+
+def _compute_sample_metrics(
+    sample_stats: dict,
+    scale: float | None,
+) -> dict:
+    """Extract per-sample Edep/tracker metrics and absolute efficiencies."""
+    seen = sample_stats.get("events_seen")
+    gt50 = sample_stats.get("events_edep_gt_50_mev")
+    trk_mpv = sample_stats.get("tracker_front_fit_mpv_mev")
+    trk_fwhm = sample_stats.get("tracker_front_fit_fwhm_mev")
+    delta_mpv = sample_stats.get("primary_edep_minus_tracker_front_distribution_mpv_mev")
+    delta_fwhm = sample_stats.get("primary_edep_minus_tracker_front_distribution_fwhm_mev")
+
+    combined_mpv = (
+        trk_mpv + delta_mpv
+        if trk_mpv is not None and delta_mpv is not None else None
+    )
+    combined_fwhm = (
+        math.sqrt(trk_fwhm ** 2 + delta_fwhm ** 2)
+        if trk_fwhm is not None and delta_fwhm is not None else None
+    )
+
+    abs_all = seen * scale if scale is not None and seen is not None else None
+    abs_gt50 = gt50 * scale if scale is not None and gt50 is not None else None
+
+    return {
+        "events_seen": seen,
+        "events_gt50": gt50,
+        "tracker_mpv": trk_mpv,
+        "tracker_fwhm": trk_fwhm,
+        "combined_mpv": combined_mpv,
+        "combined_fwhm": combined_fwhm,
+        "abs_eff_all": abs_all,
+        "abs_eff_gt50": abs_gt50,
+    }
+
+
 def _print_compact_summary_table(
     target_abs: float | None,
     calo_abs: float | None,
@@ -643,45 +595,87 @@ def _print_compact_summary_table(
     run1a_total_hit_eff_per_pot: float | None,
 ) -> None:
     """Print compact summary table with given metrics."""
-    compact_line = '| config | '
-    if target_abs is not None: compact_line += '%8.2e' % (target_abs)
-    else: compact_line += '  N/A   '
-    compact_line += ' | '
-    if calo_abs is not None: compact_line += '%9.2e' % (calo_abs)
-    else: compact_line += '   N/A   '
-    compact_line += ' | '
-    if total_edep_per_pot is not None: compact_line += '%10.2e' % (total_edep_per_pot)
-    else: compact_line += '   N/A    '
-    compact_line += ' | '
-    if fgam_abs_50 is not None: compact_line += '%8.2e' % (fgam_abs_50)
-    else: compact_line += '  N/A   '
-    compact_line += ' | '
-    if ce_abs_50 is not None: compact_line += '%8.2e' % (ce_abs_50)
-    else: compact_line += '  N/A   '
-    compact_line += ' | '
-    if ce_mpv is not None: compact_line += '%6.1f' % (ce_mpv)
-    else: compact_line += ' N/A  '
-    compact_line += ' | '
-    if run1a_ce_abs_50 is not None: compact_line += '%8.2e' % (run1a_ce_abs_50)
-    else: compact_line += '   N/A   '
-    compact_line += ' | '
-    if run1a_ce_mpv is not None: compact_line += '%10.2f' % (run1a_ce_mpv)
-    else: compact_line += '    N/A    '
-    compact_line += ' | '
-    if run1a_ce_sens is not None: compact_line += '%9.2f' % (run1a_ce_sens)
-    else: compact_line += '   N/A   '
-    compact_line += ' | '
-    if run1a_total_hit_eff_per_pot is not None: compact_line += '%13.2e' % (run1a_total_hit_eff_per_pot)
-    else: compact_line += '      N/A      '
-    compact_line += ' | '
+    sep  = "|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|"
+    hdr1 = "| Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |   CE eff | CE TRK |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |"
+    hdr2 = "|        | per POT  |  per POT  |  <edep>    | Edep(50) | Edep(50) |  MPV   |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    |"
 
-    print('|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|')
-    print('| Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |   CE eff | CE TRK |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |')
-    print('|        | per POT  |  per POT  |  <edep>    | Edep(50) | Edep(50) |  MPV   |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    |')
-    print('|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|')
-    print(compact_line)
-    print('|--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------|')
+    row = "| config | "
+    row += _fmt_col(target_abs, 8) + " | "
+    row += _fmt_col(calo_abs, 9) + " | "
+    row += _fmt_col(total_edep_per_pot, 10) + " | "
+    row += _fmt_col(fgam_abs_50, 8) + " | "
+    row += _fmt_col(ce_abs_50, 8) + " | "
+    row += _fmt_col(ce_mpv, 6, ".1f") + " | "
+    row += _fmt_col(run1a_ce_abs_50, 8) + " | "
+    row += _fmt_col(run1a_ce_mpv, 10, ".2f") + " | "
+    row += _fmt_col(run1a_ce_sens, 9, ".2f") + " | "
+    row += _fmt_col(run1a_total_hit_eff_per_pot, 13) + " | "
 
+    print(sep)
+    print(hdr1)
+    print(hdr2)
+    print(sep)
+    print(row)
+    print(sep)
+
+
+# ---------------------------------------------------------------------------
+# Beam-stage metric extraction helpers (reduce duplication)
+# ---------------------------------------------------------------------------
+
+def _extract_beam_metrics(summary: dict, flash_key: str) -> dict:
+    """Pull common beam-stage metrics from a summary dict.
+
+    *flash_key* is the art output type name, e.g. ``"FlashOutput"`` or
+    ``"EleFlashOutput"``.
+    """
+    input_corr = _safe_get(summary, "input_efficiency", "correction_factor")
+    sim_total = _safe_get(summary, "simulation_events", "total_events")
+    flash_eff = _safe_get(summary, "art_event_analysis", "absolute_efficiency_by_type", flash_key)
+    edep_avg = _safe_get(summary, "edep_analysis", "average_calo_energy_mev")
+    edep_gt50 = _safe_get(summary, "edep_analysis", "events_edep_gt_50_mev")
+
+    gt50_abs = None
+    if input_corr is not None and sim_total not in (None, 0) and edep_gt50 is not None:
+        gt50_abs = (edep_gt50 / sim_total) * input_corr
+
+    effective_pot = None
+    if sim_total not in (None, 0) and input_corr not in (None, 0):
+        effective_pot = sim_total / input_corr
+
+    return {
+        "input_corr": input_corr,
+        "sim_total": sim_total,
+        "flash_eff": flash_eff,
+        "edep_avg": edep_avg,
+        "edep_gt50": edep_gt50,
+        "gt50_abs": gt50_abs,
+        "effective_pot": effective_pot,
+    }
+
+
+def _compute_muon_stop_scale(
+    input_corr: float | None,
+    stopping_factor: float | None,
+    sim_per_mode: float | None,
+) -> float | None:
+    """Compute the per-event absolute-efficiency scale factor for mustop samples."""
+    if (
+        input_corr is None
+        or stopping_factor is None
+        or sim_per_mode in (None, 0)
+    ):
+        return None
+    return (
+        input_corr * stopping_factor
+        * _GEN_RESTRICTION_FACTOR * _MUON_STOP_PRESCALE_CORRECTION
+        / sim_per_mode
+    )
+
+
+# ---------------------------------------------------------------------------
+# Full summary printer
+# ---------------------------------------------------------------------------
 
 def _print_all_stage_compact_summary(
     mubeam_summary: dict,
@@ -692,1322 +686,982 @@ def _print_all_stage_compact_summary(
     run1a_mubeam_summary: dict | None = None,
     run1a_mustops_summary: dict | None = None,
 ) -> None:
-    input_corr = mubeam_summary.get("input_efficiency", {}).get("correction_factor")
-    target_abs = mubeam_summary.get("target_al_analysis", {}).get("target_al_entries_absolute_efficiency")
-    calo_abs = mubeam_summary.get("target_al_analysis", {}).get("calo_entries_absolute_efficiency")
-    mubeam_flash_abs_eff = (
-        mubeam_summary
-        .get("art_event_analysis", {})
-        .get("absolute_efficiency_by_type", {})
-        .get("FlashOutput")
-    )
-    mubeam_edep_avg = (
-        mubeam_summary.get("edep_analysis", {}).get("average_calo_energy_mev")
-        if mubeam_summary is not None
-        else None
-    )
-    elebeam_flash_abs_eff = (
-        elebeam_summary.get("art_event_analysis", {}).get("absolute_efficiency_by_type", {}).get("EleFlashOutput")
-        if elebeam_summary is not None
-        else None
-    )
-    elebeam_edep_avg = (
-        elebeam_summary.get("edep_analysis", {}).get("average_calo_energy_mev")
-        if elebeam_summary is not None
-        else None
-    )
-    elebeam_input_corr = (
-        elebeam_summary.get("input_efficiency", {}).get("correction_factor")
-        if elebeam_summary is not None
-        else None
-    )
-    elebeam_sim_total = (
-        elebeam_summary.get("simulation_events", {}).get("total_events")
-        if elebeam_summary is not None
-        else None
-    )
-    elebeam_edep_gt50 = (
-        elebeam_summary.get("edep_analysis", {}).get("events_edep_gt_50_mev")
-        if elebeam_summary is not None
-        else None
-    )
+    """Print the full multi-stage summary block."""
 
-    sim_total = mubeam_summary.get("simulation_events", {}).get("total_events")
-    edep = mubeam_summary.get("edep_analysis", {})
-    edep_events_seen = edep.get("events_seen")
-    edep_avg = edep.get("average_calo_energy_mev")
-    edep_gt50 = edep.get("events_edep_gt_50_mev")
-
-    mubeam_gt50_per_sim_abs = None
-    if (
-        input_corr is not None
-        and sim_total not in (None, 0)
-        and edep_events_seen is not None
-        and edep_gt50 is not None
-    ):
-        mubeam_gt50_per_sim_abs = (edep_gt50 / sim_total) * input_corr
-
-    elebeam_gt50_per_sim_abs = None
-    if (
-        elebeam_input_corr is not None
-        and elebeam_sim_total not in (None, 0)
-        and elebeam_edep_gt50 is not None
-    ):
-        elebeam_gt50_per_sim_abs = (elebeam_edep_gt50 / elebeam_sim_total) * elebeam_input_corr
-
-    n_muminus_stops = mubeam_summary.get("muminus_stops_events")
+    # ---- mubeam ----------------------------------------------------------
+    mu = _extract_beam_metrics(mubeam_summary, "FlashOutput")
+    target_abs = _safe_get(mubeam_summary, "target_al_analysis", "target_al_entries_absolute_efficiency")
+    calo_abs = _safe_get(mubeam_summary, "target_al_analysis", "calo_entries_absolute_efficiency")
+    n_muminus = mubeam_summary.get("muminus_stops_events")
+    sim_total = mu["sim_total"]
     stopping_factor = (
-        n_muminus_stops / sim_total
-        if n_muminus_stops is not None and sim_total not in (None, 0)
-        else None
+        n_muminus / sim_total
+        if n_muminus is not None and sim_total not in (None, 0) else None
     )
 
-    mustop_sim_total = mustop_summary.get("simulation_events", {}).get("total_events") if mustop_summary else None
+    # ---- elebeam ---------------------------------------------------------
+    ele = _extract_beam_metrics(elebeam_summary, "EleFlashOutput") if elebeam_summary else {}
+
+    # ---- mustop ----------------------------------------------------------
     mustop_modes = _mustop_modes_from_summary(mustop_summary)
+    mustop_sim_total = (
+        _safe_get(mustop_summary, "simulation_events", "total_events")
+        if mustop_summary else None
+    )
     mustop_sim_per_mode = (
         mustop_sim_total / len(mustop_modes)
         if mustop_sim_total not in (None, 0) and mustop_summary is not None
         else None
     )
-
-    mubeam_effective_pot = (
-        sim_total / input_corr
-        if sim_total not in (None, 0) and input_corr not in (None, 0)
-        else None
-    )
-    elebeam_effective_pot = (
-        elebeam_sim_total / elebeam_input_corr
-        if elebeam_sim_total not in (None, 0) and elebeam_input_corr not in (None, 0)
-        else None
-    )
     muon_stop_input_eff = (
-        input_corr * stopping_factor * _MUON_STOP_PRESCALE_CORRECTION
-        if input_corr is not None and stopping_factor is not None
+        mu["input_corr"] * stopping_factor * _MUON_STOP_PRESCALE_CORRECTION
+        if mu["input_corr"] is not None and stopping_factor is not None
         else None
     )
-    mustop_effective_pot_per_mode = (
+    mustop_effective_pot = (
         mustop_sim_per_mode / muon_stop_input_eff
         if mustop_sim_per_mode not in (None, 0) and muon_stop_input_eff not in (None, 0)
         else None
     )
 
+    scale = _compute_muon_stop_scale(mu["input_corr"], stopping_factor, mustop_sim_per_mode)
+
+    # ---- Print beam/mustop lines -----------------------------------------
     print("-----")
     print("Compact all-stage summary")
-    print(f"  Target absolute muon stopping rate: {target_abs:.8g}" if target_abs is not None else "  Target absolute muon stopping rate: unavailable")
-    print(f"  Calorimeter absolute muon stopping rate: {calo_abs:.8g}" if calo_abs is not None else "  Calorimeter absolute muon stopping rate: unavailable")
-    print(
-        f"  mubeam flash output absolute efficiency: {mubeam_flash_abs_eff:.8g}"
-        if mubeam_flash_abs_eff is not None
-        else "  mubeam flash output absolute efficiency: unavailable"
-    )
-    print(
-        f"  mubeam average Edep / event: {edep_avg:.8g} MeV"
-        if edep_avg is not None
-        else "  mubeam average Edep / event: unavailable"
-    )
-    print(
-        f"  mubeam events with Edep > 50 per simulated event (absolute): {mubeam_gt50_per_sim_abs:.8g}"
-        if mubeam_gt50_per_sim_abs is not None
-        else "  mubeam events with Edep > 50 per simulated event (absolute): unavailable"
-    )
-    print(
-        f"  mubeam effective N(POT) simulated: {mubeam_effective_pot:.8g}"
-        if mubeam_effective_pot is not None
-        else "  mubeam effective N(POT) simulated: unavailable"
-    )
-    print(
-        f"  elebeam flash output absolute efficiency: {elebeam_flash_abs_eff:.8g}"
-        if elebeam_flash_abs_eff is not None
-        else "  elebeam flash output absolute efficiency: unavailable"
-    )
-    print(
-        f"  elebeam average Edep / event: {elebeam_edep_avg:.8g} MeV"
-        if elebeam_edep_avg is not None
-        else "  elebeam average Edep / event: unavailable"
-    )
-    print(
-        f"  elebeam events with Edep > 50 per simulated event (absolute): {elebeam_gt50_per_sim_abs:.8g}"
-        if elebeam_gt50_per_sim_abs is not None
-        else "  elebeam events with Edep > 50 per simulated event (absolute): unavailable"
-    )
-    print(
-        f"  elebeam effective N(POT) simulated: {elebeam_effective_pot:.8g}"
-        if elebeam_effective_pot is not None
-        else "  elebeam effective N(POT) simulated: unavailable"
-    )
-    print(
-        f"  mustop effective N(POT) simulated (per mode): {mustop_effective_pot_per_mode:.8g}"
-        if mustop_effective_pot_per_mode is not None
-        else "  mustop effective N(POT) simulated (per mode): unavailable"
-    )
+    print(f"  Target absolute muon stopping rate: {_fmt(target_abs)}")
+    print(f"  Calorimeter absolute muon stopping rate: {_fmt(calo_abs)}")
+    print(f"  mubeam flash output absolute efficiency: {_fmt(mu.get('flash_eff'))}")
+    print(f"  mubeam average Edep / event: {_fmt(mu.get('edep_avg'))} MeV")
+    print(f"  mubeam events with Edep > 50 per simulated event (absolute): {_fmt(mu.get('gt50_abs'))}")
+    print(f"  mubeam effective N(POT) simulated: {_fmt(mu.get('effective_pot'))}")
+    print(f"  elebeam flash output absolute efficiency: {_fmt(ele.get('flash_eff'))}")
+    print(f"  elebeam average Edep / event: {_fmt(ele.get('edep_avg'))} MeV")
+    print(f"  elebeam events with Edep > 50 per simulated event (absolute): {_fmt(ele.get('gt50_abs'))}")
+    print(f"  elebeam effective N(POT) simulated: {_fmt(ele.get('effective_pot'))}")
+    print(f"  mustop effective N(POT) simulated (per mode): {_fmt(mustop_effective_pot)}")
 
-    scale = None
-    if input_corr is not None and stopping_factor is not None and mustop_sim_per_mode not in (None, 0) and mustop_summary is not None:
-        scale = (
-            input_corr
-            * stopping_factor
-            * _GEN_RESTRICTION_FACTOR
-            * _MUON_STOP_PRESCALE_CORRECTION
-            / mustop_sim_per_mode
-        )
-
-
-    fgam_abs_50 = None
-    ce_abs_50 = None
-    ce_mpv = None
-
+    # ---- Per-mode mustop efficiencies ------------------------------------
+    fgam_abs_50: float | None = None
+    ce_abs_50: float | None = None
+    ce_mpv: float | None = None
     mustop_abs_eff_all_by_sample: dict[str, float | None] = {}
+
     if mustop_summary:
         for sample in mustop_modes:
             sample_stats = mustop_summary.get("edep_analysis_by_sample", {}).get(sample, {})
-        sample_seen = sample_stats.get("events_seen")
-        sample_gt50 = sample_stats.get("events_edep_gt_50_mev")
-        tracker_front_fit_mpv = sample_stats.get("tracker_front_fit_mpv_mev")
-        tracker_front_fit_fwhm = sample_stats.get("tracker_front_fit_fwhm_mev")
-        primary_edep_minus_tracker_front_mpv = sample_stats.get("primary_edep_minus_tracker_front_distribution_mpv_mev")
-        primary_edep_minus_tracker_front_fwhm = sample_stats.get("primary_edep_minus_tracker_front_distribution_fwhm_mev")
+            sm = _compute_sample_metrics(sample_stats, scale)
+            mustop_abs_eff_all_by_sample[sample] = sm["abs_eff_all"]
 
-        sample_mpv = (
-            tracker_front_fit_mpv + primary_edep_minus_tracker_front_mpv
-            if tracker_front_fit_mpv is not None and primary_edep_minus_tracker_front_mpv is not None
-            else None
-        )
-        sample_fwhm = (
-            math.sqrt(tracker_front_fit_fwhm**2 + primary_edep_minus_tracker_front_fwhm**2)
-            if tracker_front_fit_fwhm is not None and primary_edep_minus_tracker_front_fwhm is not None
-            else None
-        )
+            print(
+                f"  {sample}: abs eff (all)={_fmt(sm['abs_eff_all'])}, "
+                f"abs eff (Edep>50)={_fmt(sm['abs_eff_gt50'])}, "
+                f"Trk MPV={_fmt(sm['tracker_mpv'], '.4g')} MeV, "
+                f"Trk FWHM={_fmt(sm['tracker_fwhm'], '.4g')} MeV"
+            )
 
-        sample_abs_eff_all = sample_seen * scale if scale is not None and sample_seen is not None else None
-        sample_abs_eff_gt50 = sample_gt50 * scale if scale is not None and sample_gt50 is not None else None
-        mustop_abs_eff_all_by_sample[sample] = sample_abs_eff_all
+            if sample == "ce":
+                ce_abs_50 = sm["abs_eff_gt50"]
+                ce_mpv = sm["tracker_mpv"]
+            elif sample == "flat_gamma":
+                fgam_abs_50 = sm["abs_eff_gt50"]
 
-        eff_all_str = f"{sample_abs_eff_all:.8g}" if sample_abs_eff_all is not None else "unavailable"
-        eff_gt50_str = f"{sample_abs_eff_gt50:.8g}" if sample_abs_eff_gt50 is not None else "unavailable"
-        mpv_str  = f"{tracker_front_fit_mpv:.4g}"  if tracker_front_fit_mpv is not None else "unavailable"
-        fwhm_str = f"{tracker_front_fit_fwhm:.4g}" if tracker_front_fit_fwhm is not None else "unavailable"
-        # mpv_str = f"{sample_mpv:.4g}" if sample_mpv is not None else "unavailable"
-        # fwhm_str = f"{sample_fwhm:.4g}" if sample_fwhm is not None else "unavailable"
-
-        print(f"  {sample}: abs eff (all)={eff_all_str}, abs eff (Edep>50)={eff_gt50_str}, Trk MPV={mpv_str} MeV, Trk FWHM={fwhm_str} MeV")
-        if sample == 'ce':
-            ce_abs_50 = sample_abs_eff_gt50
-            ce_mpv = tracker_front_fit_mpv
-        elif sample == 'flat_gamma':
-            fgam_abs_50 = sample_abs_eff_gt50
-
+    # ---- Run 1A ----------------------------------------------------------
     run1a_target_abs = (
-        run1a_mubeam_summary.get("target_al_analysis", {}).get("target_al_entries_absolute_efficiency")
-        if run1a_mubeam_summary is not None
-        else None
+        _safe_get(run1a_mubeam_summary, "target_al_analysis", "target_al_entries_absolute_efficiency")
+        if run1a_mubeam_summary else None
     )
-    print(
-        f"  run1a target absolute muon stopping rate: {run1a_target_abs:.8g}"
-        if run1a_target_abs is not None
-        else "  run1a target absolute muon stopping rate: unavailable"
+    print(f"  run1a target absolute muon stopping rate: {_fmt(run1a_target_abs)}")
+
+    run1a_input_corr = _safe_get(run1a_mubeam_summary, "input_efficiency", "correction_factor") if run1a_mubeam_summary else None
+    run1a_flash_eff = _safe_get(run1a_mubeam_summary, "art_event_analysis", "absolute_efficiency_by_type", "FlashOutput") if run1a_mubeam_summary else None
+    run1a_sim_total = _safe_get(run1a_mubeam_summary, "simulation_events", "total_events") if run1a_mubeam_summary else None
+    run1a_n_stops = run1a_mubeam_summary.get("muminus_stops_events") if run1a_mubeam_summary else None
+    run1a_stopping_factor = (
+        run1a_n_stops / run1a_sim_total
+        if run1a_n_stops is not None and run1a_sim_total not in (None, 0) else None
     )
 
-    run1a_input_corr = (
-        run1a_mubeam_summary.get("input_efficiency", {}).get("correction_factor")
-        if run1a_mubeam_summary is not None
-        else None
-    )
-    run1a_mubeam_flash_abs_eff = (
-        run1a_mubeam_summary.get("art_event_analysis", {}).get("absolute_efficiency_by_type", {}).get("FlashOutput")
-        if run1a_mubeam_summary is not None
-        else None
-    )
-    run1a_sim_total = (
-        run1a_mubeam_summary.get("simulation_events", {}).get("total_events")
-        if run1a_mubeam_summary is not None
-        else None
-    )
-    run1a_n_muminus_stops = (
-        run1a_mubeam_summary.get("muminus_stops_events")
-        if run1a_mubeam_summary is not None
-        else None
-    )
-    run1a_stopping_factor = (
-        run1a_n_muminus_stops / run1a_sim_total
-        if run1a_n_muminus_stops is not None and run1a_sim_total not in (None, 0)
-        else None
-    )
-    run1a_mustops_sim_total = (
-        run1a_mustops_summary.get("simulation_events", {}).get("total_events")
-        if run1a_mustops_summary is not None
-        else None
-    )
     run1a_mustops_modes = _mustop_modes_from_summary(run1a_mustops_summary)
+    run1a_mustops_sim_total = (
+        _safe_get(run1a_mustops_summary, "simulation_events", "total_events")
+        if run1a_mustops_summary else None
+    )
     run1a_mustops_sim_per_mode = (
         run1a_mustops_sim_total / len(run1a_mustops_modes)
-        if run1a_mustops_sim_total not in (None, 0)
-        else None
+        if run1a_mustops_sim_total not in (None, 0) else None
     )
     run1a_sim_by_mode = _compute_simulated_events_by_mode(run1a_mustops_summary)
-    run1a_reference_sim_per_mode = run1a_sim_by_mode.get("ce")
-    if run1a_reference_sim_per_mode in (None, 0):
-        run1a_reference_sim_per_mode = run1a_sim_by_mode.get("ce_plus")
-    if run1a_reference_sim_per_mode in (None, 0):
-        run1a_reference_sim_per_mode = run1a_mustops_sim_per_mode
-    run1a_muon_stop_input_eff = (
+    run1a_ref_sim = run1a_sim_by_mode.get("ce")
+    if run1a_ref_sim in (None, 0):
+        run1a_ref_sim = run1a_sim_by_mode.get("ce_plus")
+    if run1a_ref_sim in (None, 0):
+        run1a_ref_sim = run1a_mustops_sim_per_mode
+
+    run1a_muon_stop_eff = (
         run1a_input_corr * run1a_stopping_factor
-        if run1a_input_corr is not None and run1a_stopping_factor is not None
-        else None
+        if run1a_input_corr is not None and run1a_stopping_factor is not None else None
     )
-    run1a_mustops_effective_pot_per_mode = (
-        run1a_reference_sim_per_mode / run1a_muon_stop_input_eff
-        if run1a_reference_sim_per_mode not in (None, 0) and run1a_muon_stop_input_eff not in (None, 0)
-        else None
+    run1a_mustops_effective_pot = (
+        run1a_ref_sim / run1a_muon_stop_eff
+        if run1a_ref_sim not in (None, 0) and run1a_muon_stop_eff not in (None, 0) else None
     )
-    print(
-        f"  run1a_mustops effective N(POT) simulated (per mode): {run1a_mustops_effective_pot_per_mode:.8g}"
-        if run1a_mustops_effective_pot_per_mode is not None
-        else "  run1a_mustops effective N(POT) simulated (per mode): unavailable"
-    )
+    print(f"  run1a_mustops effective N(POT) simulated (per mode): {_fmt(run1a_mustops_effective_pot)}")
 
-    run1a_ce_abs_50 = None
-    run1a_ce_mpv = None
-    run1a_ce_sens = None
+    run1a_ce_abs_50: float | None = None
+    run1a_ce_mpv: float | None = None
+    run1a_ce_sens: float | None = None
     run1a_abs_eff_all_by_sample: dict[str, float | None] = {}
+
     for sample in run1a_mustops_modes:
-        sample_stats = run1a_mustops_summary.get("edep_analysis_by_sample", {}).get(sample, {}) if run1a_mustops_summary else {}
-        sample_seen = sample_stats.get("events_seen")
-        sample_gt50 = sample_stats.get("events_edep_gt_50_mev")
-        tracker_front_fit_mpv = sample_stats.get("tracker_front_fit_mpv_mev")
-        tracker_front_fit_fwhm = sample_stats.get("tracker_front_fit_fwhm_mev")
-        primary_edep_minus_tracker_front_mpv = sample_stats.get("primary_edep_minus_tracker_front_distribution_mpv_mev")
-        primary_edep_minus_tracker_front_fwhm = sample_stats.get("primary_edep_minus_tracker_front_distribution_fwhm_mev")
-        sample_mpv = (
-            tracker_front_fit_mpv + primary_edep_minus_tracker_front_mpv
-            if tracker_front_fit_mpv is not None and primary_edep_minus_tracker_front_mpv is not None
-            else None
+        sample_stats = (
+            run1a_mustops_summary.get("edep_analysis_by_sample", {}).get(sample, {})
+            if run1a_mustops_summary else {}
         )
-        sample_fwhm = (
-            math.sqrt(tracker_front_fit_fwhm**2 + primary_edep_minus_tracker_front_fwhm**2)
-            if tracker_front_fit_fwhm is not None and primary_edep_minus_tracker_front_fwhm is not None
-            else None
+        seen = sample_stats.get("events_seen")
+        gt50 = sample_stats.get("events_edep_gt_50_mev")
+        trk_mpv = sample_stats.get("tracker_front_fit_mpv_mev")
+        trk_fwhm = sample_stats.get("tracker_front_fit_fwhm_mev")
+        delta_mpv = sample_stats.get("primary_edep_minus_tracker_front_distribution_mpv_mev")
+        delta_fwhm = sample_stats.get("primary_edep_minus_tracker_front_distribution_fwhm_mev")
+
+        combined_mpv = (
+            trk_mpv + delta_mpv
+            if trk_mpv is not None and delta_mpv is not None else None
         )
-        sample_gen_correction = _GEN_RESTRICTION_FACTOR if sample == "flat_gamma" else 1.0
-        sample_simulated_events = run1a_sim_by_mode.get(sample)
+        combined_fwhm = (
+            math.sqrt(trk_fwhm ** 2 + delta_fwhm ** 2)
+            if trk_fwhm is not None and delta_fwhm is not None else None
+        )
 
-        # Run1A flat_gamma should be normalized to the same simulated-event baseline as ce/ce_plus.
-        if sample == "flat_gamma" and run1a_reference_sim_per_mode not in (None, 0):
-            sample_simulated_events = run1a_reference_sim_per_mode
-        elif sample_simulated_events in (None, 0):
-            sample_simulated_events = run1a_reference_sim_per_mode
+        gen_corr = _GEN_RESTRICTION_FACTOR if sample == "flat_gamma" else 1.0
+        sample_sim = run1a_sim_by_mode.get(sample)
 
-        run1a_sample_scale = (
-            run1a_input_corr * run1a_stopping_factor / sample_simulated_events
+        # Normalise flat_gamma to same baseline as ce/ce_plus.
+        if sample == "flat_gamma" and run1a_ref_sim not in (None, 0):
+            sample_sim = run1a_ref_sim
+        elif sample_sim in (None, 0):
+            sample_sim = run1a_ref_sim
+
+        sample_scale = (
+            run1a_input_corr * run1a_stopping_factor / sample_sim
             if run1a_input_corr is not None
             and run1a_stopping_factor is not None
-            and sample_simulated_events not in (None, 0)
+            and sample_sim not in (None, 0)
             else None
         )
 
-        sample_eff_per_mu_stop_all = (
-            sample_seen / sample_simulated_events * sample_gen_correction
-            if sample_seen is not None and sample_simulated_events not in (None, 0)
-            else None
-        )
-        sample_eff_per_mu_stop_gt50 = (
-            sample_gt50 / sample_simulated_events * sample_gen_correction
-            if sample_gt50 is not None and sample_simulated_events not in (None, 0)
-            else None
-        )
-
-        sample_abs_eff_all = (
-            sample_seen * run1a_sample_scale * sample_gen_correction
-            if run1a_sample_scale is not None and sample_seen is not None
-            else None
-        )
-        sample_abs_eff_gt50 = (
-            sample_gt50 * run1a_sample_scale * sample_gen_correction
-            if run1a_sample_scale is not None and sample_gt50 is not None
-            else None
-        )
-        run1a_abs_eff_all_by_sample[sample] = sample_abs_eff_all
-
-        eff_per_mu_stop_all_str = f"{sample_eff_per_mu_stop_all:.8g}" if sample_eff_per_mu_stop_all is not None else "unavailable"
-        eff_per_mu_stop_gt50_str = f"{sample_eff_per_mu_stop_gt50:.8g}" if sample_eff_per_mu_stop_gt50 is not None else "unavailable"
-        eff_all_str = f"{sample_abs_eff_all:.8g}" if sample_abs_eff_all is not None else "unavailable"
-        eff_gt50_str = f"{sample_abs_eff_gt50:.8g}" if sample_abs_eff_gt50 is not None else "unavailable"
-        mpv_str = f"{sample_mpv:.4g}" if sample_mpv is not None else "unavailable"
-        fwhm_str = f"{sample_fwhm:.4g}" if sample_fwhm is not None else "unavailable"
-        tracker_front_fit_mpv_str = f"{tracker_front_fit_mpv:.4g}" if tracker_front_fit_mpv is not None else "unavailable"
-        tracker_front_fit_fwhm_str = f"{tracker_front_fit_fwhm:.4g}" if tracker_front_fit_fwhm is not None else "unavailable"
+        eff_all = seen / sample_sim * gen_corr if seen is not None and sample_sim not in (None, 0) else None
+        eff_gt50 = gt50 / sample_sim * gen_corr if gt50 is not None and sample_sim not in (None, 0) else None
+        abs_all = seen * sample_scale * gen_corr if sample_scale is not None and seen is not None else None
+        abs_gt50 = gt50 * sample_scale * gen_corr if sample_scale is not None and gt50 is not None else None
+        run1a_abs_eff_all_by_sample[sample] = abs_all
 
         print(
-            f"  run1a {sample}: eff/mu stop (all)={eff_per_mu_stop_all_str}, "
-            f"eff/mu stop (Edep>50)={eff_per_mu_stop_gt50_str}, "
-            f"abs eff (all)={eff_all_str}, "
-            f"abs eff (Edep>50)={eff_gt50_str}, MPV={mpv_str} MeV, FWHM={fwhm_str} MeV, "
-            f"trk-front fit MPV={tracker_front_fit_mpv_str} MeV, FWHM={tracker_front_fit_fwhm_str} MeV"
+            f"  run1a {sample}: eff/mu stop (all)={_fmt(eff_all)}, "
+            f"eff/mu stop (Edep>50)={_fmt(eff_gt50)}, "
+            f"abs eff (all)={_fmt(abs_all)}, "
+            f"abs eff (Edep>50)={_fmt(abs_gt50)}, "
+            f"MPV={_fmt(combined_mpv, '.4g')} MeV, FWHM={_fmt(combined_fwhm, '.4g')} MeV, "
+            f"trk-front fit MPV={_fmt(trk_mpv, '.4g')} MeV, FWHM={_fmt(trk_fwhm, '.4g')} MeV"
         )
 
-        if sample == 'ce':
-            run1a_ce_abs_50 = sample_abs_eff_all
-            run1a_ce_mpv = tracker_front_fit_mpv
+        if sample == "ce":
+            run1a_ce_abs_50 = abs_all
+            run1a_ce_mpv = trk_mpv
 
-    run1a_rough_sensitivity_line = (
-        run1a_mustops_summary.get("rough_run1a_sensitivity", {}).get("summary_line")
-        if run1a_mustops_summary is not None
-        else None
+    # Run 1A rough sensitivity
+    run1a_sens_line = (
+        _safe_get(run1a_mustops_summary, "rough_run1a_sensitivity", "summary_line")
+        if run1a_mustops_summary else None
     )
-    print(
-        f"  run1a rough sensitivity (ce): {run1a_rough_sensitivity_line}"
-        if run1a_rough_sensitivity_line
-        else "  run1a rough sensitivity (ce): unavailable"
-    )
-    if run1a_rough_sensitivity_line: run1a_ce_sens = float(run1a_rough_sensitivity_line.split('=')[-1])
+    print(f"  run1a rough sensitivity (ce): {run1a_sens_line or 'unavailable'}")
+    if run1a_sens_line:
+        run1a_ce_sens = float(run1a_sens_line.split("=")[-1])
 
-    run1a_flat_electron_abs_eff_all = run1a_abs_eff_all_by_sample.get("flat_electron")
-    run1a_total_hit_eff_per_pot = (
-        run1a_mubeam_flash_abs_eff + run1a_flat_electron_abs_eff_all
-        if run1a_mubeam_flash_abs_eff is not None and run1a_flat_electron_abs_eff_all is not None
-        else None
+    run1a_fe_abs = run1a_abs_eff_all_by_sample.get("flat_electron")
+    run1a_total_hit = (
+        run1a_flash_eff + run1a_fe_abs
+        if run1a_flash_eff is not None and run1a_fe_abs is not None else None
     )
-    print(
-        f"  run1a Total hit efficiency per POT (mubeam + flat_electron): {run1a_total_hit_eff_per_pot:.8g}"
-        if run1a_total_hit_eff_per_pot is not None
-        else "  run1a Total hit efficiency per POT (mubeam + flat_electron): unavailable"
-    )
+    print(f"  run1a Total hit efficiency per POT (mubeam + flat_electron): {_fmt(run1a_total_hit)}")
 
-    pileup_abs_eff_all = None
-    pileup_avg = None
-    total_hit_eff_per_pot = None
-    total_edep_per_pot = None
+    # ---- Pileup ----------------------------------------------------------
+    pileup_abs_all: float | None = None
+    pileup_avg: float | None = None
+    total_edep_per_pot: float | None = None
 
     if mustop_pileup_summary is None:
         print("  pileup: summary unavailable")
     else:
-        pileup_sim_total = mustop_pileup_summary.get("simulation_events", {}).get("total_events")
-        pileup_stats = mustop_pileup_summary.get("edep_analysis", {})
-        pileup_seen = pileup_stats.get("events_seen")
-        pileup_gt50 = pileup_stats.get("events_edep_gt_50_mev")
-        pileup_avg = pileup_stats.get("average_calo_energy_mev")
+        pu_sim = _safe_get(mustop_pileup_summary, "simulation_events", "total_events")
+        pu_stats = mustop_pileup_summary.get("edep_analysis", {})
+        pu_seen = pu_stats.get("events_seen")
+        pu_gt50 = pu_stats.get("events_edep_gt_50_mev")
+        pileup_avg = pu_stats.get("average_calo_energy_mev")
 
-        pileup_scale = None
-        if input_corr is not None and stopping_factor is not None and pileup_sim_total not in (None, 0):
-            pileup_scale = (
-                input_corr
-                * stopping_factor
-                * _MUON_STOP_PRESCALE_CORRECTION
-                / pileup_sim_total
-            )
+        pu_scale = None
+        if mu["input_corr"] is not None and stopping_factor is not None and pu_sim not in (None, 0):
+            pu_scale = mu["input_corr"] * stopping_factor * _MUON_STOP_PRESCALE_CORRECTION / pu_sim
 
-        pileup_abs_eff_all = pileup_seen * pileup_scale if pileup_scale is not None and pileup_seen is not None else None
-        pileup_abs_eff_gt50 = pileup_gt50 * pileup_scale if pileup_scale is not None and pileup_gt50 is not None else None
+        pileup_abs_all = pu_seen * pu_scale if pu_scale is not None and pu_seen is not None else None
+        pileup_abs_gt50 = pu_gt50 * pu_scale if pu_scale is not None and pu_gt50 is not None else None
 
-        pileup_eff_all_str = f"{pileup_abs_eff_all:.8g}" if pileup_abs_eff_all is not None else "unavailable"
-        pileup_eff_gt50_str = f"{pileup_abs_eff_gt50:.8g}" if pileup_abs_eff_gt50 is not None else "unavailable"
-        pileup_avg_str = f"{pileup_avg:.8g}" if pileup_avg is not None else "unavailable"
-        pileup_effective_pot = (
-            pileup_sim_total / muon_stop_input_eff
-            if pileup_sim_total not in (None, 0) and muon_stop_input_eff not in (None, 0)
-            else None
+        pu_effective_pot = (
+            pu_sim / muon_stop_input_eff
+            if pu_sim not in (None, 0) and muon_stop_input_eff not in (None, 0) else None
         )
+        print(f"  mustop_pileup effective N(POT) simulated: {_fmt(pu_effective_pot)}")
         print(
-            f"  mustop_pileup effective N(POT) simulated: {pileup_effective_pot:.8g}"
-            if pileup_effective_pot is not None
-            else "  mustop_pileup effective N(POT) simulated: unavailable"
-        )
-        pileup_effective_pot_str = f"{pileup_effective_pot:.8g}" if pileup_effective_pot is not None else "unavailable"
-        print(
-            "  pileup: "
-            f"abs eff (all)={pileup_eff_all_str}, "
-            f"abs eff (Edep>50)={pileup_eff_gt50_str}, "
-            f"avg Edep/event={pileup_avg_str} MeV, "
-            f"effective N(POT) simulated={pileup_effective_pot_str}"
+            f"  pileup: abs eff (all)={_fmt(pileup_abs_all)}, "
+            f"abs eff (Edep>50)={_fmt(pileup_abs_gt50)}, "
+            f"avg Edep/event={_fmt(pileup_avg)} MeV, "
+            f"effective N(POT) simulated={_fmt(pu_effective_pot)}"
         )
 
-        total_hit_eff_per_pot = (
-            mubeam_flash_abs_eff
-            + elebeam_flash_abs_eff
-            + pileup_abs_eff_all
-            if mubeam_flash_abs_eff is not None
-            and elebeam_flash_abs_eff is not None
-            and pileup_abs_eff_all is not None
-            else None
-        )
-        total_edep_per_pot = (
-            mubeam_flash_abs_eff*mubeam_edep_avg
-            + elebeam_flash_abs_eff*elebeam_edep_avg
-            + pileup_abs_eff_all*pileup_avg
-            if mubeam_flash_abs_eff is not None
-            and elebeam_flash_abs_eff is not None
-            and pileup_abs_eff_all is not None
-            else None
-        )
-        print(
-            f"  Total hit efficiency per POT (mubeam + elebeam + pileup): {total_hit_eff_per_pot:.8g}"
-            if total_hit_eff_per_pot is not None
-            else "  Total hit efficiency per POT (mubeam + elebeam + pileup): unavailable"
-        )
+        if mu["flash_eff"] is not None and ele.get("flash_eff") is not None and pileup_abs_all is not None:
+            total_hit = mu["flash_eff"] + ele["flash_eff"] + pileup_abs_all
+            print(f"  Total hit efficiency per POT (mubeam + elebeam + pileup): {_fmt(total_hit)}")
+            if mu["edep_avg"] is not None and ele.get("edep_avg") is not None and pileup_avg is not None:
+                total_edep_per_pot = (
+                    mu["flash_eff"] * mu["edep_avg"]
+                    + ele["flash_eff"] * ele["edep_avg"]
+                    + pileup_abs_all * pileup_avg
+                )
+        else:
+            print("  Total hit efficiency per POT (mubeam + elebeam + pileup): unavailable")
 
+    # ---- Final (double-edep) ---------------------------------------------
     if final_summary is None:
         print("  Double-Edep expected/event (single,double,triple): unavailable")
         _print_compact_summary_table(
-            target_abs,
-            calo_abs,
-            total_edep_per_pot,
-            fgam_abs_50,
-            ce_abs_50,
-            ce_mpv,
-            run1a_ce_abs_50,
-            run1a_ce_mpv,
-            run1a_ce_sens,
-            run1a_total_hit_eff_per_pot,
+            target_abs, calo_abs, total_edep_per_pot,
+            fgam_abs_50, ce_abs_50, ce_mpv,
+            run1a_ce_abs_50, run1a_ce_mpv, run1a_ce_sens, run1a_total_hit,
         )
         return
 
     metrics = final_summary.get("metrics", {})
-    single = metrics.get("expected_per_event_single_edep")
-    double = metrics.get("expected_per_event_double_edep")
-    triple = metrics.get("expected_per_event_triple_edep")
-    e50 = metrics.get("estimated_rate_per_event_e50")
-    e70 = metrics.get("estimated_rate_per_event_e70")
-    e80 = metrics.get("estimated_rate_per_event_e80")
-    e90 = metrics.get("estimated_rate_per_event_e90")
-    single_str = f"{single:.8g}" if single is not None else "unavailable"
-    double_str = f"{double:.8g}" if double is not None else "unavailable"
-    triple_str = f"{triple:.8g}" if triple is not None else "unavailable"
-    e50_str = f"{e50:.8g}" if e50 is not None else "unavailable"
-    e70_str = f"{e70:.8g}" if e70 is not None else "unavailable"
-    e80_str = f"{e80:.8g}" if e80 is not None else "unavailable"
-    e90_str = f"{e90:.8g}" if e90 is not None else "unavailable"
-    print(f"  Double-Edep expected/event (single,double,triple): {single_str}, {double_str}, {triple_str}")
-    print(f"  Double-Edep estimated/event E(50,70,80,90): {e50_str}, {e70_str}, {e80_str}, {e90_str}")
+    print(
+        f"  Double-Edep expected/event (single,double,triple): "
+        f"{_fmt(metrics.get('expected_per_event_single_edep'))}, "
+        f"{_fmt(metrics.get('expected_per_event_double_edep'))}, "
+        f"{_fmt(metrics.get('expected_per_event_triple_edep'))}"
+    )
+    print(
+        f"  Double-Edep estimated/event E(50,70,80,90): "
+        f"{_fmt(metrics.get('estimated_rate_per_event_e50'))}, "
+        f"{_fmt(metrics.get('estimated_rate_per_event_e70'))}, "
+        f"{_fmt(metrics.get('estimated_rate_per_event_e80'))}, "
+        f"{_fmt(metrics.get('estimated_rate_per_event_e90'))}"
+    )
 
-    rough = final_summary.get("rough_sensitivity_by_sample", {}) if final_summary else {}
-    for sample in sorted(rough.keys()):
-        stats = rough.get(sample, {})
-        sens = stats.get("s_over_sqrt_b")
-        sig = stats.get("signal_rate")
-        bkg = stats.get("background_rate")
-        mpv = stats.get("signal_mpv")
-        fwhm = stats.get("signal_fwhm")
-        sens_str = f"{sens:.8g}" if sens is not None else "unavailable"
-        sig_str = f"{sig:.8g}" if sig is not None else "unavailable"
-        bkg_str = f"{bkg:.8g}" if bkg is not None else "unavailable"
-        mpv_str = f"{mpv:.8g}" if mpv is not None else "unavailable"
-        fwhm_str = f"{fwhm:.8g}" if fwhm is not None else "unavailable"
+    rough = final_summary.get("rough_sensitivity_by_sample", {})
+    for sample in sorted(rough):
+        s = rough[sample]
         print(
-            f"  Rough sensitivity {sample}: MPV={mpv_str}, FWHM={fwhm_str}, "
-            f"signal rate={sig_str}, background rate={bkg_str}, s/sqrt(b)={sens_str}"
+            f"  Rough sensitivity {sample}: "
+            f"MPV={_fmt(s.get('signal_mpv'))}, FWHM={_fmt(s.get('signal_fwhm'))}, "
+            f"signal rate={_fmt(s.get('signal_rate'))}, "
+            f"background rate={_fmt(s.get('background_rate'))}, "
+            f"s/sqrt(b)={_fmt(s.get('s_over_sqrt_b'))}"
         )
 
     _print_compact_summary_table(
-        target_abs,
-        calo_abs,
-        total_edep_per_pot,
-        fgam_abs_50,
-        ce_abs_50,
-        ce_mpv,
-        run1a_ce_abs_50,
-        run1a_ce_mpv,
-        run1a_ce_sens,
-        run1a_total_hit_eff_per_pot,
+        target_abs, calo_abs, total_edep_per_pot,
+        fgam_abs_50, ce_abs_50, ce_mpv,
+        run1a_ce_abs_50, run1a_ce_mpv, run1a_ce_sens, run1a_total_hit,
     )
 
 
-def main() -> int:
-    args = parse_args()
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
 
-    # Default elebeam_events_per_job to events_per_job if not specified
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--stage", choices=_STAGES, default="mubeam",
+                    help="Processing stage to run (default: mubeam)")
+    p.add_argument("config_version", help="Configuration folder name (e.g. config_v06)")
+    p.add_argument("parallel_jobs", type=int, nargs="?", default=None,
+                    help="Number of jobs to launch (required for mubeam/elebeam/mustop_pileup/run1a_mubeam/all)")
+
+    # Event counts
+    p.add_argument("--events-per-job", type=int, default=0,
+                    help="Events per job passed as '-n' to mu2e (required for mubeam/mustop_pileup/all)")
+    p.add_argument("--run1a-mubeam-events-per-job", type=int, default=5000,
+                    help="Events per run1a_mubeam job (default: 5000)")
+    p.add_argument("--elebeam-events-per-job", type=int, default=0,
+                    help="Events per elebeam job (default: uses --events-per-job)")
+    p.add_argument("--mustop-events-per-job", type=int, default=10000,
+                    help="Events per mustop job (default: 10000)")
+    p.add_argument("--mustop-pileup-events-per-job", type=int, default=100000,
+                    help="Events per mustop_pileup job (default: 100000)")
+
+    # Execution
+    p.add_argument("--mu2e-command", default="mu2e",
+                    help="Executable used to run jobs (default: mu2e)")
+    p.add_argument("--seed-start", type=int, default=1,
+                    help="First seed value; each job gets seed_start + job_index")
+    p.add_argument("--run-root", default=None,
+                    help="Directory where run outputs are written (default: ../runs from this script)")
+    p.add_argument("--max-workers", type=int, default=None,
+                    help="Thread workers used to launch jobs (default: parallel_jobs)")
+    p.add_argument("--dry-run", action="store_true",
+                    help="Print and stage commands without executing mu2e")
+
+    # Run-directory overrides
+    for stage_name in ("mubeam", "run1a-mubeam", "elebeam", "mustop",
+                       "run1a-mustops", "mustop-pileup", "final"):
+        p.add_argument(
+            f"--{stage_name}-run-dir", default=None,
+            help=f"Directory containing {stage_name} outputs",
+        )
+
+    # Mustop mode options
+    p.add_argument("--mustop-jobs-per-mode", type=int, default=10,
+                    help="Jobs to launch for each mustop mode (default: 10)")
+    p.add_argument("--include-ce-plus", action="store_true",
+                    help="Include ce_plus in mustop/run1a_mustops modes")
+    p.add_argument("--mustop-ce-only", action="store_true",
+                    help="Run only ce mode for mustop/run1a_mustops")
+
+    # Cleanup
+    p.add_argument("--clean", action="store_true",
+                    help="Delete intermediate sim.*.art and dts.*.art files (only for --stage all)")
+
+    return p.parse_args()
+
+
+# ---------------------------------------------------------------------------
+# Argument validation
+# ---------------------------------------------------------------------------
+
+def _validate_args(args: argparse.Namespace) -> None:
+    """Validate argument combinations; raise ``SystemExit`` on errors."""
+    # Default elebeam events to general events if unset.
     if args.elebeam_events_per_job <= 0:
         args.elebeam_events_per_job = args.events_per_job
 
-    if args.stage in ("mubeam", "elebeam", "mustop_pileup", "run1a_mubeam", "all", "minimal") and (args.parallel_jobs is None or args.parallel_jobs <= 0):
-        raise SystemExit("parallel_jobs must be > 0 for stage mubeam/elebeam/mustop_pileup/run1a_mubeam/all/minimal")
-    if args.stage != "summary":
-        if args.stage not in ("mustop", "mustop_pileup", "final", "run1a_mubeam", "run1a_mustops", "minimal") and args.events_per_job <= 0:
-            raise SystemExit("events_per_job must be > 0")
-        if args.stage == "elebeam" and args.elebeam_events_per_job <= 0:
-            raise SystemExit("elebeam_events_per_job (or events_per_job) must be > 0")
-        if args.stage in ("run1a_mubeam", "minimal") and args.run1a_mubeam_events_per_job <= 0:
-            raise SystemExit("run1a_mubeam_events_per_job must be > 0")
-        if args.stage in ("mustop", "run1a_mustops", "all") and args.mustop_events_per_job <= 0:
-            raise SystemExit("mustop_events_per_job must be > 0")
-        if args.stage in ("mustop_pileup", "all") and args.mustop_pileup_events_per_job <= 0:
-            raise SystemExit("mustop_pileup_events_per_job must be > 0")
-        if args.seed_start <= 0:
-            raise SystemExit("seed_start must be > 0")
-        if args.stage in ("mustop", "mustop_pileup", "run1a_mustops", "all") and args.mustop_jobs_per_mode <= 0:
-            raise SystemExit("mustop_jobs_per_mode must be > 0")
-
-    script_dir = Path(__file__).resolve().parent
-    workflows_dir = script_dir.parent
-    extractor_path = script_dir / "extract_analysis_results.py"
-
-    run_root = Path(args.run_root).resolve() if args.run_root else workflows_dir / "runs"
+    needs_parallel = {"mubeam", "elebeam", "mustop_pileup", "run1a_mubeam", "all", "minimal"}
+    if args.stage in needs_parallel and (args.parallel_jobs is None or args.parallel_jobs <= 0):
+        raise SystemExit(f"parallel_jobs must be > 0 for stage {args.stage}")
 
     if args.stage == "summary":
-        mubeam_run_dir = (
-            Path(args.mubeam_run_dir).resolve()
-            if args.mubeam_run_dir
-            else _find_latest_stage_run(run_root, args.config_version, "mubeam")
-        )
-        if mubeam_run_dir is None:
-            raise SystemExit("Could not locate mubeam run directory; pass --mubeam-run-dir explicitly")
+        return
 
-        mubeam_summary = _load_summary(mubeam_run_dir / "analysis_summary.json")
+    no_general_events = {"mustop", "mustop_pileup", "final", "run1a_mubeam", "run1a_mustops", "minimal"}
+    if args.stage not in no_general_events and args.events_per_job <= 0:
+        raise SystemExit("events_per_job must be > 0")
 
-        mustop_run_dir = (
-            Path(args.mustop_run_dir).resolve()
-            if args.mustop_run_dir
-            else _find_latest_stage_run(run_root, args.config_version, "mustop")
-        )
-        mustop_summary = (
-            _load_summary(mustop_run_dir / "analysis_summary.json")
-            if mustop_run_dir is not None
-            else None
-        )
+    if args.stage == "elebeam" and args.elebeam_events_per_job <= 0:
+        raise SystemExit("elebeam_events_per_job (or events_per_job) must be > 0")
+    if args.stage in ("run1a_mubeam", "minimal") and args.run1a_mubeam_events_per_job <= 0:
+        raise SystemExit("run1a_mubeam_events_per_job must be > 0")
+    if args.stage in ("mustop", "run1a_mustops", "all") and args.mustop_events_per_job <= 0:
+        raise SystemExit("mustop_events_per_job must be > 0")
+    if args.stage in ("mustop_pileup", "all") and args.mustop_pileup_events_per_job <= 0:
+        raise SystemExit("mustop_pileup_events_per_job must be > 0")
+    if args.seed_start <= 0:
+        raise SystemExit("seed_start must be > 0")
+    if args.stage in ("mustop", "mustop_pileup", "run1a_mustops", "all") and args.mustop_jobs_per_mode <= 0:
+        raise SystemExit("mustop_jobs_per_mode must be > 0")
 
-        elebeam_run_dir = (
-            Path(args.elebeam_run_dir).resolve()
-            if args.elebeam_run_dir
-            else _find_latest_stage_run(run_root, args.config_version, "elebeam")
-        )
-        elebeam_summary = (
-            _load_summary(elebeam_run_dir / "analysis_summary.json")
-            if elebeam_run_dir is not None
-            else None
-        )
-        run1a_mubeam_run_dir = (
-            Path(args.run1a_mubeam_run_dir).resolve()
-            if args.run1a_mubeam_run_dir
-            else _find_latest_stage_run(run_root, args.config_version, "run1a_mubeam")
-        )
-        run1a_mubeam_summary = (
-            _load_summary(run1a_mubeam_run_dir / "analysis_summary.json")
-            if run1a_mubeam_run_dir is not None
-            else None
-        )
-        run1a_mustops_run_dir = (
-            Path(args.run1a_mustops_run_dir).resolve()
-            if args.run1a_mustops_run_dir
-            else _find_latest_stage_run(run_root, args.config_version, "run1a_mustops")
-        )
-        run1a_mustops_summary = (
-            _load_summary(run1a_mustops_run_dir / "analysis_summary.json")
-            if run1a_mustops_run_dir is not None
-            else None
-        )
-        mustop_pileup_run_dir = (
-            Path(args.mustop_pileup_run_dir).resolve()
-            if args.mustop_pileup_run_dir
-            else _find_latest_stage_run(run_root, args.config_version, "mustop_pileup")
-        )
-        mustop_pileup_summary = (
-            _load_summary(mustop_pileup_run_dir / "analysis_summary.json")
-            if mustop_pileup_run_dir is not None
-            else None
-        )
-        final_run_dir = (
-            Path(args.final_run_dir).resolve()
-            if args.final_run_dir
-            else _find_latest_stage_run(run_root, args.config_version, "final")
-        )
-        final_summary = (
-            _load_summary(final_run_dir / "analysis_summary.json")
-            if final_run_dir is not None
-            else None
-        )
-        print(f"mubeam: {mubeam_run_dir}")
-        if elebeam_run_dir is not None:
-            print(f"elebeam: {elebeam_run_dir}")
-        if mustop_run_dir is not None:
-            print(f"mustop: {mustop_run_dir}")
-        if run1a_mubeam_run_dir is not None:
-            print(f"run1a_mubeam: {run1a_mubeam_run_dir}")
-        if run1a_mustops_run_dir is not None:
-            print(f"run1a_mustops: {run1a_mustops_run_dir}")
-        if mustop_pileup_run_dir is not None:
-            print(f"mustop_pileup: {mustop_pileup_run_dir}")
-        if final_run_dir is not None:
-            print(f"final: {final_run_dir}")
-        _print_all_stage_compact_summary(
-            mubeam_summary,
-            elebeam_summary,
-            mustop_summary,
-            mustop_pileup_summary,
-            final_summary,
-            run1a_mubeam_summary,
-            run1a_mustops_summary,
-        )
-        return 0
 
-    if args.stage == "final":
-        mubeam_run_dir = (
-            Path(args.mubeam_run_dir).resolve()
-            if args.mubeam_run_dir
-            else _find_latest_stage_run(run_root, args.config_version, "mubeam")
-        )
-        if mubeam_run_dir is None:
-            raise SystemExit("Could not locate mubeam run directory; pass --mubeam-run-dir explicitly")
+# ---------------------------------------------------------------------------
+# Job-spec builders
+# ---------------------------------------------------------------------------
 
-        mustop_pileup_run_dir = (
-            Path(args.mustop_pileup_run_dir).resolve()
-            if args.mustop_pileup_run_dir
-            else _find_latest_stage_run(run_root, args.config_version, "mustop_pileup")
-        )
-        if mustop_pileup_run_dir is None:
-            raise SystemExit("Could not locate mustop_pileup run directory; pass --mustop-pileup-run-dir explicitly")
+def _build_beam_job_specs(
+    args: argparse.Namespace,
+    workflows_dir: Path,
+    extractor_path: Path,
+) -> list[dict]:
+    """Build job specs for beam stages (mubeam / run1a_mubeam / elebeam)."""
+    beam_frag, fcl_name, job_fcl_name = _BEAM_STAGE_CONFIG[args.stage]
+    fcl_path = workflows_dir / args.config_version / beam_frag / fcl_name
+    include_fcl = Path("Run1BAna") / "workflows" / args.config_version / beam_frag / fcl_name
 
-        mubeam_summary = _load_summary(mubeam_run_dir / "analysis_summary.json")
-        elebeam_run_dir = (
-            Path(args.elebeam_run_dir).resolve()
-            if args.elebeam_run_dir
-            else _find_latest_stage_run(run_root, args.config_version, "elebeam")
-        )
-        if elebeam_run_dir is None:
-            raise SystemExit("Could not locate elebeam run directory; pass --elebeam-run-dir explicitly")
-        elebeam_summary = _load_summary(elebeam_run_dir / "analysis_summary.json")
-        mustop_pileup_summary = _load_summary(mustop_pileup_run_dir / "analysis_summary.json")
-        mustop_run_dir = (
-            Path(args.mustop_run_dir).resolve()
-            if args.mustop_run_dir
-            else _find_latest_stage_run(run_root, args.config_version, "mustop")
-        )
-        if mustop_run_dir is None:
-            raise SystemExit("Could not locate mustop run directory; pass --mustop-run-dir explicitly")
-        mustop_summary = _load_summary(mustop_run_dir / "analysis_summary.json")
+    if not fcl_path.exists():
+        raise SystemExit(f"Missing FCL file: {fcl_path}")
+    if not extractor_path.exists():
+        raise SystemExit(f"Missing extractor script: {extractor_path}")
 
-        mubeam_edep_root = Path(mubeam_summary.get("edep_analysis", {}).get("nts_output_path", ""))
-        elebeam_edep_root = Path(elebeam_summary.get("edep_analysis", {}).get("nts_output_path", ""))
-        pileup_edep_root = Path(mustop_pileup_summary.get("edep_analysis", {}).get("nts_output_path", ""))
-        if not mubeam_edep_root.exists():
-            raise SystemExit(f"Missing mubeam edep root file: {mubeam_edep_root}")
-        if not elebeam_edep_root.exists():
-            raise SystemExit(f"Missing elebeam edep root file: {elebeam_edep_root}")
-        if not pileup_edep_root.exists():
-            raise SystemExit(f"Missing mustop_pileup edep root file: {pileup_edep_root}")
-
-        mubeam_flash_abs_eff = (
-            mubeam_summary
-            .get("art_event_analysis", {})
-            .get("absolute_efficiency_by_type", {})
-            .get("FlashOutput")
-        )
-        if mubeam_flash_abs_eff is None:
-            raise SystemExit("Missing mubeam FlashOutput absolute efficiency in mubeam summary")
-        elebeam_flash_abs_eff = (
-            elebeam_summary
-            .get("art_event_analysis", {})
-            .get("absolute_efficiency_by_type", {})
-            .get("EleFlashOutput")
-        )
-        if elebeam_flash_abs_eff is None:
-            raise SystemExit("Missing elebeam EleFlashOutput absolute efficiency in elebeam summary")
-
-        pileup_abs_eff = _compute_mustop_pileup_absolute_efficiency(mubeam_summary, mustop_pileup_summary)
-        if pileup_abs_eff is None:
-            raise SystemExit("Could not compute mustop_pileup absolute efficiency from available summaries")
-
-        if args.final_run_dir:
-            run_dir = Path(args.final_run_dir).resolve()
-            if not run_dir.exists() or not run_dir.is_dir():
-                raise SystemExit(f"final run directory does not exist: {run_dir}")
-        else:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            run_dir = run_root / args.config_version / f"final_{timestamp}"
-            run_dir.mkdir(parents=True, exist_ok=False)
-
-        final_result = _run_double_edep_analysis(
-            run_dir,
-            workflows_dir,
-            mubeam_edep_root,
-            elebeam_edep_root,
-            pileup_edep_root,
-            mubeam_flash_abs_eff,
-            elebeam_flash_abs_eff,
-            pileup_abs_eff,
-            args.dry_run,
-        )
-        double_edep_output_path = _find_double_edep_output_path(run_dir)
-        sample_abs_efficiencies = _compute_mustop_sample_absolute_efficiencies(mubeam_summary, mustop_summary)
-        rough_sensitivity_by_sample = extract_analysis_results.run_rough_sensitivity_analyses(
-            run_dir,
-            workflows_dir,
-            mustop_summary,
-            sample_abs_efficiencies,
-            double_edep_output_path,
-            args.dry_run,
-        )
-
-        summary = {
-            "stage": "final",
-            "run_dir": str(run_dir),
-            "mubeam_run_dir": str(mubeam_run_dir),
-            "elebeam_run_dir": str(elebeam_run_dir),
-            "mustop_pileup_run_dir": str(mustop_pileup_run_dir),
-            "inputs": {
-                "mubeam_flash_edep_root": str(mubeam_edep_root),
-                "elebeam_flash_edep_root": str(elebeam_edep_root),
-                "mustop_pileup_edep_root": str(pileup_edep_root),
-                "mubeam_flash_absolute_efficiency": mubeam_flash_abs_eff,
-                "elebeam_flash_absolute_efficiency": elebeam_flash_abs_eff,
-                "mustop_pileup_absolute_efficiency": pileup_abs_eff,
-            },
-            "double_edep_analysis": final_result,
-            "double_edep_output_path": str(double_edep_output_path) if double_edep_output_path else None,
-            "rough_sensitivity_by_sample": rough_sensitivity_by_sample,
-            "metrics": final_result.get("metrics", {}),
+    return [
+        {
+            "index": i,
+            "name": args.stage,
+            "job_fcl_name": job_fcl_name,
+            "include_fcl_path": include_fcl,
+            "fcl_overrides": "",
         }
+        for i in range(args.parallel_jobs)
+    ]
 
-        summary_path = run_dir / "analysis_summary.json"
-        with summary_path.open("w", encoding="utf-8") as handle:
-            json.dump(summary, handle, indent=2, sort_keys=True)
 
-        print(f"Final-stage run directory: {run_dir}")
-        print(f"Analysis summary: {summary_path}")
-        if final_result.get("error"):
-            print("Final-stage analysis failed", file=sys.stderr)
-            return 1
-        return 0
+def _build_mustop_job_specs(
+    args: argparse.Namespace,
+    workflows_dir: Path,
+    run_root: Path,
+) -> list[dict]:
+    """Build job specs for mustop / run1a_mustops stages."""
+    input_stage = "mubeam" if args.stage == "mustop" else "run1a_mubeam"
+    explicit_dir = args.mubeam_run_dir if args.stage == "mustop" else args.run1a_mubeam_run_dir
+    input_dir = _require_stage_dir(explicit_dir, run_root, args.config_version, input_stage)
 
-    if args.stage == "all":
-        this_script = Path(__file__).resolve()
-        base_cmd = [
-            sys.executable,
-            str(this_script),
-            args.config_version,
-            str(args.parallel_jobs),
-            "--events-per-job",
-            str(args.events_per_job),
-            "--run1a-mubeam-events-per-job",
-            str(args.run1a_mubeam_events_per_job),
-            "--mu2e-command",
-            args.mu2e_command,
-            "--seed-start",
-            str(args.seed_start),
-            "--run-root",
-            str(run_root),
-            "--mustop-jobs-per-mode",
-            str(args.mustop_jobs_per_mode),
-            "--mustop-events-per-job",
-            str(args.mustop_events_per_job),
-            "--mustop-pileup-events-per-job",
-            str(args.mustop_pileup_events_per_job),
-            "--elebeam-events-per-job",
-            str(args.elebeam_events_per_job),
-        ]
-        if args.include_ce_plus:
-            base_cmd.append("--include-ce-plus")
-        if args.max_workers is not None:
-            base_cmd.extend(["--max-workers", str(args.max_workers)])
-        if args.dry_run:
-            base_cmd.append("--dry-run")
-        if args.clean:
-            base_cmd.append("--clean")
+    if not input_dir.is_dir():
+        raise SystemExit(f"mubeam run directory does not exist: {input_dir}")
 
-        print("Running stage sequence: mubeam -> elebeam -> mustop -> run1a_mubeam -> run1a_mustops -> mustop_pileup -> final")
-        mubeam_cmd = base_cmd + ["--stage", "mubeam"]
-        mubeam_run = subprocess.run(mubeam_cmd, check=False)
-        if mubeam_run.returncode != 0:
-            print("mubeam stage failed in all-stage sequence", file=sys.stderr)
-            return mubeam_run.returncode
+    muminus_files = _collect_muminus_stop_files(input_dir)
+    if not muminus_files:
+        raise SystemExit(
+            f"No MuminusStopsCat files found in {input_dir / 'mu_stops_job'}. "
+            "Run the corresponding mubeam stage to completion first."
+        )
+    print(f"Using mubeam inputs from: {input_dir}")
+    print(f"MuminusStopsCat input files: {len(muminus_files)}")
 
-        mubeam_run_dir = _find_latest_stage_run(run_root, args.config_version, "mubeam")
-        if mubeam_run_dir is None:
-            raise SystemExit("Could not locate mubeam run directory after mubeam stage completion")
+    fragment = "run1b_mustop" if args.stage == "mustop" else "run1a_mustop"
+    modes = _selected_mustop_modes(args.include_ce_plus, args.mustop_ce_only)
+    muminus_lines = _format_fhicl_string_list(muminus_files)
+    overrides = (
+        f"physics.filters.TargetStopResampler.fileNames: [\n{muminus_lines}\n]\n"
+    )
 
-        elebeam_cmd = base_cmd + ["--stage", "elebeam"]
-        elebeam_run = subprocess.run(elebeam_cmd, check=False)
-        if elebeam_run.returncode != 0:
-            print("elebeam stage failed in all-stage sequence", file=sys.stderr)
-            return elebeam_run.returncode
+    specs: list[dict] = []
+    for mode in modes:
+        fcl = workflows_dir / args.config_version / fragment / f"{mode}.fcl"
+        include = Path("Run1BAna") / "workflows" / args.config_version / fragment / f"{mode}.fcl"
+        if not fcl.exists():
+            raise SystemExit(f"Missing FCL file: {fcl}")
+        for j in range(args.mustop_jobs_per_mode):
+            specs.append({
+                "index": len(specs),
+                "name": f"{mode}_{j:03d}",
+                "job_fcl_name": f"{mode}_job_{j:03d}.fcl",
+                "include_fcl_path": include,
+                "fcl_overrides": overrides,
+            })
+    return specs
 
-        elebeam_run_dir = _find_latest_stage_run(run_root, args.config_version, "elebeam")
-        if elebeam_run_dir is None:
-            raise SystemExit("Could not locate elebeam run directory after elebeam stage completion")
 
-        mustop_cmd = base_cmd + ["--stage", "mustop", "--mubeam-run-dir", str(mubeam_run_dir)]
-        mustop_run = subprocess.run(mustop_cmd, check=False)
-        if mustop_run.returncode != 0:
-            print("mustop stage failed in all-stage sequence", file=sys.stderr)
-            return mustop_run.returncode
+def _build_pileup_job_specs(
+    args: argparse.Namespace,
+    workflows_dir: Path,
+    run_root: Path,
+) -> list[dict]:
+    """Build job specs for the mustop_pileup stage."""
+    mubeam_dir = _require_stage_dir(args.mubeam_run_dir, run_root, args.config_version, "mubeam")
+    if not mubeam_dir.is_dir():
+        raise SystemExit(f"mubeam run directory does not exist: {mubeam_dir}")
 
-        run1a_mubeam_cmd = base_cmd + ["--stage", "run1a_mubeam"]
-        run1a_mubeam_run = subprocess.run(run1a_mubeam_cmd, check=False)
-        if run1a_mubeam_run.returncode != 0:
-            print("run1a_mubeam stage failed in all-stage sequence", file=sys.stderr)
-            return run1a_mubeam_run.returncode
+    muminus_files = _collect_muminus_stop_files(mubeam_dir)
+    if not muminus_files:
+        raise SystemExit(
+            f"No MuminusStopsCat files found in {mubeam_dir / 'mu_stops_job'}. "
+            "Run stage mubeam to completion first."
+        )
+    print(f"Using mubeam inputs from: {mubeam_dir}")
+    print(f"MuminusStopsCat input files: {len(muminus_files)}")
 
-        run1a_mubeam_run_dir = _find_latest_stage_run(run_root, args.config_version, "run1a_mubeam")
-        if run1a_mubeam_run_dir is None:
-            raise SystemExit("Could not locate run1a_mubeam run directory after run1a_mubeam stage completion")
+    fcl = workflows_dir / args.config_version / "run1b_mustop" / "pileup.fcl"
+    include = Path("Run1BAna") / "workflows" / args.config_version / "run1b_mustop" / "pileup.fcl"
+    if not fcl.exists():
+        raise SystemExit(f"Missing FCL file: {fcl}")
 
-        run1a_mustops_cmd = base_cmd + [
-            "--stage", "run1a_mustops", "--run1a-mubeam-run-dir", str(run1a_mubeam_run_dir)
-        ]
-        run1a_mustops_run = subprocess.run(run1a_mustops_cmd, check=False)
-        if run1a_mustops_run.returncode != 0:
-            print("run1a_mustops stage failed in all-stage sequence", file=sys.stderr)
-            return run1a_mustops_run.returncode
+    muminus_lines = _format_fhicl_string_list(muminus_files)
+    overrides = f"physics.filters.TargetStopResampler.fileNames: [\n{muminus_lines}\n]\n"
 
-        mustop_pileup_cmd = base_cmd + ["--stage", "mustop_pileup", "--mubeam-run-dir", str(mubeam_run_dir)]
-        mustop_pileup_run = subprocess.run(mustop_pileup_cmd, check=False)
-        if mustop_pileup_run.returncode != 0:
-            print("mustop_pileup stage failed in all-stage sequence", file=sys.stderr)
-            return mustop_pileup_run.returncode
+    return [
+        {
+            "index": i,
+            "name": f"pileup_{i:03d}",
+            "job_fcl_name": f"pileup_job_{i:03d}.fcl",
+            "include_fcl_path": include,
+            "fcl_overrides": overrides,
+        }
+        for i in range(args.parallel_jobs)
+    ]
 
-        latest_mustop_pileup = _find_latest_stage_run(run_root, args.config_version, "mustop_pileup")
-        if latest_mustop_pileup is None:
-            raise SystemExit("Could not locate mustop_pileup run directory after mustop_pileup stage completion")
 
-        final_cmd = base_cmd + [
-            "--stage", "final",
-            "--mubeam-run-dir", str(mubeam_run_dir),
-            "--elebeam-run-dir", str(elebeam_run_dir),
-            "--mustop-pileup-run-dir", str(latest_mustop_pileup),
-        ]
-        final_run = subprocess.run(final_cmd, check=False)
-        if final_run.returncode != 0:
-            print("final stage failed in all-stage sequence", file=sys.stderr)
-            return final_run.returncode
+def _events_per_job_for_stage(args: argparse.Namespace) -> int:
+    """Return the correct per-job event count for the current stage."""
+    return {
+        "mustop": args.mustop_events_per_job,
+        "run1a_mubeam": args.run1a_mubeam_events_per_job,
+        "elebeam": args.elebeam_events_per_job,
+        "mustop_pileup": args.mustop_pileup_events_per_job,
+        "run1a_mustops": args.mustop_events_per_job,
+    }.get(args.stage, args.events_per_job)
 
-        print(f"All-stage sequence complete. mubeam run: {mubeam_run_dir}")
-        print(f"All-stage sequence complete. elebeam run: {elebeam_run_dir}")
-        print(f"All-stage sequence complete. run1a_mubeam run: {run1a_mubeam_run_dir}")
-        latest_run1a_mustops = _find_latest_stage_run(run_root, args.config_version, "run1a_mustops")
-        if latest_run1a_mustops:
-            print(f"All-stage sequence complete. run1a_mustops run: {latest_run1a_mustops}")
-        latest_mustop = _find_latest_stage_run(run_root, args.config_version, "mustop")
-        if latest_mustop:
-            print(f"All-stage sequence complete. mustop run: {latest_mustop}")
-            if latest_mustop_pileup:
-                print(f"All-stage sequence complete. mustop_pileup run: {latest_mustop_pileup}")
-            latest_final = _find_latest_stage_run(run_root, args.config_version, "final")
-            if latest_final:
-                print(f"All-stage sequence complete. final run: {latest_final}")
 
-            mubeam_summary = _load_summary(mubeam_run_dir / "analysis_summary.json")
-            elebeam_summary = _load_summary(elebeam_run_dir / "analysis_summary.json")
-            mustop_summary = _load_summary(latest_mustop / "analysis_summary.json")
-            run1a_mubeam_summary = _load_summary(run1a_mubeam_run_dir / "analysis_summary.json")
-            run1a_mustops_summary = (
-                _load_summary(latest_run1a_mustops / "analysis_summary.json")
-                if latest_run1a_mustops
-                else None
-            )
-            mustop_pileup_summary = (
-                _load_summary(latest_mustop_pileup / "analysis_summary.json")
-                if latest_mustop_pileup
-                else None
-            )
-            latest_final = _find_latest_stage_run(run_root, args.config_version, "final")
-            final_summary = (
-                _load_summary(latest_final / "analysis_summary.json")
-                if latest_final
-                else None
-            )
-            _print_all_stage_compact_summary(
-                mubeam_summary,
-                elebeam_summary,
-                mustop_summary,
-                mustop_pileup_summary,
-                final_summary,
-                run1a_mubeam_summary,
-                run1a_mustops_summary,
+# ---------------------------------------------------------------------------
+# Parallel job execution
+# ---------------------------------------------------------------------------
+
+def _launch_parallel_jobs(
+    args: argparse.Namespace,
+    job_specs: list[dict],
+    run_dir: Path,
+    env: dict[str, str],
+) -> list[JobResult]:
+    """Set up FCL files, launch jobs in parallel, and return results."""
+    n_events = _events_per_job_for_stage(args)
+    max_workers = args.max_workers or len(job_specs)
+    max_workers = max(1, min(max_workers, len(job_specs)))
+
+    results: list[JobResult] = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = []
+        for spec in job_specs:
+            idx = spec["index"]
+            job_dir = run_dir / f"job_{idx:03d}"
+            job_dir.mkdir(parents=True, exist_ok=False)
+
+            seed = args.seed_start + idx
+            job_fcl = job_dir / spec["job_fcl_name"]
+            job_fcl.write_text(
+                f'#include "{spec["include_fcl_path"].as_posix()}"\n'
+                "\n"
+                f"services.SeedService.baseSeed : {seed}\n"
+                f"source.firstSubRun: {idx}\n"
+                f"{spec['fcl_overrides']}",
+                encoding="utf-8",
             )
 
-        if args.clean:
-            print("\nCleaning up intermediate .art files from this run...")
-            # Only clean up .art files from the stage directories created in this run
-            stage_dirs = [mubeam_run_dir, elebeam_run_dir, latest_mustop]
-            if latest_run1a_mustops:
-                stage_dirs.append(latest_run1a_mustops)
-            if run1a_mubeam_run_dir:
-                stage_dirs.append(run1a_mubeam_run_dir)
-            if latest_mustop_pileup:
-                stage_dirs.append(latest_mustop_pileup)
-            if latest_final:
-                stage_dirs.append(latest_final)
+            command = [args.mu2e_command, "-c", str(job_fcl), "-n", str(n_events)]
+            (job_dir / "job_command.txt").write_text(shlex.join(command) + "\n", encoding="utf-8")
+            futures.append(executor.submit(_run_one_job, idx, command, job_dir, env, args.dry_run))
 
-            deleted_count = 0
-            for stage_dir in stage_dirs:
-                if stage_dir is None:
-                    continue
-                sim_files = list(stage_dir.glob("job_*/sim.*.art"))
-                dts_files = list(stage_dir.glob("job_*/dts.*.art"))
-                for file_path in sim_files + dts_files:
-                    try:
-                        file_path.unlink()
-                        deleted_count += 1
-                    except OSError as e:
-                        print(f"Warning: Could not delete {file_path}: {e}", file=sys.stderr)
-            print(f"Deleted {deleted_count} intermediate .art files")
-        return 0
-
-    if args.stage == "minimal":
-        this_script = Path(__file__).resolve()
-        base_cmd = [
-            sys.executable,
-            str(this_script),
-            args.config_version,
-            str(args.parallel_jobs),
-            "--events-per-job",
-            str(args.events_per_job),
-            "--run1a-mubeam-events-per-job",
-            str(args.run1a_mubeam_events_per_job),
-            "--mu2e-command",
-            args.mu2e_command,
-            "--seed-start",
-            str(args.seed_start),
-            "--run-root",
-            str(run_root),
-            "--mustop-events-per-job",
-            str(args.mustop_events_per_job),
-        ]
-        if args.include_ce_plus:
-            base_cmd.append("--include-ce-plus")
-        if args.max_workers is not None:
-            base_cmd.extend(["--max-workers", str(args.max_workers)])
-        if args.dry_run:
-            base_cmd.append("--dry-run")
-        if args.clean:
-            base_cmd.append("--clean")
-
-        print("Running minimal stage sequence: mubeam -> run1a_mubeam -> run1a_mustops")
-        mubeam_cmd = base_cmd + ["--stage", "mubeam"]
-        mubeam_run = subprocess.run(mubeam_cmd, check=False)
-        if mubeam_run.returncode != 0:
-            print("mubeam stage failed in minimal-stage sequence", file=sys.stderr)
-            return mubeam_run.returncode
-
-        mubeam_run_dir = _find_latest_stage_run(run_root, args.config_version, "mubeam")
-        if mubeam_run_dir is None:
-            raise SystemExit("Could not locate mubeam run directory after mubeam stage completion")
-
-        run1a_mubeam_cmd = base_cmd + ["--stage", "run1a_mubeam"]
-        run1a_mubeam_run = subprocess.run(run1a_mubeam_cmd, check=False)
-        if run1a_mubeam_run.returncode != 0:
-            print("run1a_mubeam stage failed in minimal-stage sequence", file=sys.stderr)
-            return run1a_mubeam_run.returncode
-
-        run1a_mubeam_run_dir = _find_latest_stage_run(run_root, args.config_version, "run1a_mubeam")
-        if run1a_mubeam_run_dir is None:
-            raise SystemExit("Could not locate run1a_mubeam run directory after run1a_mubeam stage completion")
-
-        run1a_mustops_cmd = base_cmd + [
-            "--stage", "run1a_mustops", "--run1a-mubeam-run-dir", str(run1a_mubeam_run_dir)
-        ]
-        run1a_mustops_run = subprocess.run(run1a_mustops_cmd, check=False)
-        if run1a_mustops_run.returncode != 0:
-            print("run1a_mustops stage failed in minimal-stage sequence", file=sys.stderr)
-            return run1a_mustops_run.returncode
-
-        latest_run1a_mustops = _find_latest_stage_run(run_root, args.config_version, "run1a_mustops")
-        if latest_run1a_mustops is None:
-            raise SystemExit("Could not locate run1a_mustops run directory after run1a_mustops stage completion")
-
-        print(f"Minimal-stage sequence complete. mubeam run: {mubeam_run_dir}")
-        print(f"Minimal-stage sequence complete. run1a_mubeam run: {run1a_mubeam_run_dir}")
-        print(f"Minimal-stage sequence complete. run1a_mustops run: {latest_run1a_mustops}")
-
-        # Load and print summary information, handling missing files gracefully
-        mubeam_summary = _load_summary_optional(mubeam_run_dir / "analysis_summary.json")
-        run1a_mubeam_summary = _load_summary_optional(run1a_mubeam_run_dir / "analysis_summary.json")
-        run1a_mustops_summary = _load_summary_optional(latest_run1a_mustops / "analysis_summary.json")
-
-        if mubeam_summary or run1a_mubeam_summary or run1a_mustops_summary:
-            print("\n--- Summary Information ---")
-            target_abs = None
-            calo_abs = None
-            if mubeam_summary:
-                print(f"mubeam total events simulated: {mubeam_summary.get('simulation_events', {}).get('total_events', 'unavailable')}")
-                mubeam_input_corr = mubeam_summary.get("input_efficiency", {}).get("correction_factor")
-                target_abs = mubeam_summary.get("target_al_analysis", {}).get("target_al_entries_absolute_efficiency")
-                calo_abs = mubeam_summary.get("target_al_analysis", {}).get("calo_entries_absolute_efficiency")
-                print(f"mubeam input efficiency correction: {mubeam_input_corr if mubeam_input_corr is not None else 'unavailable'}")
-            else:
-                print("mubeam summary: unavailable")
-
-            if run1a_mubeam_summary:
-                print(f"run1a_mubeam total events simulated: {run1a_mubeam_summary.get('simulation_events', {}).get('total_events', 'unavailable')}")
-                run1a_input_corr = run1a_mubeam_summary.get("input_efficiency", {}).get("correction_factor")
-                print(f"run1a_mubeam input efficiency correction: {run1a_input_corr if run1a_input_corr is not None else 'unavailable'}")
-            else:
-                print("run1a_mubeam summary: unavailable")
-
-            if run1a_mustops_summary:
-                print(f"run1a_mustops total events simulated: {run1a_mustops_summary.get('simulation_events', {}).get('total_events', 'unavailable')}")
-                run1a_modes = _mustop_modes_from_summary(run1a_mustops_summary)
-                print(f"run1a_mustops modes: {', '.join(run1a_modes)}")
-            else:
-                print("run1a_mustops summary: unavailable")
-
-            # Extract run1a metrics for table display
-            run1a_ce_abs_50 = None
-            run1a_ce_mpv = None
-            run1a_ce_sens = None
-            run1a_total_hit_eff_per_pot = None
-
-            if run1a_mustops_summary:
-                run1a_sim_by_mode = _compute_simulated_events_by_mode(run1a_mustops_summary)
-                run1a_reference_sim_per_mode = run1a_sim_by_mode.get("ce")
-                if run1a_reference_sim_per_mode in (None, 0):
-                    run1a_reference_sim_per_mode = run1a_sim_by_mode.get("ce_plus")
-
-                run1a_input_corr = run1a_mubeam_summary.get("input_efficiency", {}).get("correction_factor") if run1a_mubeam_summary else None
-                run1a_n_muminus_stops = run1a_mubeam_summary.get("muminus_stops_events") if run1a_mubeam_summary else None
-                run1a_sim_total = run1a_mubeam_summary.get("simulation_events", {}).get("total_events") if run1a_mubeam_summary else None
-                run1a_stopping_factor = (
-                    run1a_n_muminus_stops / run1a_sim_total
-                    if run1a_n_muminus_stops is not None and run1a_sim_total not in (None, 0)
-                    else None
-                )
-
-                run1a_sample_scale = (
-                    run1a_input_corr * run1a_stopping_factor / run1a_reference_sim_per_mode
-                    if run1a_input_corr is not None
-                    and run1a_stopping_factor is not None
-                    and run1a_reference_sim_per_mode not in (None, 0)
-                    else None
-                )
-
-                ce_stats = run1a_mustops_summary.get("edep_analysis_by_sample", {}).get("ce", {})
-                ce_seen = ce_stats.get("events_seen")
-                ce_gt50 = ce_stats.get("events_edep_gt_50_mev")
-                ce_tracker_front_fit_mpv = ce_stats.get("tracker_front_fit_mpv_mev")
-
-                run1a_ce_abs_50 = (
-                    ce_gt50 * run1a_sample_scale
-                    if run1a_sample_scale is not None and ce_gt50 is not None
-                    else None
-                )
-                run1a_ce_mpv = ce_tracker_front_fit_mpv
-
-                run1a_rough_sensitivity_line = run1a_mustops_summary.get("rough_run1a_sensitivity", {}).get("summary_line")
-                if run1a_rough_sensitivity_line:
-                    run1a_ce_sens = float(run1a_rough_sensitivity_line.split('=')[-1])
-
-                run1a_mubeam_flash_abs_eff = (
-                    run1a_mubeam_summary.get("art_event_analysis", {}).get("absolute_efficiency_by_type", {}).get("FlashOutput")
-                    if run1a_mubeam_summary
-                    else None
-                )
-                run1a_flat_electron_abs_eff_all = None
-                flat_electron_stats = run1a_mustops_summary.get("edep_analysis_by_sample", {}).get("flat_electron", {})
-                flat_electron_seen = flat_electron_stats.get("events_seen")
-                flat_electron_sample_scale = run1a_sample_scale
-                if flat_electron_sample_scale is not None and flat_electron_seen is not None:
-                    run1a_flat_electron_abs_eff_all = flat_electron_seen * flat_electron_sample_scale
-
-                run1a_total_hit_eff_per_pot = (
-                    run1a_mubeam_flash_abs_eff + run1a_flat_electron_abs_eff_all
-                    if run1a_mubeam_flash_abs_eff is not None and run1a_flat_electron_abs_eff_all is not None
-                    else None
-                )
-
-            # Print table with minimal stage metrics (all other values default to None)
-            _print_compact_summary_table(
-                target_abs,
-                calo_abs,
-                None,  # total_edep_per_pot
-                None,  # fgam_abs_50
-                None,  # ce_abs_50
-                None,  # ce_mpv
-                run1a_ce_abs_50,
-                run1a_ce_mpv,
-                run1a_ce_sens,
-                run1a_total_hit_eff_per_pot,
+        for future in as_completed(futures):
+            result = future.result()
+            results.append(result)
+            _write_job_status(result)
+            print(
+                f"Job {result.index:03d}: returncode={result.returncode}, "
+                f"duration={result.duration_s:.2f}s, log={result.log_path}"
             )
 
-        if args.clean:
-            print("\nCleaning up intermediate .art files from this run...")
-            stage_dirs = [mubeam_run_dir, run1a_mubeam_run_dir, latest_run1a_mustops]
-            deleted_count = 0
-            for stage_dir in stage_dirs:
-                if stage_dir is None:
-                    continue
-                sim_files = list(stage_dir.glob("job_*/sim.*.art"))
-                dts_files = list(stage_dir.glob("job_*/dts.*.art"))
-                for file_path in sim_files + dts_files:
-                    try:
-                        file_path.unlink()
-                        deleted_count += 1
-                    except OSError as e:
-                        print(f"Warning: Could not delete {file_path}: {e}", file=sys.stderr)
-            print(f"Deleted {deleted_count} intermediate .art files")
-        return 0
+    return results
 
+
+# ---------------------------------------------------------------------------
+# Art file cleanup
+# ---------------------------------------------------------------------------
+
+def _clean_intermediate_art_files(stage_dirs: list[Path | None]) -> None:
+    """Delete sim.*.art and dts.*.art files from the given stage directories."""
+    print("\nCleaning up intermediate .art files from this run...")
+    deleted = 0
+    for d in stage_dirs:
+        if d is None:
+            continue
+        for pattern in ("job_*/sim.*.art", "job_*/dts.*.art"):
+            for f in d.glob(pattern):
+                try:
+                    f.unlink()
+                    deleted += 1
+                except OSError as e:
+                    print(f"Warning: Could not delete {f}: {e}", file=sys.stderr)
+    print(f"Deleted {deleted} intermediate .art files")
+
+
+# ---------------------------------------------------------------------------
+# Stage handlers
+# ---------------------------------------------------------------------------
+
+def _run_stage_summary(args: argparse.Namespace, run_root: Path) -> int:
+    """Handle ``--stage summary``."""
+    mubeam_dir = _require_stage_dir(args.mubeam_run_dir, run_root, args.config_version, "mubeam")
+    mubeam_summary = _load_summary(mubeam_dir / "analysis_summary.json")
+
+    # Load optional summaries.
+    stage_dirs: dict[str, Path | None] = {}
+    summaries: dict[str, dict | None] = {}
+    for name in ("elebeam", "mustop", "run1a_mubeam", "run1a_mustops", "mustop_pileup", "final"):
+        attr = getattr(args, f"{name.replace('-', '_')}_run_dir", None)
+        d = _resolve_stage_dir(attr, run_root, args.config_version, name)
+        stage_dirs[name] = d
+        summaries[name] = _load_summary(d / "analysis_summary.json") if d else None
+
+    print(f"mubeam: {mubeam_dir}")
+    for name, d in stage_dirs.items():
+        if d is not None:
+            print(f"{name}: {d}")
+
+    _print_all_stage_compact_summary(
+        mubeam_summary,
+        summaries["elebeam"],
+        summaries["mustop"],
+        summaries["mustop_pileup"],
+        summaries["final"],
+        summaries["run1a_mubeam"],
+        summaries["run1a_mustops"],
+    )
+    return 0
+
+
+def _run_stage_final(
+    args: argparse.Namespace,
+    run_root: Path,
+    workflows_dir: Path,
+) -> int:
+    """Handle ``--stage final``."""
+    mubeam_dir = _require_stage_dir(args.mubeam_run_dir, run_root, args.config_version, "mubeam")
+    elebeam_dir = _require_stage_dir(args.elebeam_run_dir, run_root, args.config_version, "elebeam")
+    pileup_dir = _require_stage_dir(args.mustop_pileup_run_dir, run_root, args.config_version, "mustop_pileup")
+    mustop_dir = _require_stage_dir(args.mustop_run_dir, run_root, args.config_version, "mustop")
+
+    mubeam_summary = _load_summary(mubeam_dir / "analysis_summary.json")
+    elebeam_summary = _load_summary(elebeam_dir / "analysis_summary.json")
+    pileup_summary = _load_summary(pileup_dir / "analysis_summary.json")
+    mustop_summary = _load_summary(mustop_dir / "analysis_summary.json")
+
+    # Resolve ROOT input files.
+    mubeam_edep = Path(mubeam_summary.get("edep_analysis", {}).get("nts_output_path", ""))
+    elebeam_edep = Path(elebeam_summary.get("edep_analysis", {}).get("nts_output_path", ""))
+    pileup_edep = Path(pileup_summary.get("edep_analysis", {}).get("nts_output_path", ""))
+    for label, path in [("mubeam", mubeam_edep), ("elebeam", elebeam_edep), ("pileup", pileup_edep)]:
+        if not path.exists():
+            raise SystemExit(f"Missing {label} edep root file: {path}")
+
+    # Absolute efficiencies.
+    mubeam_flash = _safe_get(mubeam_summary, "art_event_analysis", "absolute_efficiency_by_type", "FlashOutput")
+    elebeam_flash = _safe_get(elebeam_summary, "art_event_analysis", "absolute_efficiency_by_type", "EleFlashOutput")
+    if mubeam_flash is None:
+        raise SystemExit("Missing mubeam FlashOutput absolute efficiency")
+    if elebeam_flash is None:
+        raise SystemExit("Missing elebeam EleFlashOutput absolute efficiency")
+    pileup_eff = _compute_mustop_pileup_absolute_efficiency(mubeam_summary, pileup_summary)
+    if pileup_eff is None:
+        raise SystemExit("Could not compute mustop_pileup absolute efficiency")
+
+    # Run directory.
+    if args.final_run_dir:
+        run_dir = Path(args.final_run_dir).resolve()
+        if not run_dir.is_dir():
+            raise SystemExit(f"final run directory does not exist: {run_dir}")
+    else:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_dir = run_root / args.config_version / f"final_{ts}"
+        run_dir.mkdir(parents=True, exist_ok=False)
+
+    final_result = _run_double_edep_analysis(
+        run_dir, workflows_dir,
+        mubeam_edep, elebeam_edep, pileup_edep,
+        mubeam_flash, elebeam_flash, pileup_eff,
+        args.dry_run,
+    )
+
+    dedep_root = _find_double_edep_output_path(run_dir)
+    sample_eff = _compute_mustop_sample_absolute_efficiencies(mubeam_summary, mustop_summary)
+    rough_sens = extract_analysis_results.run_rough_sensitivity_analyses(
+        run_dir, workflows_dir, mustop_summary, sample_eff, dedep_root, args.dry_run,
+    )
+
+    summary = {
+        "stage": "final",
+        "run_dir": str(run_dir),
+        "mubeam_run_dir": str(mubeam_dir),
+        "elebeam_run_dir": str(elebeam_dir),
+        "mustop_pileup_run_dir": str(pileup_dir),
+        "inputs": {
+            "mubeam_flash_edep_root": str(mubeam_edep),
+            "elebeam_flash_edep_root": str(elebeam_edep),
+            "mustop_pileup_edep_root": str(pileup_edep),
+            "mubeam_flash_absolute_efficiency": mubeam_flash,
+            "elebeam_flash_absolute_efficiency": elebeam_flash,
+            "mustop_pileup_absolute_efficiency": pileup_eff,
+        },
+        "double_edep_analysis": final_result,
+        "double_edep_output_path": str(dedep_root) if dedep_root else None,
+        "rough_sensitivity_by_sample": rough_sens,
+        "metrics": final_result.get("metrics", {}),
+    }
+
+    summary_path = run_dir / "analysis_summary.json"
+    with summary_path.open("w", encoding="utf-8") as fh:
+        json.dump(summary, fh, indent=2, sort_keys=True)
+
+    print(f"Final-stage run directory: {run_dir}")
+    print(f"Analysis summary: {summary_path}")
+    if final_result.get("error"):
+        print("Final-stage analysis failed", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _build_all_stage_base_cmd(args: argparse.Namespace, run_root: Path) -> list[str]:
+    """Build the common command prefix for ``--stage all`` / ``--stage minimal``."""
+    cmd = [
+        sys.executable, str(Path(__file__).resolve()),
+        args.config_version, str(args.parallel_jobs),
+        "--events-per-job", str(args.events_per_job),
+        "--run1a-mubeam-events-per-job", str(args.run1a_mubeam_events_per_job),
+        "--mu2e-command", args.mu2e_command,
+        "--seed-start", str(args.seed_start),
+        "--run-root", str(run_root),
+        "--mustop-jobs-per-mode", str(args.mustop_jobs_per_mode),
+        "--mustop-events-per-job", str(args.mustop_events_per_job),
+        "--mustop-pileup-events-per-job", str(args.mustop_pileup_events_per_job),
+        "--elebeam-events-per-job", str(args.elebeam_events_per_job),
+    ]
+    if args.include_ce_plus:
+        cmd.append("--include-ce-plus")
+    if args.max_workers is not None:
+        cmd.extend(["--max-workers", str(args.max_workers)])
+    if args.dry_run:
+        cmd.append("--dry-run")
+    if args.clean:
+        cmd.append("--clean")
+    return cmd
+
+
+def _run_substage(base_cmd: list[str], extra_args: list[str], label: str) -> int:
+    """Run a single sub-stage in the all/minimal pipeline."""
+    rc = subprocess.run(base_cmd + extra_args, check=False).returncode
+    if rc != 0:
+        print(f"{label} stage failed", file=sys.stderr)
+    return rc
+
+
+def _run_stage_all(args: argparse.Namespace, run_root: Path) -> int:
+    """Handle ``--stage all``."""
+    base = _build_all_stage_base_cmd(args, run_root)
+    cv = args.config_version
+
+    print("Running stage sequence: mubeam -> elebeam -> mustop -> run1a_mubeam -> run1a_mustops -> mustop_pileup -> final")
+
+    # mubeam
+    rc = _run_substage(base, ["--stage", "mubeam"], "mubeam")
+    if rc != 0:
+        return rc
+    mubeam_dir = _require_stage_dir(None, run_root, cv, "mubeam")
+
+    # elebeam
+    rc = _run_substage(base, ["--stage", "elebeam"], "elebeam")
+    if rc != 0:
+        return rc
+    elebeam_dir = _require_stage_dir(None, run_root, cv, "elebeam")
+
+    # mustop
+    rc = _run_substage(base, ["--stage", "mustop", "--mubeam-run-dir", str(mubeam_dir)], "mustop")
+    if rc != 0:
+        return rc
+
+    # run1a_mubeam
+    rc = _run_substage(base, ["--stage", "run1a_mubeam"], "run1a_mubeam")
+    if rc != 0:
+        return rc
+    r1a_mubeam_dir = _require_stage_dir(None, run_root, cv, "run1a_mubeam")
+
+    # run1a_mustops
+    rc = _run_substage(
+        base,
+        ["--stage", "run1a_mustops", "--run1a-mubeam-run-dir", str(r1a_mubeam_dir), "--mustop-ce-only"],
+        "run1a_mustops",
+    )
+    if rc != 0:
+        return rc
+
+    # mustop_pileup
+    rc = _run_substage(base, ["--stage", "mustop_pileup", "--mubeam-run-dir", str(mubeam_dir)], "mustop_pileup")
+    if rc != 0:
+        return rc
+    pileup_dir = _require_stage_dir(None, run_root, cv, "mustop_pileup")
+
+    # final
+    rc = _run_substage(
+        base,
+        ["--stage", "final", "--mubeam-run-dir", str(mubeam_dir),
+         "--elebeam-run-dir", str(elebeam_dir), "--mustop-pileup-run-dir", str(pileup_dir)],
+        "final",
+    )
+    if rc != 0:
+        return rc
+
+    # Print summary
+    r1a_mustops_dir = _find_latest_stage_run(run_root, cv, "run1a_mustops")
+    mustop_dir = _find_latest_stage_run(run_root, cv, "mustop")
+    final_dir = _find_latest_stage_run(run_root, cv, "final")
+
+    print(f"All-stage sequence complete. mubeam run: {mubeam_dir}")
+    print(f"All-stage sequence complete. elebeam run: {elebeam_dir}")
+    print(f"All-stage sequence complete. run1a_mubeam run: {r1a_mubeam_dir}")
+    if r1a_mustops_dir:
+        print(f"All-stage sequence complete. run1a_mustops run: {r1a_mustops_dir}")
+    if mustop_dir:
+        print(f"All-stage sequence complete. mustop run: {mustop_dir}")
+    if pileup_dir:
+        print(f"All-stage sequence complete. mustop_pileup run: {pileup_dir}")
+    if final_dir:
+        print(f"All-stage sequence complete. final run: {final_dir}")
+
+    if mustop_dir:
+        _print_all_stage_compact_summary(
+            _load_summary(mubeam_dir / "analysis_summary.json"),
+            _load_summary(elebeam_dir / "analysis_summary.json"),
+            _load_summary(mustop_dir / "analysis_summary.json"),
+            _load_summary(pileup_dir / "analysis_summary.json") if pileup_dir else None,
+            _load_summary(final_dir / "analysis_summary.json") if final_dir else None,
+            _load_summary(r1a_mubeam_dir / "analysis_summary.json"),
+            _load_summary(r1a_mustops_dir / "analysis_summary.json") if r1a_mustops_dir else None,
+        )
+
+    if args.clean:
+        _clean_intermediate_art_files([
+            mubeam_dir, elebeam_dir, mustop_dir,
+            r1a_mustops_dir, r1a_mubeam_dir, pileup_dir, final_dir,
+        ])
+
+    return 0
+
+
+def _run_stage_minimal(args: argparse.Namespace, run_root: Path) -> int:
+    """Handle ``--stage minimal``."""
+    base = _build_all_stage_base_cmd(args, run_root)
+    cv = args.config_version
+
+    print("Running minimal stage sequence: mubeam -> run1a_mubeam -> run1a_mustops")
+
+    rc = _run_substage(base, ["--stage", "mubeam"], "mubeam")
+    if rc != 0:
+        return rc
+    mubeam_dir = _require_stage_dir(None, run_root, cv, "mubeam")
+
+    rc = _run_substage(base, ["--stage", "run1a_mubeam"], "run1a_mubeam")
+    if rc != 0:
+        return rc
+    r1a_mubeam_dir = _require_stage_dir(None, run_root, cv, "run1a_mubeam")
+
+    rc = _run_substage(
+        base,
+        ["--stage", "run1a_mustops", "--run1a-mubeam-run-dir", str(r1a_mubeam_dir), "--mustop-ce-only"],
+        "run1a_mustops",
+    )
+    if rc != 0:
+        return rc
+    r1a_mustops_dir = _require_stage_dir(None, run_root, cv, "run1a_mustops")
+
+    print(f"Minimal-stage sequence complete. mubeam run: {mubeam_dir}")
+    print(f"Minimal-stage sequence complete. run1a_mubeam run: {r1a_mubeam_dir}")
+    print(f"Minimal-stage sequence complete. run1a_mustops run: {r1a_mustops_dir}")
+
+    # Load and print summary information.
+    mu_sum = _load_summary_optional(mubeam_dir / "analysis_summary.json")
+    r1a_mu_sum = _load_summary_optional(r1a_mubeam_dir / "analysis_summary.json")
+    r1a_ms_sum = _load_summary_optional(r1a_mustops_dir / "analysis_summary.json")
+
+    if mu_sum or r1a_mu_sum or r1a_ms_sum:
+        print("\n--- Summary Information ---")
+
+        target_abs = _safe_get(mu_sum, "target_al_analysis", "target_al_entries_absolute_efficiency") if mu_sum else None
+        calo_abs = _safe_get(mu_sum, "target_al_analysis", "calo_entries_absolute_efficiency") if mu_sum else None
+
+        if mu_sum:
+            print(f"mubeam total events simulated: {_safe_get(mu_sum, 'simulation_events', 'total_events', default='unavailable')}")
+            print(f"mubeam input efficiency correction: {_fmt(_safe_get(mu_sum, 'input_efficiency', 'correction_factor'))}")
+        else:
+            print("mubeam summary: unavailable")
+
+        if r1a_mu_sum:
+            print(f"run1a_mubeam total events simulated: {_safe_get(r1a_mu_sum, 'simulation_events', 'total_events', default='unavailable')}")
+            print(f"run1a_mubeam input efficiency correction: {_fmt(_safe_get(r1a_mu_sum, 'input_efficiency', 'correction_factor'))}")
+        else:
+            print("run1a_mubeam summary: unavailable")
+
+        if r1a_ms_sum:
+            print(f"run1a_mustops total events simulated: {_safe_get(r1a_ms_sum, 'simulation_events', 'total_events', default='unavailable')}")
+            modes = _mustop_modes_from_summary(r1a_ms_sum)
+            print(f"run1a_mustops modes: {', '.join(modes)}")
+        else:
+            print("run1a_mustops summary: unavailable")
+
+        # Extract run1a metrics for table.
+        run1a_ce_abs_50: float | None = None
+        run1a_ce_mpv: float | None = None
+        run1a_ce_sens: float | None = None
+        run1a_total_hit: float | None = None
+
+        if r1a_ms_sum:
+            sim_by_mode = _compute_simulated_events_by_mode(r1a_ms_sum)
+            ref_sim = sim_by_mode.get("ce")
+            if ref_sim in (None, 0):
+                ref_sim = sim_by_mode.get("ce_plus")
+
+            r1a_ic = _safe_get(r1a_mu_sum, "input_efficiency", "correction_factor") if r1a_mu_sum else None
+            r1a_stops = r1a_mu_sum.get("muminus_stops_events") if r1a_mu_sum else None
+            r1a_sim = _safe_get(r1a_mu_sum, "simulation_events", "total_events") if r1a_mu_sum else None
+            r1a_sf = r1a_stops / r1a_sim if r1a_stops is not None and r1a_sim not in (None, 0) else None
+
+            sc = (
+                r1a_ic * r1a_sf / ref_sim
+                if r1a_ic is not None and r1a_sf is not None and ref_sim not in (None, 0) else None
+            )
+
+            ce = r1a_ms_sum.get("edep_analysis_by_sample", {}).get("ce", {})
+            ce_gt50 = ce.get("events_edep_gt_50_mev")
+            run1a_ce_abs_50 = ce_gt50 * sc if sc is not None and ce_gt50 is not None else None
+            run1a_ce_mpv = ce.get("tracker_front_fit_mpv_mev")
+
+            sens_line = _safe_get(r1a_ms_sum, "rough_run1a_sensitivity", "summary_line")
+            if sens_line:
+                run1a_ce_sens = float(sens_line.split("=")[-1])
+
+            r1a_flash = _safe_get(r1a_mu_sum, "art_event_analysis", "absolute_efficiency_by_type", "FlashOutput") if r1a_mu_sum else None
+            fe = r1a_ms_sum.get("edep_analysis_by_sample", {}).get("flat_electron", {})
+            fe_seen = fe.get("events_seen")
+            fe_abs = fe_seen * sc if sc is not None and fe_seen is not None else None
+
+            run1a_total_hit = (
+                r1a_flash + fe_abs
+                if r1a_flash is not None and fe_abs is not None else None
+            )
+
+        _print_compact_summary_table(
+            target_abs, calo_abs, None, None, None, None,
+            run1a_ce_abs_50, run1a_ce_mpv, run1a_ce_sens, run1a_total_hit,
+        )
+
+    if args.clean:
+        _clean_intermediate_art_files([mubeam_dir, r1a_mubeam_dir, r1a_mustops_dir])
+
+    return 0
+
+
+def _run_single_stage(
+    args: argparse.Namespace,
+    run_root: Path,
+    workflows_dir: Path,
+    extractor_path: Path,
+) -> int:
+    """Handle a single simulation stage (mubeam/elebeam/mustop/run1a_*/mustop_pileup)."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = run_root / args.config_version / f"{args.stage}_{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=False)
 
-    if args.stage == "mubeam":
-        fcl_path = workflows_dir / args.config_version / "run1b_beam" / "mubeam.fcl"
-        include_fcl_path = Path("Run1BAna") / "workflows" / args.config_version / "run1b_beam" / "mubeam.fcl"
-        if not fcl_path.exists():
-            raise SystemExit(f"Missing FCL file: {fcl_path}")
-        if not extractor_path.exists():
-            raise SystemExit(f"Missing extractor script: {extractor_path}")
-
-        job_specs = [
-            {
-                "index": index,
-                "name": "mubeam",
-                "job_fcl_name": "mubeam_job.fcl",
-                "include_fcl_path": include_fcl_path,
-                "fcl_overrides": "",
-            }
-            for index in range(args.parallel_jobs)
-        ]
-    elif args.stage == "run1a_mubeam":
-        fcl_path = workflows_dir / args.config_version / "run1a_beam" / "mubeam.fcl"
-        include_fcl_path = Path("Run1BAna") / "workflows" / args.config_version / "run1a_beam" / "mubeam.fcl"
-        if not fcl_path.exists():
-            raise SystemExit(f"Missing FCL file: {fcl_path}")
-        if not extractor_path.exists():
-            raise SystemExit(f"Missing extractor script: {extractor_path}")
-
-        job_specs = [
-            {
-                "index": index,
-                "name": "run1a_mubeam",
-                "job_fcl_name": "run1a_mubeam_job.fcl",
-                "include_fcl_path": include_fcl_path,
-                "fcl_overrides": "",
-            }
-            for index in range(args.parallel_jobs)
-        ]
-    elif args.stage == "elebeam":
-        fcl_path = workflows_dir / args.config_version / "run1b_beam" / "elebeam.fcl"
-        include_fcl_path = Path("Run1BAna") / "workflows" / args.config_version / "run1b_beam" / "elebeam.fcl"
-        if not fcl_path.exists():
-            raise SystemExit(f"Missing FCL file: {fcl_path}")
-        if not extractor_path.exists():
-            raise SystemExit(f"Missing extractor script: {extractor_path}")
-
-        job_specs = [
-            {
-                "index": index,
-                "name": "elebeam",
-                "job_fcl_name": "elebeam_job.fcl",
-                "include_fcl_path": include_fcl_path,
-                "fcl_overrides": "",
-            }
-            for index in range(args.parallel_jobs)
-        ]
+    # Build job specs.
+    if args.stage in _BEAM_STAGE_CONFIG:
+        job_specs = _build_beam_job_specs(args, workflows_dir, extractor_path)
     elif args.stage in ("mustop", "run1a_mustops"):
-        input_mubeam_stage = "mubeam" if args.stage == "mustop" else "run1a_mubeam"
-        input_mubeam_run_dir_arg = args.mubeam_run_dir if args.stage == "mustop" else args.run1a_mubeam_run_dir
-        input_mubeam_run_dir = (
-            Path(input_mubeam_run_dir_arg).resolve()
-            if input_mubeam_run_dir_arg
-            else _find_latest_stage_run(run_root, args.config_version, input_mubeam_stage)
-        )
+        job_specs = _build_mustop_job_specs(args, workflows_dir, run_root)
+    else:  # mustop_pileup
+        job_specs = _build_pileup_job_specs(args, workflows_dir, run_root)
 
-        if input_mubeam_run_dir is None:
-            raise SystemExit(
-                "Could not find a mubeam run directory. "
-                "Provide --mubeam-run-dir/--run1a-mubeam-run-dir or run the corresponding mubeam stage first."
-            )
-        if not input_mubeam_run_dir.exists() or not input_mubeam_run_dir.is_dir():
-            raise SystemExit(f"mubeam run directory does not exist: {input_mubeam_run_dir}")
-
-        muminus_stop_files = _collect_muminus_stop_files(input_mubeam_run_dir)
-        if not muminus_stop_files:
-            raise SystemExit(
-                f"No MuminusStopsCat files found in {input_mubeam_run_dir / 'mu_stops_job'}. "
-                "Run the corresponding mubeam stage to completion first."
-            )
-
-        print(f"Using mubeam inputs from: {input_mubeam_run_dir}")
-        print(f"MuminusStopsCat input files: {len(muminus_stop_files)}")
-
-        job_specs = []
-        selected_modes = _selected_mustop_modes(args.include_ce_plus)
-        mustop_fragment = "run1b_mustop" if args.stage == "mustop" else "run1a_mustop"
-        for mode in selected_modes:
-            mode_fcl_path = workflows_dir / args.config_version / mustop_fragment / f"{mode}.fcl"
-            include_fcl_path = Path("Run1BAna") / "workflows" / args.config_version / mustop_fragment / f"{mode}.fcl"
-            if not mode_fcl_path.exists():
-                raise SystemExit(f"Missing FCL file: {mode_fcl_path}")
-
-            muminus_stop_lines = _format_fhicl_string_list(muminus_stop_files)
-            overrides = (
-                "physics.filters.TargetStopResampler.fileNames: [\n"
-                f"{muminus_stop_lines}\n"
-                "]\n"
-            )
-            for mode_job_index in range(args.mustop_jobs_per_mode):
-                index = len(job_specs)
-                job_specs.append(
-                    {
-                        "index": index,
-                        "name": f"{mode}_{mode_job_index:03d}",
-                        "job_fcl_name": f"{mode}_job_{mode_job_index:03d}.fcl",
-                        "include_fcl_path": include_fcl_path,
-                        "fcl_overrides": overrides,
-                    }
-                )
-    else: # mustop_pileup
-        mubeam_run_dir = (
-            Path(args.mubeam_run_dir).resolve()
-            if args.mubeam_run_dir
-            else _find_latest_stage_run(run_root, args.config_version, "mubeam")
-        )
-
-        if mubeam_run_dir is None:
-            raise SystemExit(
-                "Could not find a mubeam run directory. Provide --mubeam-run-dir or run stage mubeam first."
-            )
-        if not mubeam_run_dir.exists() or not mubeam_run_dir.is_dir():
-            raise SystemExit(f"mubeam run directory does not exist: {mubeam_run_dir}")
-
-        muminus_stop_files = _collect_muminus_stop_files(mubeam_run_dir)
-        if not muminus_stop_files:
-            raise SystemExit(
-                f"No MuminusStopsCat files found in {mubeam_run_dir / 'mu_stops_job'}. "
-                "Run stage mubeam to completion first."
-            )
-
-        print(f"Using mubeam inputs from: {mubeam_run_dir}")
-        print(f"MuminusStopsCat input files: {len(muminus_stop_files)}")
-
-        pileup_fcl_path = workflows_dir / args.config_version / "run1b_mustop" / "pileup.fcl"
-        include_fcl_path = Path("Run1BAna") / "workflows" / args.config_version / "run1b_mustop" / "pileup.fcl"
-        if not pileup_fcl_path.exists():
-            raise SystemExit(f"Missing FCL file: {pileup_fcl_path}")
-
-        muminus_stop_lines = _format_fhicl_string_list(muminus_stop_files)
-        overrides = (
-            "physics.filters.TargetStopResampler.fileNames: [\n"
-            f"{muminus_stop_lines}\n"
-            "]\n"
-        )
-        job_specs = [
-            {
-                "index": index,
-                "name": f"pileup_{index:03d}",
-                "job_fcl_name": f"pileup_job_{index:03d}.fcl",
-                "include_fcl_path": include_fcl_path,
-                "fcl_overrides": overrides,
-            }
-            for index in range(args.parallel_jobs)
-        ]
-
-    if args.stage == "mubeam":
-        print(f"FCL: {workflows_dir / args.config_version / 'run1b_beam' / 'mubeam.fcl'}")
-    elif args.stage == "run1a_mubeam":
-        print(f"FCL: {workflows_dir / args.config_version / 'run1a_beam' / 'mubeam.fcl'}")
-    elif args.stage == "elebeam":
-        print(f"FCL: {workflows_dir / args.config_version / 'run1b_beam' / 'elebeam.fcl'}")
+    # Print configuration.
+    if args.stage in _BEAM_STAGE_CONFIG:
+        frag, fcl_name, _ = _BEAM_STAGE_CONFIG[args.stage]
+        print(f"FCL: {workflows_dir / args.config_version / frag / fcl_name}")
     elif args.stage == "mustop_pileup":
         print(f"FCL: {workflows_dir / args.config_version / 'run1b_mustop' / 'pileup.fcl'}")
     else:
-        mustop_fragment = "run1b_mustop" if args.stage == "mustop" else "run1a_mustop"
-        selected_modes = _selected_mustop_modes(args.include_ce_plus)
-        print(
-            "FCLs: "
-            + ", ".join(
-                str(workflows_dir / args.config_version / mustop_fragment / f"{mode}.fcl")
-                for mode in selected_modes
-            )
-        )
+        fragment = "run1b_mustop" if args.stage == "mustop" else "run1a_mustop"
+        modes = _selected_mustop_modes(args.include_ce_plus, args.mustop_ce_only)
+        print("FCLs: " + ", ".join(
+            str(workflows_dir / args.config_version / fragment / f"{m}.fcl") for m in modes
+        ))
+
     print(f"Run directory: {run_dir}")
     print(f"Stage: {args.stage}")
     if args.stage in ("mustop", "run1a_mustops"):
@@ -2017,103 +1671,39 @@ def main() -> int:
     print(f"Launching {len(job_specs)} jobs")
     print(f"Seed range: {args.seed_start} to {args.seed_start + len(job_specs) - 1}")
 
-    max_workers = args.max_workers if args.max_workers else len(job_specs)
-    max_workers = max(1, min(max_workers, len(job_specs)))
-
+    # Ensure credentials.
     env = os.environ.copy()
-
     print("Running getToken to ensure access credentials are ready...")
-    token_result = subprocess.run(["getToken"], env=env, check=False)
-    if token_result.returncode != 0:
-        raise SystemExit(f"getToken failed with exit code {token_result.returncode}")
+    token_rc = subprocess.run(["getToken"], env=env, check=False).returncode
+    if token_rc != 0:
+        raise SystemExit(f"getToken failed with exit code {token_rc}")
 
-    results: list[JobResult] = []
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = []
-        for spec in job_specs:
-            index = spec["index"]
-            job_dir = run_dir / f"job_{index:03d}"
-            job_dir.mkdir(parents=True, exist_ok=False)
-
-            seed = args.seed_start + index
-            job_fcl = job_dir / spec["job_fcl_name"]
-            job_fcl.write_text(
-                f"#include \"{spec['include_fcl_path'].as_posix()}\"\n"
-                "\n"
-                f"services.SeedService.baseSeed : {seed}\n"
-                f"source.firstSubRun: {index}\n"
-                f"{spec['fcl_overrides']}",
-                encoding="utf-8",
-            )
-
-            command = [args.mu2e_command, "-c", str(job_fcl)]
-            if args.stage == "mustop":
-                n_events = args.mustop_events_per_job
-            elif args.stage == "run1a_mubeam":
-                n_events = args.run1a_mubeam_events_per_job
-            elif args.stage == "elebeam":
-                n_events = args.elebeam_events_per_job
-            elif args.stage == "mustop_pileup":
-                n_events = args.mustop_pileup_events_per_job
-            elif args.stage == "run1a_mustops":
-                n_events = args.mustop_events_per_job
-            else:
-                n_events = args.events_per_job
-            command.extend(["-n", str(n_events)])
-
-            # Record command for reproducibility.
-            (job_dir / "job_command.txt").write_text(shlex.join(command) + "\n", encoding="utf-8")
-            futures.append(executor.submit(_run_one_job, index, command, job_dir, env, args.dry_run))
-
-        for future in as_completed(futures):
-            result = future.result()
-            results.append(result)
-            status = {
-                "job_index": result.index,
-                "job_dir": str(result.job_dir),
-                "command": result.command,
-                "returncode": result.returncode,
-                "duration_s": round(result.duration_s, 3),
-                "log_path": str(result.log_path),
-            }
-            with (result.job_dir / "job_status.json").open("w", encoding="utf-8") as handle:
-                json.dump(status, handle, indent=2, sort_keys=True)
-
-            print(
-                f"Job {result.index:03d}: returncode={result.returncode}, "
-                f"duration={result.duration_s:.2f}s, log={result.log_path}"
-            )
-
-    completed = sum(1 for result in results if result.returncode == 0)
+    # Run jobs.
+    results = _launch_parallel_jobs(args, job_specs, run_dir, env)
+    completed = sum(1 for r in results if r.returncode == 0)
     failed = len(results) - completed
     print(f"Finished jobs: {completed}/{len(results)} successful, {failed} failed")
 
+    # Post-processing: mu_stops concatenation for beam stages.
     if args.stage in ("mubeam", "run1a_mubeam"):
         if failed > 0:
             print("Warning: proceeding with available successful mubeam outputs despite failed jobs")
-
-        beam_fragment = "run1b_beam" if args.stage == "mubeam" else "run1a_beam"
-
-        mu_stops_result = _run_mu_stops_job(
+        beam_frag = "run1b_beam" if args.stage == "mubeam" else "run1a_beam"
+        mu_result = _run_mu_stops_job(
             run_dir, workflows_dir, args.config_version,
-            beam_fragment,
-            args.mu2e_command, env, args.dry_run,
+            beam_frag, args.mu2e_command, env, args.dry_run,
         )
-        if mu_stops_result.returncode != 0:
+        if mu_result.returncode != 0:
             print("mu_stops job failed", file=sys.stderr)
             return 1
 
+    # Run analysis extractor.
     summary_path = run_dir / "analysis_summary.json"
     extractor_cmd = [
-        sys.executable,
-        str(extractor_path),
-        "--stage",
-        args.stage,
-        "--run-dir",
-        str(run_dir),
-        "--output",
-        str(summary_path),
+        sys.executable, str(extractor_path),
+        "--stage", args.stage,
+        "--run-dir", str(run_dir),
+        "--output", str(summary_path),
         "--pretty",
     ]
     if args.stage == "run1a_mustops" and args.run1a_mubeam_run_dir:
@@ -2122,21 +1712,45 @@ def main() -> int:
         extractor_cmd.append("--include-ce-plus")
 
     print("Running analysis extractor...")
-    extractor_command_path = run_dir / "extractor_command.txt"
-    extractor_command_path.write_text(shlex.join(extractor_cmd) + "\n", encoding="utf-8")
+    (run_dir / "extractor_command.txt").write_text(shlex.join(extractor_cmd) + "\n", encoding="utf-8")
 
-    extractor_log_path = run_dir / "extractor.log"
-    with extractor_log_path.open("w", encoding="utf-8") as log_file:
-        extractor_run = subprocess.run(extractor_cmd, stdout=log_file, stderr=subprocess.STDOUT, check=False)
+    with (run_dir / "extractor.log").open("w", encoding="utf-8") as log:
+        ext_rc = subprocess.run(extractor_cmd, stdout=log, stderr=subprocess.STDOUT, check=False).returncode
 
-    if extractor_run.returncode != 0:
+    if ext_rc != 0:
         print("Extractor failed", file=sys.stderr)
-        return extractor_run.returncode
+        return ext_rc
 
     print(f"Analysis summary: {summary_path}")
     if failed > 0:
         print("Warning: stage completed with failed jobs; efficiencies are evaluated from successful outputs")
     return 0
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def main() -> int:
+    args = parse_args()
+    _validate_args(args)
+
+    script_dir = Path(__file__).resolve().parent
+    workflows_dir = script_dir.parent
+    extractor_path = script_dir / "extract_analysis_results.py"
+    run_root = Path(args.run_root).resolve() if args.run_root else workflows_dir / "runs"
+
+    if args.stage == "summary":
+        return _run_stage_summary(args, run_root)
+    if args.stage == "final":
+        return _run_stage_final(args, run_root, workflows_dir)
+    if args.stage == "all":
+        return _run_stage_all(args, run_root)
+    if args.stage == "minimal":
+        return _run_stage_minimal(args, run_root)
+
+    # Single simulation stage.
+    return _run_single_stage(args, run_root, workflows_dir, extractor_path)
 
 
 if __name__ == "__main__":

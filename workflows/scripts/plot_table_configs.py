@@ -9,26 +9,29 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+import ROOT
 
 
 DESCRIPTION_RE = re.compile(r"^config_(v\d+):\s*(.+?)\s*$")
 VERSION_RE = re.compile(r"^v(\d+)$")
 
-CLASS_NOMINAL = "nominal Run 1A"
-CLASS_DEGRADER = "degrader target"
-CLASS_SOLID = "solid plate target"
-CLASS_HOLE = "plate with a hole"
-CLASS_PLUG = "plate with a hole and displaced plug"
-CLASS_FILL = "plate with a hole and thin fill"
-CLASS_UNKNOWN = "unknown"
+CLASS_NOMINAL = "Nominal Run 1A"
+CLASS_DEGRADER = "Movable target"
+CLASS_SOLID = "Plate target"
+CLASS_HOLE = "Plate + hole"
+CLASS_PLUG = "Plate + hole and offset plug"
+CLASS_FILL = "Plate + hole and thin fill"
+CLASS_FOILS = "Plate + hole + foils"
+CLASS_UNKNOWN = "Unknown"
 
 CLASS_ORDER = [
     CLASS_NOMINAL,
     CLASS_DEGRADER,
     CLASS_SOLID,
     CLASS_HOLE,
-    CLASS_PLUG,
     CLASS_FILL,
+    CLASS_PLUG,
+    CLASS_FOILS,
     CLASS_UNKNOWN,
 ]
 
@@ -37,9 +40,22 @@ CLASS_COLORS = {
     CLASS_DEGRADER: 861,
     CLASS_SOLID: 632,
     CLASS_HOLE: 600,
-    CLASS_PLUG: 418,
     CLASS_FILL: 797,
+    CLASS_PLUG: 418,
+    CLASS_FOILS: ROOT.kMagenta - 9,
     CLASS_UNKNOWN: 920,
+}
+
+
+CLASS_MARKERS = {
+    CLASS_NOMINAL: ROOT.kFullStar,
+    CLASS_DEGRADER: ROOT.kFullCircle,
+    CLASS_SOLID: ROOT.kFullCircle,
+    CLASS_HOLE: ROOT.kFullCircle,
+    CLASS_FILL: ROOT.kFullCircle,
+    CLASS_PLUG: ROOT.kFullCircle,
+    CLASS_FOILS: ROOT.kFullCircle,
+    CLASS_UNKNOWN: ROOT.kFullCircle,
 }
 
 
@@ -117,6 +133,8 @@ def classify_description(description: str) -> str:
         return CLASS_PLUG
     if "fill" in lowered:
         return CLASS_FILL
+    if "foils" in lowered:
+        return CLASS_FOILS
     if "hole" in lowered:
         return CLASS_HOLE
     if "plate target" in lowered:
@@ -230,9 +248,10 @@ def plot_fields(records: list[ConfigRecord], output_dir: Path, root_file_name: s
 
     for field_name in field_names:
         multigraph = ROOT.TMultiGraph()
-        legend = ROOT.TLegend(0.12, 0.72, 0.42, 0.9)
+        legend = ROOT.TLegend(0.12, 0.80, 0.88, 0.9)
         legend.SetBorderSize(0)
         legend.SetFillStyle(0)
+        legend.SetNColumns(3)
 
         canvas = ROOT.TCanvas(f"canvas_{field_name}", field_name, 1200, 700)
         plotted_graphs = []
@@ -244,8 +263,9 @@ def plot_fields(records: list[ConfigRecord], output_dir: Path, root_file_name: s
 
             graph = make_graph(ROOT, class_records, field_name)
             color = CLASS_COLORS[class_name]
+            marker = CLASS_MARKERS[class_name]
             graph.SetTitle(class_name)
-            graph.SetMarkerStyle(20)
+            graph.SetMarkerStyle(marker)
             graph.SetMarkerSize(1.2)
             graph.SetMarkerColor(color)
             graph.SetLineColor(color)
@@ -271,22 +291,36 @@ def plot_fields(records: list[ConfigRecord], output_dir: Path, root_file_name: s
 
     scatter_x_field = "run_1a_ce_s_sqrt_b"
     scatter_y_field = "calo_stop_per_pot"
+    nominal_x_values = [
+        parse_float(record.fields.get(scatter_x_field, ""))
+        for record in grouped_records.get(CLASS_NOMINAL, [])
+    ]
+    x_scale = next((value for value in nominal_x_values if value not in (None, 0.0)), 1.0)
     if scatter_x_field in field_names and scatter_y_field in field_names:
         scatter_canvas = ROOT.TCanvas("canvas_calo_stop_vs_run1a_s_sqrt_b", "calo_stop_vs_run1a_s_sqrt_b", 1000, 800)
         scatter_multigraph = ROOT.TMultiGraph()
-        scatter_legend = ROOT.TLegend(0.12, 0.80, 0.88, 0.9)
+        scatter_legend = ROOT.TLegend(0.10, 0.80, 0.88, 0.9)
         scatter_legend.SetBorderSize(0)
         scatter_legend.SetFillStyle(0)
         scatter_legend.SetNColumns(3)
+        scatter_legend.SetTextSize(0.028)
         plotted_scatter_graphs = []
 
         for class_name in CLASS_ORDER:
             class_records = []
             for record in grouped_records[class_name]:
-                x_value = parse_float(record.fields.get(scatter_x_field, ""))
+                raw_x_value = parse_float(record.fields.get(scatter_x_field, ""))
                 y_value = parse_float(record.fields.get(scatter_y_field, ""))
-                if x_value is None or y_value is None:
+                if raw_x_value is None or y_value is None:
                     continue
+                x_value = raw_x_value / x_scale
+                record = ConfigRecord(
+                    version=record.version,
+                    version_number=record.version_number,
+                    description=record.description,
+                    config_class=record.config_class,
+                    fields={**record.fields, scatter_x_field: str(x_value)},
+                )
                 class_records.append(record)
 
             if not class_records:
@@ -294,8 +328,9 @@ def plot_fields(records: list[ConfigRecord], output_dir: Path, root_file_name: s
 
             graph = make_xy_graph(ROOT, class_records, scatter_x_field, scatter_y_field, class_name)
             color = CLASS_COLORS[class_name]
-            graph.SetMarkerStyle(20)
-            graph.SetMarkerSize(1.2)
+            marker = CLASS_MARKERS[class_name]
+            graph.SetMarkerStyle(marker)
+            graph.SetMarkerSize(1.2 if marker != ROOT.kFullStar else 2.0)
             graph.SetMarkerColor(color)
             graph.SetLineColor(color)
             scatter_multigraph.Add(graph, "P")
@@ -303,7 +338,7 @@ def plot_fields(records: list[ConfigRecord], output_dir: Path, root_file_name: s
             plotted_scatter_graphs.append(graph)
 
         if plotted_scatter_graphs:
-            scatter_multigraph.SetTitle("Calo muon stops per POT vs. Run 1A S/sqrt(B);Run 1A S/sqrt(B);Calo muon stops per POT")
+            scatter_multigraph.SetTitle("Calo muon stops per POT vs. Relative Run 1A S/#sqrt{B};Relative Run 1A S/#sqrt{B};Calo muon stops per POT")
             scatter_multigraph.Draw("A")
             scatter_canvas.SetGrid()
             scatter_legend.Draw()
