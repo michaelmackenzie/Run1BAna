@@ -91,6 +91,18 @@ config_v96: 2.50 cm Al plate with 60 mm hole, 5 x 0.2 mm 60 mm radius foils offs
 config_v97: 2.50 cm Al plate with 70 mm hole, no hole in the Run 1A target
 config_v98: 2.50 cm Al plate with 80 mm hole, 5 x 0.2 mm 80 mm radius foils offset in z, dz = 20 mm
 config_v99: 2.50 cm Al plate with 130 mm hole, variable thick Al fill
+config_v100: 2.50 cm Al plate with 60 mm hole, 4 mm x 130 mm x 500 mm helical plug, 180 degree turn
+config_v101: 2.50 cm Al plate with 60 mm hole, 4 mm x 130 mm x 250 mm helical plug, 180 degree turn
+config_v102: 2.50 cm Al plate with 60 mm hole, 4 mm x 130 mm x 150 mm helical plug, 180 degree turn
+config_v103: 2.50 cm Al plate with 60 mm hole, 2 mm x 130 mm x 250 mm helical plug, 180 degree turn
+config_v104: 2.50 cm Al plate with 60 mm hole, 2 mm x 130 mm x 500 mm helical plug, 360 degree turn
+config_v105: 2.50 cm Al plate with 70 mm hole, no hole in the Run 1A target with outer radius 125 mm
+config_v106: 2.50 cm Al plate with 60 mm hole, 2 mm x 130 mm x 150 mm helical plug, 180 degree turn
+config_v107: 2.50 cm Al plate with 60 mm hole, 2 mm x 130 mm x 60 mm helical plug,  90 degree turn
+config_v108: 2.50 cm Al plate with 80 mm hole, 4 mm x 170 mm x 150 mm helical plug, 180 degree turn
+config_v109: 2.50 cm Al plate with 80 mm hole, 4 mm x 170 mm x 300 mm helical plug, 360 degree turn
+config_v110: 2.50 cm Al plate with 90 mm hole, 4 mm x 190 mm x 150 mm helical plug, 180 degree turn
+config_v111: 2.50 cm Al plate with 80 mm hole, 4 mm x 170 mm x 300 mm helical plug, 360 degree turn, 125 mm radius target with no hole
 |--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------+-------------------|
 | Config | Mu stop  | Calo stop | Pileup dts | RMC eff  |  CE eff  | CE Trk |  Run 1A  |   Run 1A   | Run 1A CE | Run 1A pileup |   Run 1A sig /    |
 |        | per POT  |  per POT  | <edep>/POT | Edep(50) | Edep(50) |  MPV   |  CE eff  | CE Trk MPV | S/sqrt(B) |    dts eff    | Run 1B calo stops |
@@ -189,6 +201,17 @@ config_v99: 2.50 cm Al plate with 130 mm hole, variable thick Al fill
 | v97    | 4.01e-04 | 8.18e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 3.37e-04 |   -0.50    |   2.55    |      N/A      |     9.447e-03     |
 | v98    | 3.96e-04 | 6.35e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 3.46e-04 |   -0.52    |   2.73    |      N/A      |     1.303e-02     |
 | v99    | 4.27e-04 | 4.52e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 3.29e-04 |   -0.51    |   1.69    |      N/A      |     1.133e-02     |
+| v100   | 4.67e-04 | 1.32e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 2.36e-04 |   -0.99    |   0.97    |      N/A      |     2.227e-02     |
+| v101   | 4.73e-04 | 1.28e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 2.35e-04 |   -0.58    |   1.23    |      N/A      |     2.912e-02     |
+| v102   | 4.75e-04 | 1.79e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 2.56e-04 |   -0.56    |   1.48    |      N/A      |     2.506e-02     |
+| v103   | 4.58e-04 | 3.32e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 2.52e-04 |   -0.59    |   1.64    |      N/A      |     1.497e-02     |
+| v104   | 4.56e-04 | 2.68e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 2.45e-04 |   -0.58    |   1.58    |      N/A      |     1.787e-02     |
+| v105   | 4.01e-04 | 4.81e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 3.78e-04 |   -0.67    |   2.45    |      N/A      |     1.544e-02     |
+| v106   | 4.51e-04 | 4.35e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 2.55e-04 |   -0.53    |   1.72    |      N/A      |     1.198e-02     |
+| v107   | 4.41e-04 | 4.77e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 2.61e-04 |   -0.51    |   1.83    |      N/A      |     1.163e-02     |
+| v108   | 4.34e-04 | 4.47e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 3.29e-04 |   -0.58    |   2.07    |      N/A      |     1.403e-02     |
+| v109   | 4.43e-04 | 3.20e-06  |    N/A     |   N/A    |   N/A    |  N/A   | 3.33e-04 |   -0.69    |   1.95    |      N/A      |     1.847e-02     |
+| v110   | 4.11e-04 | 5.71e-06  |    N/A     |   N/A    |   N/A    |  N/A   |   N/A    |    N/A     |    N/A    |      N/A      |     0.000e+00     |
 |--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------+-------------------|
 | <l>    |   <c>    |    <c>    |    <c>     |   <c>    |   <c>    |  <c>   |   <c>    |    <c>     |    <c>    |      <c>      |        <c>        |
 |--------+----------+-----------+------------+----------+----------+--------+----------+------------+-----------+---------------+-------------------|

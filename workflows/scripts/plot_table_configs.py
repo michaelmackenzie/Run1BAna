@@ -22,6 +22,7 @@ CLASS_HOLE = "Plate + hole"
 CLASS_PLUG = "Plate + hole and offset plug"
 CLASS_FILL = "Plate + hole and thin fill"
 CLASS_FOILS = "Plate + hole + foils"
+CLASS_HELICAL = "Plate + helical plug"
 CLASS_UNKNOWN = "Unknown"
 
 CLASS_ORDER = [
@@ -32,6 +33,7 @@ CLASS_ORDER = [
     CLASS_FILL,
     CLASS_PLUG,
     CLASS_FOILS,
+    CLASS_HELICAL,
     CLASS_UNKNOWN,
 ]
 
@@ -43,6 +45,7 @@ CLASS_COLORS = {
     CLASS_FILL: 797,
     CLASS_PLUG: 418,
     CLASS_FOILS: ROOT.kMagenta - 9,
+    CLASS_HELICAL: 880,
     CLASS_UNKNOWN: 920,
 }
 
@@ -55,6 +58,7 @@ CLASS_MARKERS = {
     CLASS_FILL: ROOT.kFullCircle,
     CLASS_PLUG: ROOT.kFullCircle,
     CLASS_FOILS: ROOT.kFullCircle,
+    CLASS_HELICAL: ROOT.kFullCircle,
     CLASS_UNKNOWN: ROOT.kFullCircle,
 }
 
@@ -135,10 +139,13 @@ def classify_description(description: str) -> str:
         return CLASS_FILL
     if "foils" in lowered:
         return CLASS_FOILS
+    if "helical" in lowered:
+        return CLASS_HELICAL
     if "hole" in lowered:
         return CLASS_HOLE
     if "plate target" in lowered:
         return CLASS_SOLID
+
     return CLASS_UNKNOWN
 
 

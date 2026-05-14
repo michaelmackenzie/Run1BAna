@@ -6,7 +6,7 @@
 Minimal version
   time python scripts/run_configuration.py ${config} 30 --stage minimal \
   --mustop-events-per-job 3300 --mustop-jobs-per-mode 30 \
-  --events-per-job 10000 --run1a-mubeam-events-per-job 5000
+  --events-per-job 10000 --run1a-mubeam-events-per-job 5000 --clean
 * Work notes
 
 ** Test runs
