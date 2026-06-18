@@ -15,7 +15,7 @@ double tsda.helical.dy          =   85.;
 double tsda.helical.halflength  =   150.;
 double tsda.helical.z0          = 4345.;
 double tsda.helical.angle       =  360.;
-int    tsda.helical.nsteps      =   100;
+int    tsda.helical.nsteps      =  5000;
 string tsda.helical.material    = "StoppingTarget_Al";
 
 // Fill the inside holes in the stopping target

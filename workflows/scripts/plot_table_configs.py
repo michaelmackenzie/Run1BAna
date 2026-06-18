@@ -129,6 +129,8 @@ def parse_float(value: str) -> float | None:
 
 def classify_description(description: str) -> str:
     lowered = description.lower()
+    if "helical" in lowered:
+        return CLASS_HELICAL
     if "nominal run 1a" in lowered:
         return CLASS_NOMINAL
     if "degrader" in lowered:
@@ -139,8 +141,6 @@ def classify_description(description: str) -> str:
         return CLASS_FILL
     if "foils" in lowered:
         return CLASS_FOILS
-    if "helical" in lowered:
-        return CLASS_HELICAL
     if "hole" in lowered:
         return CLASS_HOLE
     if "plate target" in lowered:

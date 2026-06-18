@@ -1,0 +1,31 @@
+#include "Offline/Mu2eG4/geom/geom_run1_a.txt"
+
+// === autoresearch_bo_michael (helical mode) proposal ===
+// TSdA core pinned at v111
+bool hasTSdA = true;
+double tsda.r4           = 600.0;
+double tsda.rin          = 80.0000;
+double tsda.halfLength4  = 12.5000;
+double tsda.z0           = 4195.0;
+string tsda.materialName = "StoppingTarget_Al";
+
+// Helical plug (5D BO knobs)
+bool   tsda.helical.build      = true;
+double tsda.helical.dx         = 0.1050;
+double tsda.helical.dy         = 109.6110;
+double tsda.helical.halflength = 194.6840;
+double tsda.helical.z0         = 4495.7660;
+double tsda.helical.angle      = 459.5910;
+int    tsda.helical.nsteps     = 5000;
+string tsda.helical.material   = "StoppingTarget_Al";
+
+// TT_MidInner→DS2Vacuum fix (manually patched, mirrors v111)
+// geom_run1_a.txt baseline lacks these; needed for run1b_mubeam.
+bool tracker.inDS2Vacuum = true;
+double ds2.halfLength = 3825;
+bool ds.hasServicePipes = false;
+
+// Other pins
+bool degrader.build = false;
+double degrader.rotation = 180.0;
+string ts.coll5.material1Name = "COL5Poly";
