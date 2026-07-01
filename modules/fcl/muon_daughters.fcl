@@ -1,0 +1,29 @@
+#include "Production/JobConfig/pileup/MuBeamResampler.fcl"
+#include "Production/JobConfig/pileup/epilog_1b.fcl"
+
+physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations: -1
+physics.filters.beamResampler.mu2e.MaxEventsToSkip: 319542
+
+physics.analyzers.MuonStopDaughters : {
+  module_type             : MuonStopDaughters
+  simCollection           : "g4run"
+  physVolInfoInput        : "g4run:eventlevel"
+  useEventLevelVolumeInfo : true
+  material                : "COL5Poly" # G4_C
+  debugLevel              : 1
+}
+
+physics.EndPath   : [ MuonStopDaughters ]
+physics.end_paths : [ EndPath ]
+
+services.GeometryService.inputFile : "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.SeedService.baseSeed: 1
+
+# Input dataset: sim.mu2e.MuBeamCat.Run1Baa.art
+physics.filters.beamResampler.fileNames: [
+  # "/pnfs/mu2e/persistent/datasets/phy-sim/sim/mu2e/MuBeamCat/Run1Baa/art/1b/09/sim.mu2e.MuBeamCat.Run1Baa.001430_00000000.art",
+  "/pnfs/mu2e/persistent/datasets/phy-sim/sim/mu2e/MuBeamCat/Run1Baa/art/44/fd/sim.mu2e.MuBeamCat.Run1Baa.001430_00003251.art"
+]
+
+services.TFileService.fileName : "nts.mu2e.muon_daughters.Run1B.v40.root"

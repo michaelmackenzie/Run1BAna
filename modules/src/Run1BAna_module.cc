@@ -1862,12 +1862,9 @@ namespace mu2e
 
   //--------------------------------------------------------------------------------------
   void Run1BAna::analyze(const art::Event& event){
-    watch_->Increment("Total");
-    watch_->SetTime("Event");
     ++nevt_;
     hist_norm_->Fill(0.);
     event_ = &event;
-    cluster_par_.calorimeter = calorimeter_;
 
     //--------------------------------------------------------------------------------------
     // Retrieve the collections
