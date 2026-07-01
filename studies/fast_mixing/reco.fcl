@@ -1,0 +1,214 @@
+#include "Production/JobConfig/recoMC/prolog.fcl"
+
+BEGIN_PROLOG
+Reconstruction.OnSpillPath : [
+  @sequence::Reconstruction.CaloReco,
+  @sequence::Reconstruction.TrkHitReco,
+  @sequence::Reconstruction.CrvReco,
+  # @sequence::Reconstruction.OnSpillTrk,
+  CalTimeClusterFinder,
+  @sequence::Reconstruction.LineReco,
+  # KLFilter,
+  @sequence::Reconstruction.MCReco
+]
+
+Run1BRecoPath : [
+      "CaloRecoDigiMaker",
+      "CaloHitMaker",
+      "CaloProtoClusterMaker",
+      "CaloClusterMaker",
+      "PBTFSD",
+      "makeSH",
+      "makePH",
+      "makeSTH",
+      # "flagPH",
+      "CrvRecoPulses",
+      "CrvCoincidenceClusterFinder",
+      "CalTimeClusterFinder",
+      # "TimeAndPhiClusterFinder",
+      "LineFinder",
+      "KKLine",
+      # "KLFilter",
+      "SelectReco",
+      "CaloHitTruthMatch",
+      "CaloClusterTruthMatch",
+      "CrvCoincidenceClusterMatchMC",
+      "compressRecoMCs",
+      "CrvCoincidenceClusterMCAssns"
+]
+END_PROLOG
+
+process_name : Reconstruct
+source : { module_type : RootInput
+  inputCommands : [ "keep *",
+    "drop *_Trig*KSFMC_*_*"
+  ]
+}
+services : @local::Services.Reco
+services.scheduler.wantSummary: true
+
+physics : {
+  @table::TrigSequences
+  producers : {
+    @table::TrigProducers.producers
+    @table::Reconstruction.producers
+    CalTimeClusterFinder : {
+      module_type                : CalLineTimePeakFinder
+      DiagLevel                  : 0
+      ComboHitCollectionLabel    : "makePH"
+      CaloClusterCollectionLabel : "CaloClusterMaker"
+      MinTimeClusterHits         : 6
+      MinCaloClusterEnergy       : 50.
+      HitTimeSigmaThresh         : 3.
+      HitXYSigmaThresh           : 8.
+      StoppingTargetRadius       : 200.
+      ParticleBeta               : 1.
+      FitDirection               : "downstream"
+    }
+  }
+  filters : {
+    @table::TrigFilters.filters
+    @table::Trig_noFieldMenuPSConfig
+    @table::Reconstruction.filters
+    # Triggerable calo events
+    TriggerableCalo : {
+      module_type : CaloShowerSimFilter
+      MinParticleEnergy : 60.0
+      MinTotalEnergy    : 1e6
+      CaloShowerSimCollection : "compressDigiMCs"
+      particleTypes : [11, -11, 13, -13, 211, -211, 22]
+    }
+  }
+  analyzers: {
+    @table::Reconstruction.analyzers
+    Run1BAna : {
+      module_type : Run1BAna
+      simCollection           : "compressDigiMCs"
+      primaryParticle         : "compressDigiMCs"
+      strawDigiMCCollection   : "compressDigiMCs"
+      CaloHitCollection       : "CaloHitMaker"
+      ComboHitCollection      : "makePH"
+      LineCollection          : "KKLine"
+      cosmicSeedCollection    : "LineFinder"
+      timeClusterCollection   : "CalTimeClusterFinder"
+      crvClusterCollection    : "CrvCoincidenceClusterFinder"
+      caloClusterCollection   : "CaloClusterMaker"
+      caloClusterMCCollection : "CaloClusterTruthMatch"
+      caloShowerSimCollection : "compressDigiMCs"
+      simVersion              : 0
+      triggerProcess          : "Reconstruct"
+      PBI                     : "PBISim"
+      fillTrees               : false
+      debugLevel              : 0
+    }
+  }
+  TriggerableCalo : [ TriggerableCalo ]
+  RecoPath : [ @sequence::Run1BRecoPath ]
+  EndPath  : [
+    @sequence::Reconstruction.OnSpillEndSequence
+    # , Output
+    # , TriggerableOutput, TriggeredOutput
+    # , HitOriginAna
+    , Run1BAna
+  ]
+}
+
+#--------------------------------------------------------------
+# CalTimePeak
+#--------------------------------------------------------------
+
+physics.producers.CalTimeClusterFinder.DiagLevel            : 0
+physics.producers.CalTimeClusterFinder.ClusterRadius        : 50.
+physics.producers.CalTimeClusterFinder.MinHitRadius         : 350.
+physics.producers.CalTimeClusterFinder.StoppingTargetRadius : 150.
+physics.producers.CalTimeClusterFinder.HitXYSigmaThresh     : 3.
+physics.producers.CalTimeClusterFinder.HitTimeSigmaThresh   : 3.
+physics.producers.CalTimeClusterFinder.MinTimeClusterHits   : 3
+physics.producers.CalTimeLineFinder : {
+  @table::physics.producers.LineFinder
+  TimeClusterCollection : "CalTimeClusterFinder"
+}
+physics.producers.CalTimeKKLine : {
+  @table::physics.producers.KKLine
+  ModuleSettings : {
+    @table::physics.producers.KKLine.ModuleSettings
+    CosmicTrackSeedCollections : ["CalTimeLineFinder"]
+    PrintLevel : 0
+  }
+}
+
+
+# Use this by default
+physics.producers.TPhiClusterFinder.ComboHitCollection     : "makePH"
+physics.producers.SimpleTimeCluster.ComboHitCollection     : "makePH"
+physics.producers.LineFinder.ComboHitCollection            : "makePH"
+physics.producers.TZClusterFinder.chCollLabel              : "makePH"
+physics.producers.TZClusterFinder.chCollLabel              : "makePH"
+physics.producers.KKLine.ModuleSettings.ComboHitCollection : "makeSH" # LineFinder fills straw hits, not combo hits
+
+physics.producers.LineFinder.TimeClusterCollection : "CalTimeClusterFinder"
+physics.producers.LineFinder.ComboHitCollection    : "makePH"
+physics.analyzers.Run1BAna.timeClusterCollection   : "CalTimeClusterFinder"
+
+outputs : {
+  Output : {
+    @table::Reconstruction.Output
+    SelectEvents : [ ] # [ "RecoPath" ]
+  }
+  # TriggeredOutput : {
+  #   module_type  : RootOutput
+  #   SelectEvents : [ @sequence::Trig_noFieldMenu.trigger_list ]
+  # }
+  TriggerableOutput : {
+    module_type  : RootOutput
+    SelectEvents : [ TriggerableCalo ]
+  }
+}
+physics.analyzers.LHCompressionCheck.SelectEvents : [ "RecoPath" ]
+# final config
+#include "Production/JobConfig/recoMC/epilog.fcl"
+#include "Production/JobConfig/common/epilog.fcl"
+#include "mu2e-trig-config/core/trigDigiInputsEpilog.fcl"
+#include "Production/JobConfig/reco/drop_trigger.fcl"
+physics.end_paths : [ EndPath ]
+physics.trigger_paths : [ RecoPath, "25:TriggerableCalo" ]
+
+
+physics.producers.SelectReco.TimeClusterCollections : [ "CalTimeClusterFinder" ]
+physics.producers.SelectReco.SaveAllUnusedDigiMCs : true
+# physics.producers.KLFilter : { module_type : NullProducer }
+# physics.filters.KLFilter : @erase
+
+physics.producers.LineFinder.minPeak : 3 # Minimum hits in a seed
+physics.producers.LineFinder.diag : 0 # Minimum hits in a seed
+physics.producers.KKLine.ModuleSettings.FitParticle   : 11
+physics.producers.KKLine.ModuleSettings.SeedMomentum  : 105
+physics.producers.KKLine.KKFitSettings.MinNStrawHits  : 3
+physics.producers.KKLine.ModuleSettings.SaveAllFits   : true
+physics.producers.KKLine.ModuleSettings.PrintLevel    : 0
+
+services.DbService.purpose: "Sim_best"
+services.DbService.version: "v1_5"
+services.DbService.verbose : 2
+services.DbService.nearestMatch: "true"
+
+outputs.Output.outputCommands : [
+  @sequence::outputs.Output.outputCommands,
+  "keep mu2e::CosmicTrackSeeds_*_*_*",
+  "keep mu2e::TimeClusters_*_*_*",
+  "keep mu2e::StrawDigiMCs_*_*_*",
+  "keep mu2e::StrawDigis_*_*_*",
+  "keep mu2e::StrawHitCollection_makeSH_*_*",
+  "keep mu2e::ComboHitCollection_makePH_*_*"
+]
+outputs.TriggeredOutput.outputCommands   : [ @sequence::outputs.Output.outputCommands ]
+outputs.TriggerableOutput.outputCommands : [ @sequence::outputs.Output.outputCommands ]
+
+
+outputs.Output.fileName            : "mcs.owner.reco_trig.Reco.Run1B.art"
+outputs.TriggeredOutput.fileName   : "mcs.owner.reco_trig.Triggered.Run1B.art"
+outputs.TriggerableOutput.fileName : "mcs.owner.reco_trig.Triggerable.Run1B.art"
+services.TFileService.fileName     : "nts.owner.reco_trig.Run1B.sequencer.root"
+
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"

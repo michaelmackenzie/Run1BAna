@@ -1,0 +1,20 @@
+#include "Production/JobConfig/mixing/Mix.fcl"
+#include "Production/JobConfig/mixing/OneBB.fcl"
+physics.filters.MuBeamFlashMixer.mu2e.MaxEventsToSkip: 967298
+physics.filters.EleBeamFlashMixer.mu2e.MaxEventsToSkip: 26190
+physics.filters.NeutralsFlashMixer.mu2e.MaxEventsToSkip: 1831
+physics.filters.MuStopPileupMixer.mu2e.MaxEventsToSkip: 11182262
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
+services.ProditionsService.strawElectronics.digitizationEnd: 1650
+physics.producers.CaloShowerROMaker.digitizationEnd: 1650
+physics.producers.CaloDigiMaker.digitizationEnd: 1650
+physics.producers.PBISim.extendedMean: "5.92e6"
+physics.producers.PBISim.cutMax: "35.5e6"
+#include "Run1BAna/studies/fast_mixing/mixing_files.fcl"
+#include "Production/JobConfig/digitize/OnSpill_run1b_epilog.fcl"
+#include "Production/JobConfig/mixing/NoPrimary.fcl"
+outputs.Output.fileName: "dig.mu2e.NoPrimaryMix1BB.Run1Bah_best_v1_4-000.001450_00001945.art"
+services.SeedService.baseSeed: 1
+services.scheduler.wantSummary: true
+outputs.Output.SelectEvents: [ "DigitizePath" ]

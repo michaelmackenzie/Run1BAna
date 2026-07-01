@@ -1,0 +1,10 @@
+TABLE SimEfficiencies2 1470-1479
+MuBeamCat,      25584287,       2000000000,     0.0127921435
+EleBeamCat,     172423754,      2000000000,     0.086211877
+MuminusStopsCat,        79203,  2000000000,     3.96015e-05
+MuplusStopsCat, 75,     2000000000,     3.75e-08
+NeutralsCat,    26163282,       50000000,       0.52326564
+NeutralsFlashCat,       1823,   250000000,      7.292e-06
+MuStopPileupCat,        14714123,       2000000000,     0.0073570615
+MuBeamFlashCat, 423141, 2000000000,     0.0002115705
+EleBeamFlashCat,        185484, 5000000000,     3.70968e-05

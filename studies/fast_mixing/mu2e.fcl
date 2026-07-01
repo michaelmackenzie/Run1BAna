@@ -1,0 +1,74 @@
+#include "Production/JobConfig/mixing/Mix.fcl"
+#include "Production/JobConfig/mixing/OneBB.fcl"
+physics.filters.MuBeamFlashMixer.mu2e.MaxEventsToSkip: 42314
+physics.filters.EleBeamFlashMixer.mu2e.MaxEventsToSkip: 1854
+physics.filters.NeutralsFlashMixer.mu2e.MaxEventsToSkip: 1823
+physics.filters.MuStopPileupMixer.mu2e.MaxEventsToSkip: 2942824
+services.DbService.purpose: "Sim_best"
+services.DbService.version: "v1_4"
+services.DbService.textFile: ['Production/data/SimEfficiencies2_Run1Ban.txt']
+services.DbService.nearestMatch: "true"
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
+services.ProditionsService.strawElectronics.digitizationEnd: 1650
+physics.producers.CaloShowerROMaker.digitizationEnd: 1650
+physics.producers.CaloDigiMaker.digitizationEnd: 1650
+outputs.Output.fileName: "dig.owner.{desc}.version.sequencer.art"
+outputs.Output.RejectEvents: []
+outputs.Output.SelectEvents: []
+#include "Production/JobConfig/digitize/OnSpill_run1b_epilog.fcl"
+#include "Production/JobConfig/mixing/NoPrimary.fcl"
+physics.producers.PBISim.extendedMean: "5.92e6"
+physics.producers.PBISim.cutMax: "35.5e6"
+
+
+# #include "Run1BAna/studies/fast_mixing/mixing_files.fcl"
+source.fileNames: [
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/NoPrimary/Run1Ban/art/91/b5/dts.mu2e.NoPrimary.Run1Ban.001470_00000000.art"
+]
+physics.filters.MuBeamFlashMixer.fileNames: [
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuBeamFlash/Run1Ban-001/art/75/ba/dts.mu2e.MuBeamFlash.Run1Ban-001.001470_00000000.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuBeamFlash/Run1Ban-001/art/22/51/dts.mu2e.MuBeamFlash.Run1Ban-001.001470_00000001.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuBeamFlash/Run1Ban-001/art/ff/18/dts.mu2e.MuBeamFlash.Run1Ban-001.001470_00000002.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuBeamFlash/Run1Ban-001/art/97/9e/dts.mu2e.MuBeamFlash.Run1Ban-001.001470_00000003.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuBeamFlash/Run1Ban-001/art/2e/60/dts.mu2e.MuBeamFlash.Run1Ban-001.001470_00000004.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuBeamFlash/Run1Ban-001/art/0a/f9/dts.mu2e.MuBeamFlash.Run1Ban-001.001470_00000005.art"
+]
+physics.filters.EleBeamFlashMixer.fileNames: [
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/22/d3/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000000.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/f0/7b/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000001.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/a2/4d/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000002.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/1e/00/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000003.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/c9/68/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000004.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/48/15/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000005.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/6b/fb/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000006.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/75/02/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000007.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/14/f2/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000008.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/5f/72/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000009.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/6f/02/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000010.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/bf/1a/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000011.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/58/8e/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000012.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/44/a6/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000013.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/85/fa/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000014.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/a7/1e/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000015.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/69/51/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000016.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/14/fa/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000017.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/EleBeamFlash/Run1Ban-001/art/63/a7/dts.mu2e.EleBeamFlash.Run1Ban-001.001470_00000018.art"
+]
+
+physics.filters.NeutralsFlashMixer.fileNames: [
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/NeutralsFlash/Run1Ban-001/art/8b/1d/dts.mu2e.NeutralsFlash.Run1Ban-001.001470_00000000.art"]
+
+physics.filters.MuStopPileupMixer.fileNames: [
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuStopPileup/Run1Ban-001/art/e1/af/dts.mu2e.MuStopPileup.Run1Ban-001.001470_00000000.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuStopPileup/Run1Ban-001/art/8e/f2/dts.mu2e.MuStopPileup.Run1Ban-001.001470_00000001.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuStopPileup/Run1Ban-001/art/74/71/dts.mu2e.MuStopPileup.Run1Ban-001.001470_00000002.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuStopPileup/Run1Ban-001/art/7e/41/dts.mu2e.MuStopPileup.Run1Ban-001.001470_00000003.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuStopPileup/Run1Ban-001/art/88/10/dts.mu2e.MuStopPileup.Run1Ban-001.001470_00000004.art",
+"/pnfs/mu2e/persistent/datasets/phy-sim/dts/mu2e/MuStopPileup/Run1Ban-001/art/f5/76/dts.mu2e.MuStopPileup.Run1Ban-001.001470_00000005.art"
+]
+
+services.DbService.purpose: "Sim_best"
+services.DbService.version: "v1_5"
+# services.DbService.textFile: ["Run1BAna/studies/fast_mixing/SimEfficiencies2_Run1Ban.txt"]
+services.DbService.nearestMatch: "true"

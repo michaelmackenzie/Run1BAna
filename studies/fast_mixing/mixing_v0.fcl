@@ -1,0 +1,2 @@
+#include "Run1BAna/studies/fast_mixing/nominal_mixing.fcl"
+outputs.Output.fileName: "dig.mmackenz.fast_mixing.NoPrimary.v0.art"
