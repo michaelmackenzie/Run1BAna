@@ -1,0 +1,18 @@
+#include "Run1BAna/workflows/config_v40/run1b_beam/geom.txt"
+
+// Add Run 2 CRV and shielding
+
+// CRV counters
+#include "Offline/Mu2eG4/geom/crv_counters_v10.txt"
+
+// Shielding
+#include "Offline/Mu2eG4/geom/ExtShieldUpstream_v07.txt"
+#include "Offline/Mu2eG4/geom/ExtShieldDownstream_v06.txt"
+
+// Production target
+// #include "Offline/Mu2eG4/geom/ProductionTarget_Hayman_v2_2.txt"
+
+// This tells emacs to view this file in c++ mode.
+// Local Variables:
+// mode:c++
+// End:
