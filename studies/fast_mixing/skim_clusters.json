@@ -1,0 +1,411 @@
+[
+    {
+        "run" : 1470,
+        "subRuns" : [
+            {
+                "subRun" : 1,
+                "events" : [4221]
+            }
+,             {
+                "subRun" : 2,
+                "events" : [601]
+            }
+,             {
+                "subRun" : 3,
+                "events" : [1773, 3699]
+            }
+,             {
+                "subRun" : 6,
+                "events" : [2067]
+            }
+,             {
+                "subRun" : 8,
+                "events" : [2065, 4255, 4565]
+            }
+,             {
+                "subRun" : 10,
+                "events" : [2731]
+            }
+,             {
+                "subRun" : 12,
+                "events" : [1782]
+            }
+,             {
+                "subRun" : 13,
+                "events" : [2208]
+            }
+,             {
+                "subRun" : 14,
+                "events" : [3023]
+            }
+,             {
+                "subRun" : 17,
+                "events" : [217]
+            }
+,             {
+                "subRun" : 18,
+                "events" : [1939]
+            }
+,             {
+                "subRun" : 20,
+                "events" : [399, 637, 944]
+            }
+,             {
+                "subRun" : 21,
+                "events" : [1892]
+            }
+,             {
+                "subRun" : 28,
+                "events" : [4139]
+            }
+,             {
+                "subRun" : 29,
+                "events" : [637]
+            }
+,             {
+                "subRun" : 30,
+                "events" : [3124]
+            }
+,             {
+                "subRun" : 31,
+                "events" : [3078]
+            }
+,             {
+                "subRun" : 32,
+                "events" : [3634]
+            }
+,             {
+                "subRun" : 36,
+                "events" : [2093, 4103]
+            }
+,             {
+                "subRun" : 37,
+                "events" : [2499]
+            }
+,             {
+                "subRun" : 40,
+                "events" : [4324, 4852]
+            }
+,             {
+                "subRun" : 44,
+                "events" : [2218, 4894]
+            }
+,             {
+                "subRun" : 46,
+                "events" : [588]
+            }
+,             {
+                "subRun" : 47,
+                "events" : [2820]
+            }
+,             {
+                "subRun" : 52,
+                "events" : [3249]
+            }
+,             {
+                "subRun" : 53,
+                "events" : [3972]
+            }
+,             {
+                "subRun" : 55,
+                "events" : [1857]
+            }
+,             {
+                "subRun" : 56,
+                "events" : [1733]
+            }
+,             {
+                "subRun" : 58,
+                "events" : [1118]
+            }
+,             {
+                "subRun" : 63,
+                "events" : [3630]
+            }
+,             {
+                "subRun" : 64,
+                "events" : [3672]
+            }
+,             {
+                "subRun" : 65,
+                "events" : [413]
+            }
+,             {
+                "subRun" : 66,
+                "events" : [2209, 2333]
+            }
+,             {
+                "subRun" : 67,
+                "events" : [4728, 4800]
+            }
+,             {
+                "subRun" : 70,
+                "events" : [2985]
+            }
+,             {
+                "subRun" : 71,
+                "events" : [3600]
+            }
+,             {
+                "subRun" : 72,
+                "events" : [3475]
+            }
+,             {
+                "subRun" : 73,
+                "events" : [3314]
+            }
+,             {
+                "subRun" : 74,
+                "events" : [2194]
+            }
+,             {
+                "subRun" : 76,
+                "events" : [2447, 2468, 3970]
+            }
+,             {
+                "subRun" : 77,
+                "events" : [647]
+            }
+,             {
+                "subRun" : 79,
+                "events" : [1386, 3087]
+            }
+,             {
+                "subRun" : 83,
+                "events" : [2325]
+            }
+,             {
+                "subRun" : 84,
+                "events" : [4812]
+            }
+,             {
+                "subRun" : 86,
+                "events" : [2162]
+            }
+,             {
+                "subRun" : 88,
+                "events" : [772]
+            }
+,             {
+                "subRun" : 90,
+                "events" : [3490]
+            }
+,             {
+                "subRun" : 93,
+                "events" : [245]
+            }
+,             {
+                "subRun" : 97,
+                "events" : [3939]
+            }
+,             {
+                "subRun" : 99,
+                "events" : [4424]
+            }
+,             {
+                "subRun" : 102,
+                "events" : [4103, 4821]
+            }
+,             {
+                "subRun" : 106,
+                "events" : [76, 2191]
+            }
+,             {
+                "subRun" : 107,
+                "events" : [1929]
+            }
+,             {
+                "subRun" : 108,
+                "events" : [1503]
+            }
+,             {
+                "subRun" : 109,
+                "events" : [1003]
+            }
+,             {
+                "subRun" : 110,
+                "events" : [457]
+            }
+,             {
+                "subRun" : 111,
+                "events" : [1272]
+            }
+,             {
+                "subRun" : 112,
+                "events" : [2389]
+            }
+,             {
+                "subRun" : 113,
+                "events" : [529]
+            }
+,             {
+                "subRun" : 114,
+                "events" : [1142]
+            }
+,             {
+                "subRun" : 119,
+                "events" : [4400]
+            }
+,             {
+                "subRun" : 121,
+                "events" : [4557]
+            }
+,             {
+                "subRun" : 123,
+                "events" : [453]
+            }
+,             {
+                "subRun" : 125,
+                "events" : [2797, 4832]
+            }
+,             {
+                "subRun" : 129,
+                "events" : [3256, 4718]
+            }
+,             {
+                "subRun" : 130,
+                "events" : [4491]
+            }
+,             {
+                "subRun" : 132,
+                "events" : [258]
+            }
+,             {
+                "subRun" : 133,
+                "events" : [1570]
+            }
+,             {
+                "subRun" : 135,
+                "events" : [1244, 3305]
+            }
+,             {
+                "subRun" : 136,
+                "events" : [2482]
+            }
+,             {
+                "subRun" : 137,
+                "events" : [2103]
+            }
+,             {
+                "subRun" : 138,
+                "events" : [2146, 2239]
+            }
+,             {
+                "subRun" : 139,
+                "events" : [2274, 4864]
+            }
+,             {
+                "subRun" : 140,
+                "events" : [3556]
+            }
+,             {
+                "subRun" : 144,
+                "events" : [1309, 1822]
+            }
+,             {
+                "subRun" : 147,
+                "events" : [3706]
+            }
+,             {
+                "subRun" : 148,
+                "events" : [2279]
+            }
+,             {
+                "subRun" : 149,
+                "events" : [1814]
+            }
+,             {
+                "subRun" : 150,
+                "events" : [3320]
+            }
+,             {
+                "subRun" : 153,
+                "events" : [3353]
+            }
+,             {
+                "subRun" : 154,
+                "events" : [2082, 3194, 4851]
+            }
+,             {
+                "subRun" : 155,
+                "events" : [1596, 2145, 4029, 4803]
+            }
+,             {
+                "subRun" : 159,
+                "events" : [1276]
+            }
+,             {
+                "subRun" : 160,
+                "events" : [3598]
+            }
+,             {
+                "subRun" : 163,
+                "events" : [621]
+            }
+,             {
+                "subRun" : 167,
+                "events" : [4867]
+            }
+,             {
+                "subRun" : 168,
+                "events" : [2089, 2179]
+            }
+,             {
+                "subRun" : 169,
+                "events" : [733]
+            }
+,             {
+                "subRun" : 175,
+                "events" : [486]
+            }
+,             {
+                "subRun" : 176,
+                "events" : [4482]
+            }
+,             {
+                "subRun" : 177,
+                "events" : [491]
+            }
+,             {
+                "subRun" : 179,
+                "events" : [4492, 4495]
+            }
+,             {
+                "subRun" : 181,
+                "events" : [4888]
+            }
+,             {
+                "subRun" : 185,
+                "events" : [627, 4524]
+            }
+,             {
+                "subRun" : 186,
+                "events" : [3556]
+            }
+,             {
+                "subRun" : 187,
+                "events" : [2398]
+            }
+,             {
+                "subRun" : 188,
+                "events" : [1099, 2815]
+            }
+,             {
+                "subRun" : 189,
+                "events" : [246, 843]
+            }
+,             {
+                "subRun" : 191,
+                "events" : [1155]
+            }
+,             {
+                "subRun" : 192,
+                "events" : [4310]
+            }
+,             {
+                "subRun" : 194,
+                "events" : [510, 2387]
+            }
+        ]
+    }
+]

@@ -1,0 +1,8 @@
+#include "Run1BAna/studies/fast_mixing/nominal_mixing.fcl"
+
+physics.filters.CaloDtsClusterFilter.NullFilter           : false
+physics.filters.CaloDtsClusterFilter.MinimumClusterEnergy : 40.
+physics.filters.CaloDtsClusterFilter.TimeWindow           : 70.
+physics.filters.CaloDtsClusterFilter.SpaceWindow          : 30.
+physics.filters.CaloDtsClusterFilter.DiagLevel            : 1
+outputs.Output.fileName: "dig.mmackenz.fast_mixing.NoPrimary.v2.art"

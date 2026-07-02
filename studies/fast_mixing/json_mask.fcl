@@ -1,0 +1,32 @@
+# Read in events and create a json file
+#include "Offline/fcl/standardServices.fcl"
+
+process_name :  JsonMask
+
+source : {
+  module_type : RootInput
+  maxEvents : -1
+}
+
+physics : {
+  filters : {
+    JsonMask : {
+      module_type : JsonMask
+      fileName    : "skim_clusters.json"
+      debugLevel  : 0
+    }
+  }
+  JsonPath   : [JsonMask]
+  OutputPath : [ Output ]
+  end_paths     : [OutputPath]
+  trigger_paths : [JsonPath]
+}
+
+outputs: {
+  Output : {
+    module_type   : RootOutput
+    outputCommands: [ "keep *_*_*_*" ]
+    SelectEvents  : [ JsonPath ]
+    fileName      : "dig.mu2e.NoPrimaryMix1BB-skim.Run1Ban_best_v1_4-000.art"
+  }
+}

@@ -3,6 +3,6 @@
 physics.filters.CaloDtsClusterFilter.NullFilter           : false
 physics.filters.CaloDtsClusterFilter.MinimumClusterEnergy : 50.
 physics.filters.CaloDtsClusterFilter.TimeWindow           : 100.
-physics.filters.CaloDtsClusterFilter.SpaceWindow          : 35.
+physics.filters.CaloDtsClusterFilter.SpaceWindow          : 80.
 physics.filters.CaloDtsClusterFilter.DiagLevel            : 1
-outputs.Output.fileName: "dig.mmackenz.fast_mixing.NoPrimary.v1.art"
+outputs.Output.fileName: "dig.mmackenz.fast_mixing.NoPrimary.v6.art"

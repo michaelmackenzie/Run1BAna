@@ -1,0 +1,33 @@
+#------------------------------------------------------------------------------
+# skim out events with relevant clusters
+#------------------------------------------------------------------------------
+
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardServices.fcl"
+
+process_name : TestDtsFilter
+source : {
+  module_type : RootInput
+  inputCommands: [ "keep *" ]
+}
+services : @local::Services.Reco
+
+physics : {
+  filters: {
+    CaloDtsClusterFilter : {
+      module_type : CaloDtsClusterFilter
+      CaloShowerSteps        : [ "compressDigiMCs" ]
+      MinimumStepEnergy	     : 0.
+      MinimumStepTime        : 400.
+      MaximumStepTime        : 1.e6 # can't do fmod(time, 1695) accurately at high times
+      MinimumClusterEnergy   : 50.
+      TimeWindow	     : 150.
+      SpaceWindow	     : 50.
+      NullFilter	     : false
+      DiagLevel              : 0
+    }
+  }
+  TrigPath : [ CaloDtsClusterFilter ]
+  trigger_paths : [ TrigPath ]
+  end_paths : [  ]
+}

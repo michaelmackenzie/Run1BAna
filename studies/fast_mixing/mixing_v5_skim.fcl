@@ -1,0 +1,6 @@
+#include "Run1BAna/studies/fast_mixing/mixing_v5.fcl"
+process_name : DtsFilterTest
+physics.filters.CaloDtsClusterFilter.CaloShowerSteps : [ "compressDigiMCs" ]
+physics.FilterPath : [ CaloDtsClusterFilter ]
+physics.trigger_paths : [ FilterPath ]
+physics.end_paths : [ ]
