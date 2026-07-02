@@ -26,6 +26,7 @@
 #include "Offline/RecoDataProducts/inc/TriggerInfo.hh"
 #include "Offline/MCDataProducts/inc/CaloClusterMC.hh"
 #include "Offline/MCDataProducts/inc/CaloShowerSim.hh"
+#include "Offline/MCDataProducts/inc/GenEventCount.hh"
 #include "Offline/MCDataProducts/inc/PrimaryParticle.hh"
 #include "Offline/MCDataProducts/inc/ProcessCode.hh"
 #include "Offline/MCDataProducts/inc/ProtonBunchIntensity.hh"
@@ -149,6 +150,7 @@ namespace mu2e
     virtual void endJob();
     virtual void beginRun(const art::Run&   run   );
     virtual void endRun(const art::Run& run ) override;
+    virtual void beginSubRun(const art::SubRun& subrun);
 
   private:
 
@@ -247,6 +249,7 @@ namespace mu2e
     Hist_t* hist_[kMaxHists];
     Tree_t tree_;
     TH1* hist_norm_;
+    TH1* hist_ngen_;
     const SimParticleCollection*           sim_col_ = nullptr;
     const PrimaryParticle*                 primary_ = nullptr;
     const StrawDigiMCCollection*           mc_digi_col_ = nullptr;
@@ -307,6 +310,7 @@ namespace mu2e
     art::ServiceHandle<art::TFileService> tfs;
     art::TFileDirectory dir = tfs->mkdir("data", "Data");
     hist_norm_ = dir.make<TH1D>("norm", "Normalization counts", 1, 0., 1.);
+    hist_ngen_ = dir.make<TH1D>("ngen", "Generated events", 1, 0., 1.);
 
     // Analysis histograms
     for(int i = 0; i < kMaxHists; ++i) hist_[i] = nullptr;
@@ -405,6 +409,18 @@ namespace mu2e
     // Get the calorimeter geometry
     const mu2e::GeomHandle<mu2e::Calorimeter> cal;
     calorimeter_ = &*cal;
+  }
+
+  //--------------------------------------------------------------------------------------
+  void Run1BAna::beginSubRun(const art::SubRun& subrun) {
+    // Get the generator counter
+    auto genCounterHandle = subrun.getHandle<GenEventCount>("genCounter");
+    if(genCounterHandle.isValid()) {
+      ngen_ = genCounterHandle->count();
+      hist_ngen_->Fill(0., double(ngen_));
+    } else {
+      std::cerr << "Warning: GenEventCount not found in subrun" << std::endl;
+    }
   }
 
   //--------------------------------------------------------------------------------------

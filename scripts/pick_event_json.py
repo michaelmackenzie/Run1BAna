@@ -27,7 +27,7 @@ def merge_events(dataset):
 def pick_event(run, subrun, event, dataset):
     command = f'pickEvent -e {dataset} {run}/{subrun}/{event}'
     print(command)
-    os.system(command
+    os.system(command)
     return
 
 #-------------------------------------------------------------------------------------
