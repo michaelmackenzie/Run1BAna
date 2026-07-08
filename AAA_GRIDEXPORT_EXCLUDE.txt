@@ -9,3 +9,5 @@ libmu2eevtana*.so
 *.tmp
 *.log
 *.png
+workflows
+workflows/*

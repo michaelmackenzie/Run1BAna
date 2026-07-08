@@ -7,35 +7,35 @@ class Project(ProjectBase):
     def init_datasets(self):
 #------------------------------------------------------------------------------
 # init datasets - for stage 4, the input is a dataset produced at stage 3
-#------------------------------------------------------------------------------
-        self.add_dataset(Dataset('dig.mu2e.rpce40b1s41r0000.Run1BAna.art','rpce40b1s41r0000','local'));
+#------------------------------------------------------------------------------        
+        self.add_dataset(Dataset('dig.mu2e.mnbs0b1s41r0003.Run1BAna.art','mnbs0b1s41r0003','local'));
 
 
     def __init__(self,idsid=None):
-        familyID  = 'rpce40b1'
+        familyID  = 'mnbs0b1'
         user      = os.getenv('USER')
-
-        ProjectBase.__init__(self,project='Run1BAna',family_id='rpce40b1',idsid=idsid);
+        
+        ProjectBase.__init__(self,project='Run1BAna',family_id='mnbs0b1',idsid=idsid);
         self.init_datasets();
 
 #------------------------------------------------------------------------------
 # s5:reco_trig_nt
 #------------------------------------------------------------------------------
         s                            = self.new_stage('s5');
-        job                          = s.new_job('reco_trig_nt','rpce40b1s41r0000'); #idsid);
+        job                          = s.new_job('reco_trig_nt','mnbs0b1s41r0003'); #idsid);
 
-        job.fNInputFiles             = 2499                     # number of the job segments
+        job.fNInputFiles             = 19999                    # number of the job segments
 
-        job.fMaxInputFilesPerSegment =  20                      # MC generator
-        job.fMaxSegments             = 1000
+        job.fMaxInputFilesPerSegment =  50                      # MC generator
+        job.fMaxSegments             = int(1000)
         # job.fNEventsPerSegment       =  -1                    # defined by the input dataset
         job.fResample                = 'no'                     # yes/no
-        job.fMaxMemory               = '3000MB'
+        job.fMaxMemory               = '2000MB'
         job.fRequestedTime           = '24h'
         job.fIfdh                    = 'xrootd'                 # ifdh/xrootd
         job.fOutputPath              = [ 'out' ]
 
-        reco_version                 = 'r0001'
+        reco_version                 = 'r0003'
         job.fOutputStream            = [ 'defaultOutput'                    ]
         job.fOutputDsID              = [ familyID+s.name()+'1'+reco_version ]
         job.fOutputFnPattern         = [ 'nts.'+user+'.'+job.fOutputDsID[0] ]
