@@ -10,11 +10,11 @@ fi
 
 # Script + dataset inputs
 SCRIPT="Run1BAna/scripts/hist_run1bana_tree.C"
-PILEUP="mnbs6b1s51r0002"
-DIO="diob4b1s51r0000"
-COSMIC="csms4b0s51r0001"
-CE="cele6b1s51r0002"
-TAG="v06"
+PILEUP="mnbs0b1s51r0003"
+DIO="diob0b1s51r0004"
+COSMIC="csms0b1s51r0003"
+CE="cele0b1s51r0003"
+TAG="v40"
 
 
 # Pileup histogram
@@ -25,7 +25,7 @@ if [[ "${DATASETS}" == *"PILEUP"* ]]; then
 fi
 
 # DIO histogram
-if [[ "${DATASETS}" == *"DIO"* ]] && [[ "${DORPC}" == "" ]]; then
+if [[ "${DATASETS}" == *"DIO"* ]] && [[ "${DORPC}" == "" ]] && [[ "${TAG}" != "v40" ]]; then
     INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${DIO}/nts.mmackenz.diobb1s51r0000.Run1BAna.*.root"
     OUTDATA="Run1BAna.${DIO}.hist"
     root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\")"

@@ -8,7 +8,7 @@ if [[ "${DATASETS}" == "" ]]; then
     DATASETS="RMC DIO RPC COSMIC CE PILEUP"
 fi
 if [[ "${TAG}" == "" ]]; then
-    TAG="v04"
+    TAG="v40"
 fi
 
 # Script + dataset inputs
@@ -35,6 +35,15 @@ if [[ "${TAG}" == "v07" ]]; then
     RPC="rpce7b1s51r0002"
 fi
 
+
+# Version with 1.75 cm degrader target
+if [[ "${TAG}" == "v40" ]]; then
+    RMC="fgam0b0s51r0003"
+    PILEUP="mnbs0b1s51r0003"
+    COSMIC="csms0b1s51r0003"
+    RPC="rpce0b1s51r0003"
+fi
+
 # Pileup histogram
 if [[ "${DATASETS}" == *"PILEUP"* ]]; then
     INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${PILEUP}/nts.mmackenz.${PILEUP}.Run1BAna.*.root"
@@ -45,7 +54,7 @@ if [[ "${DATASETS}" == *"PILEUP"* ]]; then
 fi
 
 # DIO histogram
-if [[ "${DATASETS}" == *"DIO"* ]]; then
+if [[ "${DATASETS}" == *"DIO"* ]] && [[ "${TAG}" != "v40" ]]; then
     INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${DIO}/nts.mmackenz.${DIO}.Run1BAna.*.root"
     OUTDATA="Run1BAna.${DIO}.hist"
     root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\")"
@@ -81,7 +90,7 @@ if [[ "${DATASETS}" == *"RMC"* ]]; then
 fi
 
 # RPC histogram
-if [[ "${DATASETS}" == *"RPC"* ]]; then
+if [[ "${DATASETS}" == *"RPC"* ]] && [[ "${TAG}" != "v40" ]]; then
     # INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${RPC}/nts.mmackenz.${RPC}.Run1BAna.*.root"
     INDATA="nts.owner.rpce4b0s51r0002.Run1BAna.sequencer.root"
     OUTDATA="Run1BAna.${RPC}.hist"

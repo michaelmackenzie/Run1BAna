@@ -1,6 +1,7 @@
 // Plot Signal vs. Bkg
 
 #include "Run1BAna/analysis/physics.C"
+#include "Run1BAna/scripts/dataset_info.C"
 
 #include "TFile.h"
 #include "TH1.h"
@@ -29,11 +30,16 @@ double br_sig_ = -1.;
 //-------------------------------------------------------------------------------
 struct Process_t {
    TString name;
+   Dataset_t dataset;
    TFile* f = nullptr;
    double norm = 1.;
    int set_offset = 0;
    bool is_signal = false;
    int color = kBlue;
+
+   Process_t(TString name_, Dataset_t dataset_, TFile* f_, double norm_, int set_offset_, bool is_signal_, int color_)
+     : name(name_), dataset(dataset_), f(f_), norm(norm_), set_offset(set_offset_), is_signal(is_signal_), color(color_) {
+     }
 };
 
 //-------------------------------------------------------------------------------
@@ -104,6 +110,22 @@ double getNSampled(TFile* f, int set = -1) {
     return 0.;
   }
   return entries;
+}
+
+//------------------------------------------------------------------------------
+double getNorm(Dataset_t dataset, TFile* f, double npot, double livetime) {
+  if(!f) {
+    Error(__func__, "File is null!");
+    return 0.;
+  }
+  const double nsampled = getNSampled(f);
+  if(nsampled <= 0.) {
+    Error(__func__, "Dataset %s has non-positive N(sampled)!", dataset.name.Data());
+    return 0.;
+  }
+  const double sample_scale = dataset.nDigi / nsampled; // account for events not processed
+  const double norm = dataset.norm(npot, livetime) * sample_scale;
+  return norm;
 }
 
 //------------------------------------------------------------------------------

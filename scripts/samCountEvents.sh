@@ -4,6 +4,7 @@ if [[ "$1" == "" ]]; then
     exit
 fi
 
+setup dhtools
 samweb list-files --summary "dh.dataset=${1} and availability:anylocation" | while read line
 do
   read -a strarr <<< "$line"
