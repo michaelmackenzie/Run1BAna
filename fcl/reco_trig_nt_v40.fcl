@@ -1,0 +1,11 @@
+#include "Run1BAna/fcl/reco_trig_nt.fcl"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
+services.DbService.nearestMatch: true
+
+physics.analyzers.Run1BAna.simVersion : 1
+physics.filters.CaloClusterFilter.MinClusterEnergy : 60.
+physics.producers.CalTimeClusterFinder.MinCaloClusterEnergy : 40.
+
+services.DbService.purpose: "Sim_best"
+services.DbService.version: "v1_5"
+services.DbService.verbose : 2
