@@ -12,28 +12,14 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40") {
     return;
   }
 
-  // Open the data files
-  TString sig_file = datasets.at("cele").fileName();
-  TString bkg_file = datasets.at("mnbs").fileName();
-  // TString dio_file = datasets.at("dio0").fileName();
-  TString csm_file = datasets.at("csms").fileName();
-  TString neu_file = datasets.at("neut").fileName();
-  TString pro_file = datasets.at("prot").fileName();
+  const auto included_dataset_keys = nominalIncludedDatasetKeysCE();
+  map<TString, TFile*> files;
+  if(!openIncludedDatasetFiles(datasets, included_dataset_keys, files, __func__)) return;
 
-  TFile* f_sig = TFile::Open(sig_file, "READ");
-  TFile* f_bkg = TFile::Open(bkg_file, "READ");
-  // TFile* f_dio = TFile::Open(dio_file, "READ");
-  TFile* f_csm = TFile::Open(csm_file, "READ");
-  TFile* f_neu = TFile::Open(neu_file, "READ");
-  TFile* f_pro = TFile::Open(pro_file, "READ");
-  if (!f_sig || f_sig->IsZombie() ||
-      !f_bkg || f_bkg->IsZombie() ||
-      // !f_dio || f_dio->IsZombie() ||
-      !f_csm || f_csm->IsZombie() ||
-      !f_neu || f_neu->IsZombie() ||
-      !f_pro || f_pro->IsZombie()
-      ) {
-    Error(__func__, "Could not open files!");
+  TFile* f_sig = getDatasetFile(files, "cele");
+  TFile* f_bkg = getDatasetFile(files, "mnbs");
+  if(!f_sig || !f_bkg) {
+    Error(__func__, "Missing required CE or background datasets in included keys");
     return;
   }
 
@@ -50,20 +36,13 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40") {
   // CE info
   rmue_  = 1.e-9; // signal branching fraction
 
-  // Set the list of processes to consider
-  processes_.clear();
-  processes_ = {
-    {"#mu^{-}#rightarrowe^{-}", datasets["cele"], f_sig, rmue_*getNorm(datasets["cele"], f_sig, npot, livetime_week_),   0, true , kBlue},
-    {"CE_pu"                  , datasets["cele"], f_sig, rmue_*getNorm(datasets["cele"], f_sig, npot, livetime_week_), 100, true , kBlue},
-    {"CE_cpu"                 , datasets["cele"], f_sig, rmue_*getNorm(datasets["cele"], f_sig, npot, livetime_week_), 200, true , kBlue},
-    // {"Cosmics"                , datasets["csms"], f_csm, getNorm(datasets["csms"], f_csm, npot, livetime_week_),   0, false, kGreen-6},
-    // {"DIO tail", datasets["dio0"], f_dio, getNorm(datasets["dio0"], f_dio, npot, livetime_week_),   0, false, kGreen-6},
-    {"Protons"                , datasets["prot"], f_pro, getNorm(datasets["prot"], f_pro, npot, livetime_week_),   0, false, kRed+6},
-    {"Neutrons"               , datasets["neut"], f_neu, getNorm(datasets["neut"], f_neu, npot, livetime_week_),   0, false, kViolet+6},
-    {"Low pileup clusters"  , datasets["mnbs"], f_bkg, getNorm(datasets["mnbs"], f_bkg, nevents, livetime_week_),   0, false, kPink},
-    {"Other pileup"  , datasets["mnbs"], f_bkg, getNorm(datasets["mnbs"], f_bkg, nevents, livetime_week_), 100, false, kViolet},
-    {"Calo muon stops"  , datasets["mnbs"], f_bkg, getNorm(datasets["mnbs"], f_bkg, nevents, livetime_week_), 200, false, kOrange}
+  const vector<TString> enabled_process_ids = {
+    "ce", "ce_pu", "ce_cpu", "protons", "neutrons", "pileup_lo", "pileup_ot", "calomu"
   };
+  const auto process_specs = selectNominalProcessSpecs(enabled_process_ids);
+
+  // Set the list of processes to consider
+  processes_ = buildProcesses(datasets, files, included_dataset_keys, process_specs, npot, nevents, livetime_week_, rmue_);
 
   norm_sig_ = rmue_*getNorm(datasets["cele"], f_sig, npot, livetime_week_);
   norm_bkg_ = getNorm(datasets["mnbs"], f_bkg, nevents, livetime_week_);

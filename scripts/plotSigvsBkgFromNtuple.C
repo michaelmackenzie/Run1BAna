@@ -44,6 +44,127 @@ struct Process_t {
      }
 };
 
+  // Forward declaration for shared process builders
+  double getNorm(Dataset_t dataset, TFile* f, double npot, double livetime);
+
+//-------------------------------------------------------------------------------
+struct ProcessSpec_t {
+  TString id;
+  TString label;
+  TString dataset_key;
+  int set_offset;
+  bool is_signal;
+  int color;
+  bool use_nevents;
+
+  ProcessSpec_t(TString id_, TString label_, TString dataset_key_, int set_offset_, bool is_signal_, int color_, bool use_nevents_)
+    : id(id_), label(label_), dataset_key(dataset_key_), set_offset(set_offset_), is_signal(is_signal_), color(color_), use_nevents(use_nevents_) {}
+};
+
+//-------------------------------------------------------------------------------
+vector<TString> nominalIncludedDatasetKeysCE() {
+  return {"cele", "mnbs", "csms", "neut", "prot"};
+}
+
+//-------------------------------------------------------------------------------
+vector<TString> nominalIncludedDatasetKeysRMC() {
+  return {"fgam", "mnbs", "csms", "neut", "prot"};
+}
+
+//-------------------------------------------------------------------------------
+vector<TString> nominalIncludedDatasetKeysRPC() {
+  return {"rpce", "mnbs", "csms"};
+}
+
+//-------------------------------------------------------------------------------
+vector<ProcessSpec_t> nominalProcessSpecs() {
+  return {
+    {"ce"        , "#mu^{-}#rightarrowe^{-}", "cele",   0, true , kBlue    , false},
+    {"ce_pu"     , "CE_pu"                  , "cele", 100, true , kBlue    , false},
+    {"ce_cpu"    , "CE_cpu"                 , "cele", 200, true , kBlue    , false},
+    {"rmc"       , "RMC"                    , "fgam",   0, true , kBlue    , false},
+    {"rmc_pu"    , "RMC_pu"                 , "fgam", 100, true , kBlue    , false},
+    {"rmc_cpu"   , "RMC_cpu"                , "fgam", 200, true , kBlue    , false},
+    {"rpc"       , "RPC"                    , "rpce",   0, true , kBlue    , false},
+    {"rpc_pu"    , "RPC_pu"                 , "rpce", 100, true , kBlue    , false},
+    {"rpc_cpu"   , "RPC_cpu"                , "rpce", 200, true , kBlue    , false},
+    {"protons"   , "Protons"                , "prot",   0, false, kAtlantic, false},
+    {"neutrons"  , "Neutrons"               , "neut",   0, false, kViolet+6, false},
+    {"cosmics"   , "Cosmics"                , "csms",   0, false, kGreen-6 , false},
+    {"pileup_lo" , "Low pileup clusters"    , "mnbs",   0, false, kPink    , true },
+    {"pileup_ot" , "Other pileup"           , "mnbs", 100, false, kViolet  , true },
+    {"calomu"    , "Calo muon stops"        , "mnbs", 200, false, kOrange  , true }
+  };
+}
+
+//-------------------------------------------------------------------------------
+vector<ProcessSpec_t> selectNominalProcessSpecs(const vector<TString>& enabled_ids) {
+  vector<ProcessSpec_t> selected;
+  const auto all_specs = nominalProcessSpecs();
+  for(const auto& spec : all_specs) {
+    if(std::find(enabled_ids.begin(), enabled_ids.end(), spec.id) != enabled_ids.end()) {
+      selected.push_back(spec);
+    }
+  }
+  return selected;
+}
+
+//-------------------------------------------------------------------------------
+bool isDatasetIncluded(const vector<TString>& included_dataset_keys, const TString& key) {
+  return std::find(included_dataset_keys.begin(), included_dataset_keys.end(), key) != included_dataset_keys.end();
+}
+
+//-------------------------------------------------------------------------------
+bool openIncludedDatasetFiles(const map<TString, Dataset_t>& datasets,
+                              const vector<TString>& included_dataset_keys,
+                              map<TString, TFile*>& files,
+                              const char* caller = "openIncludedDatasetFiles") {
+  files.clear();
+  for(const auto& key : included_dataset_keys) {
+    const auto it = datasets.find(key);
+    if(it == datasets.end()) {
+      Warning(caller, "Dataset key %s not defined", key.Data());
+      continue;
+    }
+    TFile* f = TFile::Open(it->second.fileName(), "READ");
+    if(!f || f->IsZombie()) {
+      Error(caller, "Could not open file for dataset key %s (%s)", key.Data(), it->second.fileName().Data());
+      return false;
+    }
+    files[key] = f;
+  }
+  return true;
+}
+
+//-------------------------------------------------------------------------------
+TFile* getDatasetFile(const map<TString, TFile*>& files, const TString& key) {
+  const auto it = files.find(key);
+  return (it == files.end()) ? nullptr : it->second;
+}
+
+//-------------------------------------------------------------------------------
+vector<Process_t> buildProcesses(const map<TString, Dataset_t>& datasets,
+                                 const map<TString, TFile*>& files,
+                                 const vector<TString>& included_dataset_keys,
+                                 const vector<ProcessSpec_t>& process_specs,
+                                 const double npot,
+                                 const double nevents,
+                                 const double livetime,
+                                 const double signal_scale = 1.) {
+  vector<Process_t> built;
+  for(const auto& spec : process_specs) {
+    if(!isDatasetIncluded(included_dataset_keys, spec.dataset_key)) continue;
+    const auto ds_it = datasets.find(spec.dataset_key);
+    if(ds_it == datasets.end()) continue;
+    TFile* f = getDatasetFile(files, spec.dataset_key);
+    if(!f) continue;
+    double norm = getNorm(ds_it->second, f, (spec.use_nevents) ? nevents : npot, livetime);
+    if(spec.is_signal) norm *= signal_scale;
+    built.push_back(Process_t(spec.label, ds_it->second, f, norm, spec.set_offset, spec.is_signal, spec.color));
+  }
+  return built;
+}
+
 //-------------------------------------------------------------------------------
 vector<Process_t> processes_;
 

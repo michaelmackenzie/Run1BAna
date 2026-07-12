@@ -28,7 +28,7 @@ class Project(ProjectBase):
         job.fNInputFiles             = -1                       # number of the job segments
 
         job.fMaxInputFilesPerSegment =  1                       # MC generator
-        job.fNEventsPerSegment       = 50000                    # 
+        job.fNEventsPerSegment       = 100000                   # 
         job.fMaxSegments             = 100
         job.fResample                = 'yes'                    # yes/no
         job.fResamplingModuleLabel   = 'TargetStopResampler'

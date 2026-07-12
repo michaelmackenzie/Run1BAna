@@ -15,6 +15,7 @@ DIO="diob0b1s51r0004"
 COSMIC="csms0b1s51r0003"
 CE="cele0b1s51r0003"
 NEUTRON="neut0b1s51r0003"
+PROTON="prot0b1s51r0003"
 TAG="v40"
 
 
@@ -50,6 +51,13 @@ fi
 if [[ "${DATASETS}" == *"NEUTRON"* ]] && [[ "${DORPC}" == "" ]]; then
     INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${NEUTRON}/nts.mmackenz.${NEUTRON}.Run1BAna.*.root"
     OUTDATA="Run1BAna.${NEUTRON}.hist"
+    root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\")"
+fi
+
+# Proton histogram
+if [[ "${DATASETS}" == *"PROTON"* ]] && [[ "${DORPC}" == "" ]]; then
+    INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${PROTON}/nts.mmackenz.${PROTON}.Run1BAna.*.root"
+    OUTDATA="Run1BAna.${PROTON}.hist"
     root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\")"
 fi
 

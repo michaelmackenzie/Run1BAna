@@ -3,7 +3,7 @@
 
 Help() {
     echo "Copy over ntuple job outputs"
-    echo "Usage: copy_ntuples.sh <INDATA> <OUTDATA> <JOBID> <JOB)> <STAGE> <PROJECT>"
+    echo "Usage: copy_ntuples.sh <INDATA> <OUTDATA> <JOBID> <JOB> <STAGE> <PROJECT> <TYPE = root/art>"
 }
 
 #---------------------------------------------------------------------------
@@ -16,6 +16,7 @@ JOBID=$3
 JOB=$4
 STAGE=$5
 PROJECT=$6
+TYPE=$7
 
 if [[ "${INDATA}" == "" ]] || [[ "${INDATA}" == "-h" ]] || [[ "${INDATA}" == "--help" ]]; then
     Help
@@ -26,6 +27,10 @@ if [[ "${OUTDATA}" == "" ]] || [[ "${JOBID}" == "" ]] || [[ "${JOB}" == "" ]] ||
     echo "Missing inputs!"
     Help
     exit 1
+fi
+
+if [[ "${TYPE}" == "" ]]; then
+    TYPE="stn"
 fi
 
 
@@ -82,7 +87,7 @@ for dir in `ls -d ${INDIR}*/*/`; do
         fi
     fi
     # Copy over data
-    for f in `ls -d ${dir}*.root* ${dir}jsn*.json 2>/dev/null`; do
+    for f in `ls -d ${dir}*.${TYPE}* ${dir}jsn*.json 2>/dev/null`; do
         bn=`basename $f`
         if [ -f ${OUTDIR}${bn} ]; then
             continue

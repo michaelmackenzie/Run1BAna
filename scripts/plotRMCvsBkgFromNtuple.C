@@ -11,20 +11,14 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40") {
     return;
   }
 
-  TString sig_file = datasets.at("fgam").fileName();
-  TString bkg_file = datasets.at("mnbs").fileName();
-  TString csm_file = datasets.at("csms").fileName();
-  TString neu_file = datasets.at("neut").fileName();
-  TFile* f_sig = TFile::Open(sig_file, "READ");
-  TFile* f_bkg = TFile::Open(bkg_file, "READ");
-  TFile* f_csm = TFile::Open(csm_file, "READ");
-  TFile* f_neu = TFile::Open(neu_file, "READ");
-  if (!f_sig || f_sig->IsZombie() ||
-      !f_bkg || f_bkg->IsZombie() ||
-      !f_csm || f_csm->IsZombie() ||
-      !f_neu || f_neu->IsZombie()
-      ) {
-    Error(__func__, "Could not open files!");
+  const auto included_dataset_keys = nominalIncludedDatasetKeysRMC();
+  map<TString, TFile*> files;
+  if(!openIncludedDatasetFiles(datasets, included_dataset_keys, files, __func__)) return;
+
+  TFile* f_sig = getDatasetFile(files, "fgam");
+  TFile* f_bkg = getDatasetFile(files, "mnbs");
+  if(!f_sig || !f_bkg) {
+    Error(__func__, "Missing required RMC signal or background datasets in included keys");
     return;
   }
 
@@ -50,18 +44,13 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40") {
   printf("N(events)     = %.2e\n"  , nevents);
   printf("============================================================\n");
 
-  // Set the list of processes to consider
-  processes_.clear();
-  processes_ = {
-    {"RMC"                 , datasets["fgam"], f_sig, norm_sig_,                                0, true , kBlue},
-    {"RMC_pu"              , datasets["fgam"], f_sig, norm_sig_,                              100, true , kBlue},
-    {"RMC_cpu"             , datasets["fgam"], f_sig, norm_sig_,                              200, true , kBlue},
-    {"Cosmics"             , datasets["csms"], f_csm, getNorm(datasets["csms"], f_csm, npot, livetime_week_),   0, false, kGreen-6},
-    {"Neutrons"            , datasets["neut"], f_neu, getNorm(datasets["neut"], f_neu, npot, livetime_week_),   0, false, kViolet+6},
-    {"Low pileup clusters" , datasets["mnbs"], f_bkg, norm_bkg_,                                0, false, kPink},
-    {"Other pileup"        , datasets["mnbs"], f_bkg, norm_bkg_,                              100, false, kViolet},
-    {"Calo muon stops"     , datasets["mnbs"], f_bkg, norm_bkg_,                              200, false, kOrange}
+  const vector<TString> enabled_process_ids = {
+    "rmc", "rmc_pu", "rmc_cpu", "cosmics", "neutrons", "pileup_lo", "pileup_ot", "calomu"
   };
+  const auto process_specs = selectNominalProcessSpecs(enabled_process_ids);
+
+  // Set the list of processes to consider
+  processes_ = buildProcesses(datasets, files, included_dataset_keys, process_specs, npot, nevents, livetime_week_);
 
   printf("%25s %10s %10s %10s %10s %10s %15s %10s\n", "Process", "N(sampled)", "N(digi)", "N(gen)", "Bare norm", "Norm", "Dataset", "Set offset");
   for(const auto& process : processes_) {

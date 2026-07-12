@@ -290,7 +290,7 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->cluster_e_per_crystal = new TH1F("cluster_e_per_crystal", "Energy/crystal;Energy/N(crystals) (MeV);"        , 300,   0.,  300.);
   H->cluster_frac_1        = new TH1F("cluster_frac_1"       , ";E_{1}/E_{total};"                 , 101,   0.,  1.01);
   H->cluster_frac_2        = new TH1F("cluster_frac_2"       , ";E_{1+2}/E_{total};"               , 101,   0.,  1.01);
-  H->cluster_second_moment = new TH1F("cluster_second_moment", "Second moment;Second moment;"          , 200,   0., 1.e6);
+  H->cluster_second_moment = new TH1F("cluster_second_moment", "Second moment;Second moment;"          , 200,   0., 2.e3);
   H->cluster_e1            = new TH1F("cluster_e1"           , "E1;E_{1} (MeV);"                          , 300,   0.,  300.);
   H->cluster_e2            = new TH1F("cluster_e2"           , "E2;E_{1+2} (MeV);"                          , 300,   0.,  300.);
   H->cluster_e9            = new TH1F("cluster_e9"           , "E9;E_{3x3} (MeV);"                          , 300,   0.,  300.);
@@ -591,7 +591,7 @@ bool sel_signal_id(const TreeBranches& b) {
                         && b.cluster_frac_1       > 0.60f
     && b.cluster_frac_2       > 0.80f
     && b.cluster_t_var        < 1.0f
-    && b.cluster_second_moment< 1.e5f
+    && b.cluster_second_moment< 1.e3f
     && b.cluster_disk == 0;
   // && b.photon_id            > 0.8f;
 }
@@ -892,7 +892,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
                               // && b.cluster_frac_1       > 0.60f
                               // && b.cluster_frac_2       > 0.80f
                               && b.cluster_t_var        < 1.f
-                              && b.cluster_second_moment< 2.e5f
+                              && b.cluster_second_moment< 2.e3f
                               );
       if(signal_id) {
         fillHistograms(91 + offset, b, b.event_weight);
