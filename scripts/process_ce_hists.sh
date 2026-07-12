@@ -5,7 +5,7 @@ DORPC=$2
 NOPLOT=$3
 
 if [[ "${DATASETS}" == "" ]]; then
-    DATASETS="CE PILEUP"
+    DATASETS="CE PILEUP NEUTRON"
 fi
 
 # Script + dataset inputs
@@ -14,6 +14,7 @@ PILEUP="mnbs0b1s51r0003"
 DIO="diob0b1s51r0004"
 COSMIC="csms0b1s51r0003"
 CE="cele0b1s51r0003"
+NEUTRON="neut0b1s51r0003"
 TAG="v40"
 
 
@@ -42,6 +43,13 @@ fi
 if [[ "${DATASETS}" == *"COSMIC"* ]] && [[ "${DORPC}" == "" ]]; then
     INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${COSMIC}/nts.mmackenz.${COSMIC}.Run1BAna.*.root"
     OUTDATA="Run1BAna.${COSMIC}.hist"
+    root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\")"
+fi
+
+# Neutron histogram
+if [[ "${DATASETS}" == *"NEUTRON"* ]] && [[ "${DORPC}" == "" ]]; then
+    INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${NEUTRON}/nts.mmackenz.${NEUTRON}.Run1BAna.*.root"
+    OUTDATA="Run1BAna.${NEUTRON}.hist"
     root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\")"
 fi
 

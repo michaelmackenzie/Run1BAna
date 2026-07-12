@@ -38,7 +38,7 @@ fi
 
 # Version with 1.75 cm degrader target
 if [[ "${TAG}" == "v40" ]]; then
-    RMC="fgam0b0s51r0003"
+    RMC="fgam0b1s51r0003"
     PILEUP="mnbs0b1s51r0003"
     COSMIC="csms0b1s51r0003"
     RPC="rpce0b1s51r0003"

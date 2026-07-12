@@ -34,7 +34,10 @@ struct Dataset_t {
 map<TString, Dataset_t> getDatasets(TString version = "v40") {
   map<TString, Dataset_t> datasets;
 
+  // Rates without configuration-specific stopping rates
   const double rate_ce        = muon_capture_fraction_;
+  const double rate_neut_calo = muon_capture_fraction_*1.2*5.05038e-06; // N(neutrons per capture)*(KE > 60)*(cz restriction)
+  const double rate_prot_calo = muon_capture_fraction_*0.05*1.10588e-05; // N(protons per capture)*(KE > 60)*(cz restriction)
   const double rate_dio       = (1. - muon_capture_fraction_);
   const double rate_dio_50    = rate_dio*dio_frac_50_;
   const double rate_dio_80    = rate_dio*dio_frac_80_;
@@ -52,11 +55,13 @@ map<TString, Dataset_t> getDatasets(TString version = "v40") {
   if(version == "v40") {
     const double muons_per_pot = 5.066e-04;
     nmuons_per_pot_ = muons_per_pot;
-    datasets.emplace("mnbs", Dataset_t("mnbs0b1r0003",   99995000, 99995000, 1.0                   , "dig.mu2e.NoPrimaryMix1BB.Run1Ban_best_v1_4-000.art"));
-    datasets.emplace("cele", Dataset_t("cele0b1r0003", 1999000000,  1326786, rate_ce *muons_per_pot, "dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art"));
-    datasets.emplace("fgam", Dataset_t("fgam0b1r0003", 1999000000,  1039674, rate_rmc*muons_per_pot, "dig.mu2e.FlatGammaMix1BB.Run1Ban_best_v1_4-000.art"));
-    datasets.emplace("csms", Dataset_t("csms0b1r0003",    18428.5,  2351533, 1.0                   , "dig.mu2e.CosmicCRYAllMix1BB.Run1Ban_best_v1_4-000.art"));
-    datasets.emplace("dio0", Dataset_t("dio00b1r0003",    18428.5,  2351533, 1.0                   , "dig.mu2e.DIOMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("mnbs", Dataset_t("mnbs0b1s51r0003",   99995000, 99995000, 1.0                   , "dig.mu2e.NoPrimaryMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("cele", Dataset_t("cele0b1s51r0003", 1999000000,  1326786, rate_ce *muons_per_pot, "dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("fgam", Dataset_t("fgam0b1s51r0003", 1999000000,  1039674, rate_rmc*muons_per_pot, "dig.mu2e.FlatGammaMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("csms", Dataset_t("csms0b1s51r0003",    18428.5,  2351533, 1.0                   , "dig.mu2e.CosmicCRYAllMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("dio0", Dataset_t("dio00b1s51r0003",         1.,       1., 1.0                   , "dig.mu2e.DIOMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("neut", Dataset_t("neut0b1s51r0003",     100000,      515, rate_neut_calo*muons_per_pot, "dig.mu2e.neut0b0s41r0000.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("prot", Dataset_t("neut0b1s51r0003",     1,      1, rate_prot_calo*muons_per_pot, "dig.mu2e.prot0b0s41r0000.Run1Ban_best_v1_4-000.art"));
   } else {
     std::cerr << "Unknown dataset version: " << version << std::endl;
   }

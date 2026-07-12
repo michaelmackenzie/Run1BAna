@@ -177,6 +177,35 @@ namespace mu2e
     }
 
     //--------------------------------------------------------------------------------------
+    // Check if a sim is related to a primary
+    static bool isPrimaryRelated(const SimParticle* sim) {
+      if(!sim) return false;
+      auto candidate = sim;
+      while(candidate) {
+        if(candidate->isPrimary()) return true;
+        if(!candidate->hasParent()) break;
+        candidate = &*(candidate->parent());
+      }
+      return false;
+    }
+
+    //--------------------------------------------------------------------------------------
+    // Rough identification of sim particle "origin"
+    static const SimParticle* getSimOrigin(const SimParticle* sim) {
+      if(!sim) return nullptr;
+      auto candidate = sim;
+      while(candidate) {
+        // Check if it's either the top of the line or a mu2e process
+        std::string proc_name = candidate->creationCode().name();
+        if(!candidate->hasParent() || proc_name.starts_with("mu2e")) {
+          return candidate;
+        }
+        candidate = &*(candidate->parent());
+      }
+      return nullptr;
+    }
+
+    //--------------------------------------------------------------------------------------
     // Rough identification of sim particle type based on lineage
     enum {
       kUnknown = -1,

@@ -461,7 +461,7 @@ namespace mu2e
     Hist->energy_per_crystal     = dir.make<TH1F>("energy_per_crystal", "Cluster crystal energy;Energy (MeV);", 300, 0., 300.);
     Hist->frac_first_crystal     = dir.make<TH1F>("frac_first_crystal", "First crystal energy / cluster energy;Frac;", 101, 0., 1.01);
     Hist->frac_first_two_crystals= dir.make<TH1F>("frac_first_two_crystals", "First two crystals energy / cluster energy;Frac;", 101, 0., 1.01);
-    Hist->second_moment = dir.make<TH1F>("second_moment", "Cluster second moment;Second moment;", 200, 0., 1.e6);
+    Hist->second_moment = dir.make<TH1F>("second_moment", "Cluster second moment;Second moment;", 200, 0., 1.e4);
     Hist->e1            = dir.make<TH1F>("e1", "Cluster E1;E1 (MeV);", 300, 0., 300.);
     Hist->e2            = dir.make<TH1F>("e2", "Cluster E2;E2 (MeV);", 300, 0., 300.);
     Hist->e9            = dir.make<TH1F>("e9", "Cluster E9;E9 (MeV);", 300, 0., 300.);
@@ -685,6 +685,13 @@ namespace mu2e
     hist_[index]->tree->Branch("sim_1_type"               , &tree_.sim_1_type);
     hist_[index]->tree->Branch("sim_1_pdg"                , &tree_.sim_1_pdg);
     hist_[index]->tree->Branch("sim_1_proc"               , &tree_.sim_1_proc);
+    hist_[index]->tree->Branch("sim_1_parent_type"        , &tree_.sim_1_parent_type);
+    hist_[index]->tree->Branch("sim_1_parent_pdg"         , &tree_.sim_1_parent_pdg);
+    hist_[index]->tree->Branch("sim_1_parent_proc"        , &tree_.sim_1_parent_proc);
+    hist_[index]->tree->Branch("sim_1_origin_type"        , &tree_.sim_1_origin_type);
+    hist_[index]->tree->Branch("sim_1_origin_pdg"         , &tree_.sim_1_origin_pdg);
+    hist_[index]->tree->Branch("sim_1_origin_proc"        , &tree_.sim_1_origin_proc);
+    hist_[index]->tree->Branch("sim_1_is_primary_related" , &tree_.sim_1_is_primary_related);
     hist_[index]->tree->Branch("sim_1_z_start"            , &tree_.sim_1_z_start);
     hist_[index]->tree->Branch("sim_1_main_crystal"       , &tree_.sim_1_main_crystal);
     hist_[index]->tree->Branch("sim_1_main_crystal_energy", &tree_.sim_1_main_crystal_energy);
@@ -694,6 +701,13 @@ namespace mu2e
     hist_[index]->tree->Branch("sim_2_type"               , &tree_.sim_2_type);
     hist_[index]->tree->Branch("sim_2_pdg"                , &tree_.sim_2_pdg);
     hist_[index]->tree->Branch("sim_2_proc"               , &tree_.sim_2_proc);
+    hist_[index]->tree->Branch("sim_2_parent_type"        , &tree_.sim_2_parent_type);
+    hist_[index]->tree->Branch("sim_2_parent_pdg"         , &tree_.sim_2_parent_pdg);
+    hist_[index]->tree->Branch("sim_2_parent_proc"        , &tree_.sim_2_parent_proc);
+    hist_[index]->tree->Branch("sim_2_origin_type"        , &tree_.sim_2_origin_type);
+    hist_[index]->tree->Branch("sim_2_origin_pdg"         , &tree_.sim_2_origin_pdg);
+    hist_[index]->tree->Branch("sim_2_origin_proc"        , &tree_.sim_2_origin_proc);
+    hist_[index]->tree->Branch("sim_2_is_primary_related" , &tree_.sim_2_is_primary_related);
     hist_[index]->tree->Branch("sim_2_z_start"            , &tree_.sim_2_z_start);
     hist_[index]->tree->Branch("sim_2_main_crystal"       , &tree_.sim_2_main_crystal);
     hist_[index]->tree->Branch("sim_2_main_crystal_energy", &tree_.sim_2_main_crystal_energy);
@@ -1210,6 +1224,13 @@ namespace mu2e
       tree_.sim_1_type = cluster_par_.sim_1_type;
       tree_.sim_1_pdg = cluster_par_.sim_1_pdg;
       tree_.sim_1_proc = cluster_par_.sim_1_proc;
+      tree_.sim_1_parent_type = cluster_par_.sim_1_parent_type;
+      tree_.sim_1_parent_pdg = cluster_par_.sim_1_parent_pdg;
+      tree_.sim_1_parent_proc = cluster_par_.sim_1_parent_proc;
+      tree_.sim_1_origin_type = cluster_par_.sim_1_origin_type;
+      tree_.sim_1_origin_pdg = cluster_par_.sim_1_origin_pdg;
+      tree_.sim_1_origin_proc = cluster_par_.sim_1_origin_proc;
+      tree_.sim_1_is_primary_related = cluster_par_.sim_1_is_primary_related;
       tree_.sim_1_z_start = cluster_par_.sim_1_z_start;
       tree_.sim_1_main_crystal = cluster_par_.sim_1_main_crystal;
       tree_.sim_1_main_crystal_energy = cluster_par_.sim_1_main_crystal_energy;
@@ -1219,6 +1240,13 @@ namespace mu2e
       tree_.sim_2_type = cluster_par_.sim_2_type;
       tree_.sim_2_pdg = cluster_par_.sim_2_pdg;
       tree_.sim_2_proc = cluster_par_.sim_2_proc;
+      tree_.sim_2_parent_type = cluster_par_.sim_2_parent_type;
+      tree_.sim_2_parent_pdg = cluster_par_.sim_2_parent_pdg;
+      tree_.sim_2_parent_proc = cluster_par_.sim_2_parent_proc;
+      tree_.sim_2_origin_type = cluster_par_.sim_2_origin_type;
+      tree_.sim_2_origin_pdg = cluster_par_.sim_2_origin_pdg;
+      tree_.sim_2_origin_proc = cluster_par_.sim_2_origin_proc;
+      tree_.sim_2_is_primary_related = cluster_par_.sim_2_is_primary_related;
       tree_.sim_2_z_start = cluster_par_.sim_2_z_start;
       tree_.sim_2_main_crystal = cluster_par_.sim_2_main_crystal;
       tree_.sim_2_main_crystal_energy = cluster_par_.sim_2_main_crystal_energy;
@@ -1328,6 +1356,7 @@ namespace mu2e
 
   //--------------------------------------------------------------------------------------
   void Run1BAna::initClusterPar(ClusterPar_t& par, const CaloCluster* cluster) {
+    par.calorimeter = calorimeter_;
     par.init(cluster);
 
     if(!cluster) return;
@@ -1423,9 +1452,17 @@ namespace mu2e
           par.sim_1_nhits += sim_info_[parent->id().asInt()].nhits_;
           parent = parent->parent();
         }
+        auto sim_1_origin = Run1BAnaUtils::getSimOrigin(top1);
         par.sim_1_proc = top1->creationCode();
         par.sim_1_z_start = top1->startPosition().z();
         par.sim_1_type = Run1BAnaUtils::getSimType(top1);
+        par.sim_1_parent_type = Run1BAnaUtils::getSimType((top1->hasParent()) ? &(*top1->parent()) : nullptr);
+        par.sim_1_parent_pdg = (top1->hasParent()) ? top1->parent()->pdgId() : 0;
+        par.sim_1_parent_proc = (top1->hasParent()) ? top1->parent()->creationCode() : -1;
+        par.sim_1_origin_type = Run1BAnaUtils::getSimType(sim_1_origin);
+        par.sim_1_origin_pdg = (sim_1_origin) ? sim_1_origin->pdgId() : 0;
+        par.sim_1_origin_proc = (sim_1_origin) ? sim_1_origin->creationCode() : -1;
+        par.sim_1_is_primary_related = Run1BAnaUtils::isPrimaryRelated(top1);
         if(par.sim_1_type == -1) {
           std::cout << "[Run1BAna::" << __func__ << "] Warning: unclassified sim type for primary sim with PDG "
                     << top1->pdgId() << " and creation code " << top1->creationCode() << std::endl;
@@ -1460,9 +1497,17 @@ namespace mu2e
           par.sim_2_nhits += sim_info_[parent->id().asInt()].nhits_;
           parent = parent->parent();
         }
+        auto sim_2_origin = Run1BAnaUtils::getSimOrigin(top2);
         par.sim_2_proc = top2->creationCode();
         par.sim_2_z_start = top2->startPosition().z();
         par.sim_2_type = Run1BAnaUtils::getSimType(top2);
+        par.sim_2_parent_type = Run1BAnaUtils::getSimType((top2->hasParent()) ? &(*top2->parent()) : nullptr);
+        par.sim_2_parent_pdg = (top2->hasParent()) ? top2->parent()->pdgId() : 0;
+        par.sim_2_parent_proc = (top2->hasParent()) ? top2->parent()->creationCode() : -1;
+        par.sim_2_origin_type = Run1BAnaUtils::getSimType(sim_2_origin);
+        par.sim_2_origin_pdg = (sim_2_origin) ? sim_2_origin->pdgId() : 0;
+        par.sim_2_origin_proc = (sim_2_origin) ? sim_2_origin->creationCode() : -1;
+        par.sim_2_is_primary_related = Run1BAnaUtils::isPrimaryRelated(top2);
         if(par.sim_2_type == -1) {
           std::cout << "[Run1BAna::" << __func__ << "] Warning: unclassified sim type for secondary sim with PDG "
                     << top2->pdgId() << " and creation code " << top2->creationCode() << std::endl;
@@ -1925,12 +1970,15 @@ namespace mu2e
     if(debug_level_ > 1) std::cout << "[Run1BAna::" << __func__ << "::" << moduleDescription().moduleLabel() << "]"
                                    << " Input from:"
                                    << "\n  " << clusters_tag_.encode().c_str()   << ": N(clusters) = "   << cluster_col_->size()
-                                   << "\n  " << calo_hits_tag_.encode().c_str()  << ": N(calo hits) = "  << int((calo_hit_col_)   ? calo_hit_col_->size()  : -1)
-                                   << "\n  " << combo_hits_tag_.encode().c_str() << ": N(combo hits) = " << int((combo_hit_col_)  ? combo_hit_col_->size() : -1)
-                                   << "\n  " << mc_digi_tag_.encode().c_str()    << ": N(MC digis) = "   << int((mc_digi_col_)    ? mc_digi_col_->size()    : -1)
-                                   << "\n  " << calo_cluster_mc_tag_.encode().c_str() << ": N(calo cluster MC) = " << int((calo_cluster_mc_col_) ? calo_cluster_mc_col_->size() : -1)
-                                   << "\n  " << time_cluster_tag_.encode().c_str() << ": N(time clusters) = " << int((time_cluster_col_) ? time_cluster_col_->size() : -1)
-                                   << "\n  " << line_tag_.encode().c_str()       << ": N(lines) = "      << int((line_col_)       ? line_col_->size()       : -1)
+                                   << "\n  " << calo_hits_tag_.encode().c_str()  << ": N(calo hits) = "  << int((calo_hit_col_)   ? calo_hit_col_->size()  : -1) << " is valid = " << calo_hitsH.isValid()
+                                   << "\n  " << combo_hits_tag_.encode().c_str() << ": N(combo hits) = " << int((combo_hit_col_)  ? combo_hit_col_->size() : -1) << " is valid = " << combo_hitsH.isValid()
+                                   << "\n  " << mc_digi_tag_.encode().c_str()    << ": N(MC digis) = "   << int((mc_digi_col_)    ? mc_digi_col_->size()    : -1) << " is valid = " << mc_digiH.isValid()
+                                   << "\n  " << calo_cluster_mc_tag_.encode().c_str() << ": N(calo cluster MC) = " << int((calo_cluster_mc_col_) ? calo_cluster_mc_col_->size() : -1) << " is valid = " << calo_cluster_mcH.isValid()
+                                   << "\n  " << calo_shower_sim_tag_.encode().c_str() << ": N(calo shower sim) = " << int((calo_shower_sim_col_) ? calo_shower_sim_col_->size() : -1) << " is valid = " << calo_shower_simH.isValid()
+                                   << "\n  " << time_cluster_tag_.encode().c_str() << ": N(time clusters) = " << int((time_cluster_col_) ? time_cluster_col_->size() : -1) << " is valid = " << time_clusterH.isValid()
+                                   << "\n  " << line_tag_.encode().c_str()       << ": N(lines) = "      << int((line_col_)       ? line_col_->size()       : -1) << " is valid = " << lineH.isValid()
+                                   << "\n  " << cosmic_seed_tag_.encode().c_str() << ": N(cosmic seeds) = " << int((cosmic_seed_col_) ? cosmic_seed_col_->size() : -1) << " is valid = " << cosmic_seedH.isValid()
+                                   << "\n  " << crv_cluster_tag_.encode().c_str() << ": N(CRV clusters) = " << int((crv_cluster_col_) ? crv_cluster_col_->size() : -1) << " is valid = " << crv_clusterH.isValid()
                                    << std::endl;
 
     if(debug_level_ > 2 && time_cluster_col_) {
@@ -2013,7 +2061,7 @@ namespace mu2e
 
     watch_->SetTime("CountObjects");
 
-    const double min_energy = (sim_version_ == 0) ? 60. : 40.; // later versions have an abosrber
+    const double min_energy = (sim_version_ == 0) ? 60. : (sim_version_ == 1) ? 40. : 50.; // version 1 has a thick target + abosrber, version 2 has a thick target
 
     // Clusters
     const CaloCluster* max_cluster = nullptr;

@@ -2,7 +2,7 @@
 services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
 services.DbService.nearestMatch: true
 
-physics.analyzers.Run1BAna.simVersion : 1
+physics.analyzers.Run1BAna.simVersion : 2
 physics.filters.CaloClusterFilter.MinClusterEnergy : 60.
 physics.producers.CalTimeClusterFinder.MinCaloClusterEnergy : 40.
 

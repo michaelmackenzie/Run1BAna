@@ -1,0 +1,26 @@
+# Split out events that passed the calo dts cluster filter
+
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardServices.fcl"
+
+process_name : SplitTriggerResults
+
+source : {
+  module_type : RootInput
+  fileNames   : @nil
+}
+
+physics : {
+  EndPath       : [ TriggerableOutput ]
+  trigger_paths : [ ]
+  end_paths     : [ EndPath ]
+}
+
+outputs : {
+  TriggerableOutput : {
+    module_type     : RootOutput
+    SelectEvents  : [ "Digitize:DigitizePath" ]
+    outputCommands  :   [ "keep *_*_*_*" ]
+    fileName        : "dig.owner.NoPrimaryMix1BB-dts-filtered.Run1B.%6r_%8s.art"
+  }
+}

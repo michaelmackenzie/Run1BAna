@@ -275,6 +275,13 @@ namespace Run1BAnaStructs {
       int   sim_1_type;
       int   sim_1_pdg;
       int   sim_1_proc;
+      int   sim_1_parent_type;
+      int   sim_1_parent_pdg;
+      int   sim_1_parent_proc;
+      int   sim_1_origin_type;
+      int   sim_1_origin_pdg;
+      int   sim_1_origin_proc;
+      bool  sim_1_is_primary_related;
       float sim_1_z_start;
       int   sim_1_main_crystal;
       float sim_1_main_crystal_energy;
@@ -284,6 +291,13 @@ namespace Run1BAnaStructs {
       int   sim_2_type;
       int   sim_2_pdg;
       int   sim_2_proc;
+      int   sim_2_parent_type;
+      int   sim_2_parent_pdg;
+      int   sim_2_parent_proc;
+      int   sim_2_origin_type;
+      int   sim_2_origin_pdg;
+      int   sim_2_origin_proc;
+      bool  sim_2_is_primary_related;
       float sim_2_z_start;
       int   sim_2_main_crystal;
       float sim_2_main_crystal_energy;
@@ -370,6 +384,13 @@ namespace Run1BAnaStructs {
         sim_1_type = -1;
         sim_1_pdg = 0;
         sim_1_proc = -1;
+        sim_1_parent_type = -1;
+        sim_1_parent_pdg = 0;
+        sim_1_parent_proc = -1;
+        sim_1_origin_type = -1;
+        sim_1_origin_pdg = 0;
+        sim_1_origin_proc = -1;
+        sim_1_is_primary_related = false;
         sim_1_z_start = 0.;
         sim_1_main_crystal = -1;
         sim_1_main_crystal_energy = 0.f;
@@ -379,6 +400,13 @@ namespace Run1BAnaStructs {
         sim_2_type = -1;
         sim_2_pdg = 0;
         sim_2_proc = -1;
+        sim_2_parent_type = -1;
+        sim_2_parent_pdg = 0;
+        sim_2_parent_proc = -1;
+        sim_2_origin_type = -1;
+        sim_2_origin_pdg = 0;
+        sim_2_origin_proc = -1;
+        sim_2_is_primary_related = false;
         sim_2_z_start = 0.;
         sim_2_main_crystal = -1;
         sim_2_main_crystal_energy = 0.f;
@@ -475,6 +503,13 @@ namespace Run1BAnaStructs {
       int   sim_1_type;
       int   sim_1_pdg;
       int   sim_1_proc;
+      int   sim_1_parent_type;
+      int   sim_1_parent_pdg;
+      int   sim_1_parent_proc;
+      int   sim_1_origin_type;
+      int   sim_1_origin_pdg;
+      int   sim_1_origin_proc;
+      bool  sim_1_is_primary_related;
       float sim_1_z_start;
       float sim_2_edep;
       float sim_2_time;
@@ -486,6 +521,13 @@ namespace Run1BAnaStructs {
       int   sim_2_type;
       int   sim_2_pdg;
       int   sim_2_proc;
+      int   sim_2_parent_type;
+      int   sim_2_parent_pdg;
+      int   sim_2_parent_proc;
+      int   sim_2_origin_type;
+      int   sim_2_origin_pdg;
+      int   sim_2_origin_proc;
+      bool  sim_2_is_primary_related;
       float sim_2_z_start;
 
       ClusterPar_t() {
@@ -529,6 +571,13 @@ namespace Run1BAnaStructs {
         sim_1_type = -1;
         sim_1_pdg = 0;
         sim_1_proc = -1;
+        sim_1_parent_type = -1;
+        sim_1_parent_pdg = 0;
+        sim_1_parent_proc = -1;
+        sim_1_origin_type = -1;
+        sim_1_origin_pdg = 0;
+        sim_1_origin_proc = -1;
+        sim_1_is_primary_related = false;
         sim_1_z_start = 0.f;
         sim_2_edep = 0.f;
         sim_2_time = 0.f;
@@ -540,6 +589,13 @@ namespace Run1BAnaStructs {
         sim_2_type = -1;
         sim_2_pdg = 0;
         sim_2_proc = -1;
+        sim_2_parent_type = -1;
+        sim_2_parent_pdg = 0;
+        sim_2_parent_proc = -1;
+        sim_2_origin_type = -1;
+        sim_2_origin_pdg = 0;
+        sim_2_origin_proc = -1;
+        sim_2_is_primary_related = false;
         sim_2_z_start = 0.f;
         if(!cl) return;
 

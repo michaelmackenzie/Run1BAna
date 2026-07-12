@@ -3,22 +3,20 @@
 #include "Run1BAna/scripts/plotSigvsBkgFromNtuple.C"
 
 //------------------------------------------------------------------------------
-void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
+void plotRPCvsBkgFromNtuple(const char* tag = "v40") {
 
-  TString sig_file = "Run1BAna.rpce4b0s51r0002.hist";
-  TString bkg_file = "Run1BAna.mnbs4b1s51r0002.hist";
-  TString csm_file = "Run1BAna.csms4b0s51r0002.hist";
-  const bool is_v06 = TString(tag) == "v06"; // 2 cm target + 10 cm poly
-  const bool is_v07 = TString(tag) == "v07"; // 2 cm target + 10 cm poly, early time
-  if(is_v06) {
-    sig_file = "Run1BAna.rpce6b0s51r0002.hist";
-    bkg_file = "Run1BAna.mnbs6b1s51r0002.hist";
-    csm_file = "Run1BAna.csms6b0s51r0002.hist";
-  } else if(is_v07) {
-    sig_file = "Run1BAna.rpce7b1s51r0002.hist";
-    bkg_file = "Run1BAna.mnbs7b1s51r0002.hist";
-    csm_file = "Run1BAna.csms7b0s51r0002.hist";
+  auto datasets = getDatasets(tag);
+  if(datasets.empty()) {
+    Error(__func__, "No datasets found for tag %s", tag);
+    return;
   }
+
+  const double rpc_xsec = (11978542. / 1000000000.) * (16096977. / 100000000.) * rpc_br_;
+  datasets.emplace("rpce", Dataset_t("rpce4b0s51r0002", 1002530508, 9487, rpc_xsec, ""));
+
+  TString sig_file = datasets.at("rpce").fileName();
+  TString bkg_file = datasets.at("mnbs").fileName();
+  TString csm_file = datasets.at("csms").fileName();
   TFile* f_sig = TFile::Open(sig_file, "READ");
   TFile* f_bkg = TFile::Open(bkg_file, "READ");
   TFile* f_csm = TFile::Open(csm_file, "READ");
@@ -30,90 +28,51 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v05") {
     return;
   }
 
-  // Get the normalization information
-  nnt_sig_ = getNSampled(f_sig, -1); // N(events) in the input dataset
-  nnt_bkg_ = getNSampled(f_bkg, -1);
-  const int nnt_csm = getNSampled(f_csm, -1);
-  const int n_saved_sig = getNSampled(f_sig, 0); // N(events) in the ntuples
-  const int n_saved_bkg = getNSampled(f_bkg, 0);
-  const int n_saved_csm = getNSampled(f_csm, 0);
-  if(nnt_sig_ <= 0. || nnt_bkg_ <= 0.) {
-    Error(__func__, "Invalid normalization!");
-    return;
-  }
-
   // General info
-  const double onspill_time = ((is_v07) ? 1./7. : 1.) * livetime_week_*duty_cycle_1bb_;
-  const double nevents      = onspill_time/1.695e-6; // N(events) in a week
-  const double npot         = nevents*1.6e7*(1.5/3.8) * ((is_v07) ? 1. : 1.);
-  const double nmuons       = npot*nmuons_per_pot_run1b_;
+  const double onspill_time   = livetime_week_*duty_cycle_1bb_;
+  const double nevents        = onspill_time/1.695e-6; // N(events) in a week
+  const double npot_per_event = 1.6e7*(1.5/3.8); // N(POT) per event
+  const double npot           = nevents*npot_per_event; // N(POT) in a week
+  const double nmuons         = npot*nmuons_per_pot_run1b_;
   plot_npot_     = npot;
   plot_livetime_ = livetime_week_;
   plot_nmuons_   = nmuons;
 
-  // RPC info
-  double rpc_skim_eff = (28757. / 1002530508.) * (9487. / 28757.); // dts dataset * (digi / dts)
-  if(is_v06) rpc_skim_eff = (436./ 10000.) * (191045. / 210561265); // stop selector * (digi / gen post selector)
-  if(is_v07) rpc_skim_eff = (61849. / 497656675.); // (digi / gen post selector)
-  const double rpc_stops = (is_v06 || is_v07) ? (16096977. / 100000000.) : (16096977. /  100000000.); // PiTargetStops eff
-  const double rpc_beam  = (11978542. / 1000000000.); // PiBeam eff
-  const double nrpc = npot * rpc_beam * rpc_stops * rpc_br_; // N(infinite lifetime RPC)
-  const double norm_rpc = nrpc*rpc_skim_eff/nnt_sig_; // FIXME: Add v06 if
-  sig_skim_eff_ = rpc_skim_eff;
-  norm_sig_ = norm_rpc;
+  sig_skim_eff_ = datasets["rpce"].nDigi / datasets["rpce"].nGen;
+  norm_sig_ = getNorm(datasets["rpce"], f_sig, npot, livetime_week_);
+  norm_bkg_ = getNorm(datasets["mnbs"], f_bkg, nevents, livetime_week_);
 
-  // Cosmic info
-  const double livetime_digi = 883457; // (2377000000. / 2585823777.) * 556000.; // N(gen digi) / N(gen sim) * livetime (sim)
-  const double ndigi = 115953402; //55369216.; // N(events) in the digi dataset
-  const double norm_csm = onspill_time / livetime_digi * (ndigi / nnt_csm);
-
-  // Pileup info
-  const double norm_b = 1.;
-  norm_bkg_ = nevents*norm_b/nnt_bkg_;
-
-  // Print info
-  std::cout << "N(sampled): RPC = " << nnt_sig_ << " Bkg = " << nnt_bkg_ << std::endl;
-  std::cout << "N(saved): RPC = " << n_saved_sig << " Bkg = " << n_saved_bkg << std::endl;
-  std::cout << "Eff(dataset): RPC = " << sig_skim_eff_ << " Bkg = " << norm_b << std::endl;
-  std::cout << "N(POT) = " << npot << " N(muons) = " << nmuons << " N(RPC) = " << nrpc << std::endl;
-  std::cout << "Norms: RPC = " << norm_sig_ << " Bkg = " << norm_bkg_ << std::endl;
-  std::cout << "N(RPC | 0) = " << getNSampled(f_sig, 0)*norm_sig_ << " N(Bkg | 0) = " << getNSampled(f_bkg, 0)*norm_bkg_ << std::endl;
-  std::cout << "I(RPC | 0) = " << getIntegral(f_sig, 0)*norm_sig_ << " I(Bkg | 0) = " << getIntegral(f_bkg, 0)*norm_bkg_ << std::endl;
-
-  std::cout << "\n----------------------------------------------------\n";
-  std::cout << "RPC info:\n";
-  std::cout << "N(POT) = " << npot << std::endl;
-  std::cout << "Eff(PiBeam) = " << rpc_beam << std::endl;
-  std::cout << "Eff(PiStops) = " << rpc_stops << std::endl;
-  std::cout << "N(RPC infinite lifetime) = " << nrpc << std::endl;
-  std::cout << "Eff(Stop time + HitCalo + digi time) = " << rpc_skim_eff << std::endl;
-  std::cout << "Eff(cluster) = " << getNSampled(f_sig,0) * 1./nnt_sig_ << std::endl;
-  std::cout << "N(RPC cluster) = " << getNSampled(f_sig, 0) * norm_rpc << std::endl;
-  std::cout << "N(RPC cluster | time weights) = " << getIntegral(f_sig, 0) * norm_rpc << std::endl;
-  std::cout << "----------------------------------------------------\n\n";
+  printf("============================================================\n");
+  printf("Livetime      = %.2e s\n", plot_livetime_);
+  printf("N(POT)        = %.2e\n"  , plot_npot_);
+  printf("N(muon stops) = %.2e\n"  , plot_nmuons_);
+  printf("N(events)     = %.2e\n"  , nevents);
+  printf("============================================================\n");
 
   // Set the list of processes to consider
-  if(is_v06 || is_v07) {
-    draw_no_calo_mu_ = false;
-    processes_ = {
-      {"RPC"    , f_sig, norm_sig_,   0, true , kBlue},
-      {"RPC_pu" , f_sig, norm_sig_, 100, true , kBlue},
-      {"RPC_cpu", f_sig, norm_sig_, 200, true , kBlue},
-      {"Cosmics", f_csm, norm_csm ,   0, false, kGreen-6},
-      {"Low pileup clusters"  , f_bkg, norm_bkg_,   0, false, kPink},
-      {"Other pileup"  , f_bkg, norm_bkg_, 100, false, kViolet}
-      // , {"Calo muon stops"  , f_bkg, norm_bkg_, 200, false, kOrange}
-    };
-  } else {
-    processes_ = {
-      {"RPC"    , f_sig, norm_sig_,   0, true , kBlue},
-      {"RPC_pu" , f_sig, norm_sig_, 100, true , kBlue},
-      {"RPC_cpu", f_sig, norm_sig_, 200, true , kBlue},
-      {"Cosmics", f_csm, norm_csm ,   0, false, kGreen-6},
-      {"Low pileup clusters"  , f_bkg, norm_bkg_,   0, false, kPink},
-      {"Other pileup"  , f_bkg, norm_bkg_, 100, false, kViolet},
-      {"Calo muon stops"  , f_bkg, norm_bkg_, 200, false, kOrange}
-    };
+  draw_no_calo_mu_ = true;
+  processes_.clear();
+  processes_ = {
+    {"RPC"                 , datasets["rpce"], f_sig, norm_sig_,                                0, true , kBlue},
+    {"RPC_pu"              , datasets["rpce"], f_sig, norm_sig_,                              100, true , kBlue},
+    {"RPC_cpu"             , datasets["rpce"], f_sig, norm_sig_,                              200, true , kBlue},
+    {"Cosmics"             , datasets["csms"], f_csm, getNorm(datasets["csms"], f_csm, npot, livetime_week_),   0, false, kGreen-6},
+    {"Low pileup clusters" , datasets["mnbs"], f_bkg, norm_bkg_,                                0, false, kPink},
+    {"Other pileup"        , datasets["mnbs"], f_bkg, norm_bkg_,                              100, false, kViolet},
+    {"Calo muon stops"     , datasets["mnbs"], f_bkg, norm_bkg_,                              200, false, kOrange}
+  };
+
+  printf("%25s %10s %10s %10s %10s %10s %15s %10s\n", "Process", "N(sampled)", "N(digi)", "N(gen)", "Bare norm", "Norm", "Dataset", "Set offset");
+  for(const auto& process : processes_) {
+    printf("%25s %10.2e %10.2e %10.2e%10.2e %10.2e %15s %10d\n",
+           process.name.Data(),
+           getNSampled(process.f),
+           process.dataset.nDigi,
+           process.dataset.nGen,
+           process.dataset.norm((process.dataset.name.BeginsWith("mnbs")) ? nevents : plot_npot_, plot_livetime_),
+           process.norm,
+           process.dataset.name.Data(),
+           process.set_offset);
   }
 
   // Set up the figure directory and style

@@ -25,7 +25,9 @@ bool draw_no_calo_mu_ = true;
 double plot_livetime_ = 0.;
 double plot_npot_ = 0.;
 double plot_nmuons_ = 0.;
-double br_sig_ = -1.;
+double rmue_ = -1.;
+
+int verbose_ = 10;
 
 //-------------------------------------------------------------------------------
 struct Process_t {
@@ -72,8 +74,8 @@ TLatex* draw_info(const double scale = 0.75) {
   logo->SetTextSize(extraTextSize);
   logo->SetTextFont(42);
   logo->SetTextAlign(31);
-  if(br_sig_ > 0.) {
-    const double rmue = br_sig_/muon_capture_fraction_;
+  if(rmue_ > 0.) {
+    const double rmue = rmue_;
     const int ntens_br = int(std::log10(rmue));
     const float head_br = rmue / std::pow(10.,ntens_br);
     lumistamp += Form("; R_{#mue} = %.1f x 10^{%i}", head_br, ntens_br);
@@ -242,6 +244,7 @@ void plot(const char* name, const int set, const bool normalize,
           const int rebin, const double x_min, const double x_max,
           TString unit = "",
           const bool sig_plot = false, const bool smooth = false) {
+  TGaxis::SetExponentOffset(-0.06, 0.008, "Y");
   TH1* h_sig = nullptr;
   TH1* h_bkg = nullptr;
   TH1* h_bkg_no_calo_mu = nullptr;
@@ -443,6 +446,7 @@ void plot(const char* name, const int set, const bool normalize,
 void plot(const char* name, const int set, const bool normalize,
           const int rebin, const double x_min, const double x_max,
           TFile* f_sig, TFile* f_bkg) {
+  TGaxis::SetExponentOffset(-0.06, 0.008, "Y");
 
   TH1* h_sig = (TH1*) f_sig->Get(Form("hist_%i/%s", set, name));
   TH1* h_bkg = (TH1*) f_bkg->Get(Form("hist_%i/%s", set, name));

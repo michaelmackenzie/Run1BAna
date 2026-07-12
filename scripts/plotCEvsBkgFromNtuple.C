@@ -17,53 +17,79 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40") {
   TString bkg_file = datasets.at("mnbs").fileName();
   // TString dio_file = datasets.at("dio0").fileName();
   TString csm_file = datasets.at("csms").fileName();
+  TString neu_file = datasets.at("neut").fileName();
+  TString pro_file = datasets.at("prot").fileName();
 
   TFile* f_sig = TFile::Open(sig_file, "READ");
   TFile* f_bkg = TFile::Open(bkg_file, "READ");
   // TFile* f_dio = TFile::Open(dio_file, "READ");
   TFile* f_csm = TFile::Open(csm_file, "READ");
+  TFile* f_neu = TFile::Open(neu_file, "READ");
+  TFile* f_pro = TFile::Open(pro_file, "READ");
   if (!f_sig || f_sig->IsZombie() ||
       !f_bkg || f_bkg->IsZombie() ||
       // !f_dio || f_dio->IsZombie() ||
-      !f_csm || f_csm->IsZombie()
+      !f_csm || f_csm->IsZombie() ||
+      !f_neu || f_neu->IsZombie() ||
+      !f_pro || f_pro->IsZombie()
       ) {
     Error(__func__, "Could not open files!");
     return;
   }
 
   // General info
-  const double onspill_time = livetime_week_*duty_cycle_1bb_;
-  const double nevents      = onspill_time/1.695e-6; // N(events) in a week
-  const double npot         = nevents*1.6e7*(1.5/3.8);
-  const double nmuons       = npot*nmuons_per_pot_run1b_;
+  const double onspill_time   = livetime_week_*duty_cycle_1bb_;
+  const double nevents        = onspill_time/1.695e-6; // N(events) in a week
+  const double npot_per_event = 1.6e7*(1.5/3.8); // N(POT) per event
+  const double npot           = nevents*npot_per_event; // N(POT) in a week
+  const double nmuons         = npot*nmuons_per_pot_run1b_;
   plot_npot_     = npot;
   plot_livetime_ = livetime_week_;
   plot_nmuons_   = nmuons;
 
   // CE info
-  br_sig_  = 1.e-9; // signal branching fraction
+  rmue_  = 1.e-9; // signal branching fraction
 
   // Set the list of processes to consider
   processes_.clear();
   processes_ = {
-    {"#mu^{-}#rightarrowe^{-}", datasets["cele"], f_sig, br_sig_*getNorm(datasets["cele"], f_sig, npot, livetime_week_),   0, true , kBlue},
-    {"CE_pu"   , datasets["cele"], f_sig, getNorm(datasets["cele"], f_sig, npot, livetime_week_), 100, true , kBlue},
-    {"CE_cpu"  , datasets["cele"], f_sig, getNorm(datasets["cele"], f_sig, npot, livetime_week_), 200, true , kBlue},
-    {"Cosmics" , datasets["csms"], f_csm, getNorm(datasets["csms"], f_csm, npot, livetime_week_),   0, false, kViolet+6},
+    {"#mu^{-}#rightarrowe^{-}", datasets["cele"], f_sig, rmue_*getNorm(datasets["cele"], f_sig, npot, livetime_week_),   0, true , kBlue},
+    {"CE_pu"                  , datasets["cele"], f_sig, rmue_*getNorm(datasets["cele"], f_sig, npot, livetime_week_), 100, true , kBlue},
+    {"CE_cpu"                 , datasets["cele"], f_sig, rmue_*getNorm(datasets["cele"], f_sig, npot, livetime_week_), 200, true , kBlue},
+    // {"Cosmics"                , datasets["csms"], f_csm, getNorm(datasets["csms"], f_csm, npot, livetime_week_),   0, false, kGreen-6},
     // {"DIO tail", datasets["dio0"], f_dio, getNorm(datasets["dio0"], f_dio, npot, livetime_week_),   0, false, kGreen-6},
-    {"Low pileup clusters"  , datasets["mnbs"], f_bkg, getNorm(datasets["mnbs"], f_bkg, npot, livetime_week_),   0, false, kPink},
-    {"Other pileup"  , datasets["mnbs"], f_bkg, getNorm(datasets["mnbs"], f_bkg, npot, livetime_week_), 100, false, kViolet},
-    {"Calo muon stops"  , datasets["mnbs"], f_bkg, getNorm(datasets["mnbs"], f_bkg, npot, livetime_week_), 200, false, kOrange}
+    {"Protons"                , datasets["prot"], f_pro, getNorm(datasets["prot"], f_pro, npot, livetime_week_),   0, false, kRed+6},
+    {"Neutrons"               , datasets["neut"], f_neu, getNorm(datasets["neut"], f_neu, npot, livetime_week_),   0, false, kViolet+6},
+    {"Low pileup clusters"  , datasets["mnbs"], f_bkg, getNorm(datasets["mnbs"], f_bkg, nevents, livetime_week_),   0, false, kPink},
+    {"Other pileup"  , datasets["mnbs"], f_bkg, getNorm(datasets["mnbs"], f_bkg, nevents, livetime_week_), 100, false, kViolet},
+    {"Calo muon stops"  , datasets["mnbs"], f_bkg, getNorm(datasets["mnbs"], f_bkg, nevents, livetime_week_), 200, false, kOrange}
   };
 
+  norm_sig_ = rmue_*getNorm(datasets["cele"], f_sig, npot, livetime_week_);
+  norm_bkg_ = getNorm(datasets["mnbs"], f_bkg, nevents, livetime_week_);
+
+  // Print summary information
+  printf("============================================================\n");
+  printf("Livetime      = %.2e s\n", plot_livetime_);
+  printf("N(POT)        = %.2e\n"  , plot_npot_);
+  printf("N(muon stops) = %.2e\n"  , plot_nmuons_);
+  printf("N(events)     = %.2e\n"  , nevents);
+  printf("============================================================\n");
+
   // Print information about each process
+  printf("%25s %10s %10s %10s %10s %10s %15s %10s\n", "Process", "N(sampled)", "N(digi)", "N(gen)", "Bare norm", "Norm", "Dataset", "Set offset");
   for(const auto& process : processes_) {
-    std::cout << "Process: " << process.name
-              << ", Dataset: " << process.dataset.name
-              << ", Norm: " << process.norm
-              << ", Set offset: " << process.set_offset
-              << std::endl;
+    printf("%25s %10.2e %10.2e %10.2e%10.2e %10.2e %15s %10d\n",
+           process.name.Data(),
+           getNSampled(process.f),
+           process.dataset.nDigi,
+           process.dataset.nGen,
+           process.dataset.norm((process.dataset.name.BeginsWith("mnbs")) ? nevents : plot_npot_, plot_livetime_),
+           process.norm,
+           process.dataset.name.Data(),
+           process.set_offset);
   }
+
 
   // Set up the figure directory and style
   dir_ = (tag) ? Form("figures/ce_vs_bkg_nt_%s", tag) : "figures/ce_vs_bkg_nt";

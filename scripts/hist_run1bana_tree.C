@@ -11,6 +11,10 @@
 #include <vector>
 #include <iostream>
 
+const bool veto_neutrons_pileup_ = true; // Veto neutron clusters with KE > 60 MeV
+const bool veto_protons_pileup_  = true; // Veto protons clusters with KE > 60 MeV
+const bool veto_rmc_pileup_      = true; // Veto RMC clusters from pileup
+
 // Plestid spectra
 double plestid_spectrum(const double energy, const int knockout) {
   const double x = energy;
@@ -212,6 +216,7 @@ struct TreeBranches {
   int   sim_1_nhits;
   int   sim_1_type;
   int   sim_1_pdg;
+  int   sim_1_proc;
   int   sim_1_main_crystal;
   float sim_1_main_crystal_energy;
   float sim_2_edep;
@@ -219,6 +224,7 @@ struct TreeBranches {
   int   sim_2_nhits;
   int   sim_2_type;
   int   sim_2_pdg;
+  int   sim_2_proc;
   int   sim_2_main_crystal;
   float sim_2_main_crystal_energy;
   float event_weight;
@@ -547,6 +553,7 @@ void setBranchAddresses(TTree* tree, TreeBranches& b) {
   tree->SetBranchAddress("sim_1_nhits"             , &b.sim_1_nhits);
   tree->SetBranchAddress("sim_1_type"              , &b.sim_1_type);
   tree->SetBranchAddress("sim_1_pdg"               , &b.sim_1_pdg);
+  tree->SetBranchAddress("sim_1_proc"              , &b.sim_1_proc);
   tree->SetBranchAddress("sim_1_main_crystal"      , &b.sim_1_main_crystal);
   tree->SetBranchAddress("sim_1_main_crystal_energy", &b.sim_1_main_crystal_energy);
   tree->SetBranchAddress("sim_2_edep"              , &b.sim_2_edep);
@@ -554,6 +561,7 @@ void setBranchAddresses(TTree* tree, TreeBranches& b) {
   tree->SetBranchAddress("sim_2_nhits"             , &b.sim_2_nhits);
   tree->SetBranchAddress("sim_2_type"              , &b.sim_2_type);
   tree->SetBranchAddress("sim_2_pdg"               , &b.sim_2_pdg);
+  tree->SetBranchAddress("sim_2_proc"              , &b.sim_2_proc);
   tree->SetBranchAddress("sim_2_main_crystal"      , &b.sim_2_main_crystal);
   tree->SetBranchAddress("sim_2_main_crystal_energy", &b.sim_2_main_crystal_energy);
   tree->SetBranchAddress("event_weight"            , &b.event_weight);
@@ -565,7 +573,7 @@ void setBranchAddresses(TTree* tree, TreeBranches& b) {
 //--------------------------------------------------------------------------------------
 
 bool sel_energy(const TreeBranches& b) {
-  return b.cluster_energy > 50. && b.cluster_energy < 150.;
+  return b.cluster_energy > 60. && b.cluster_energy < 150.;
 }
 
 bool sel_energy_time(const TreeBranches& b) {
@@ -604,6 +612,17 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
   TObjArray* tokens = fileList.Tokenize(",");
   for(int i = 0; i < tokens->GetEntries(); ++i) {
     TString fname = dynamic_cast<TObjString*>(tokens->At(i))->GetString().Strip(TString::kBoth);
+    if(!fname.Contains("*")) {
+      TFile* f = TFile::Open(fname, "READ");
+      if(!f || f->IsZombie()) {
+        cout << "Skipping file " << fname << endl;
+        continue;
+      }
+      if(!f->Get(treePath)) {
+        cout << "Skipping file " << fname << endl;
+        continue;
+      }
+    }
     const int added = chain->Add(fname);
     std::cout << "Added " << added << " file(s) matching: " << fname << std::endl;
   }
@@ -719,6 +738,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
   const bool is_pu = TString(inputFiles).Contains("mnbs");
   const bool is_csm = TString(inputFiles).Contains("csms");
   const bool is_fgm = TString(inputFiles).Contains("fgam");
+  const bool is_neu = TString(inputFiles).Contains("neut");
   const bool is_v07 = TString(outputFile).Contains("7b");
   const bool is_v08 = TString(outputFile).Contains("fgam8b"); // Plestid fit
   const bool is_v09 = TString(outputFile).Contains("fgam9b");
@@ -733,6 +753,14 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
 
     if(i % 10000 == 0)
       std::cout << "  Entry " << i << " / " << nEntries << std::endl;
+
+    // Modeling these in pileup or not
+    if(is_pu && veto_neutrons_pileup_ && b.sim_1_pdg == 2112 &&
+       b.cluster_energy > 50. && b.sim_1_edep / b.mc_cluster_energy > 0.80) continue;
+    if(is_pu && veto_protons_pileup_ && b.sim_1_pdg == 2212 &&
+       b.cluster_energy > 50. && b.sim_1_edep / b.mc_cluster_energy > 0.80) continue;
+    if(is_pu && veto_rmc_pileup_ && b.sim_1_pdg == 22 && b.sim_1_type == 0 &&
+       b.cluster_energy > 50. && b.sim_1_edep / b.mc_cluster_energy > 0.80) continue;
 
     int offset = 0;
     if(!is_csm) { // for now, don't offset cosmics due to gen matching issues
@@ -776,7 +804,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
     }
     if(sel_energy_time(b)) {
       fillHistograms(5, b, b.event_weight);
-      if(b.cluster_energy > 50.) {
+      if(b.cluster_energy > 60.) {
         fillHistograms(6, b, b.event_weight);
         if(b.line_nhits > 0) {
           fillHistograms(7, b, b.event_weight);
@@ -823,7 +851,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
     // Offset selections
 
     // RMC
-    if(b.cluster_time > 600. && b.cluster_energy > 50. && b.cluster_energy < 150.) {
+    if(b.cluster_time > 600. && b.cluster_energy > 60. && b.cluster_energy < 150.) {
       fillHistograms(70 + offset, b, b.event_weight);
       if(sel_signal_id(b)) {
         fillHistograms(71 + offset, b, b.event_weight);
@@ -831,7 +859,19 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
         if(b.time_cluster_nhigh_z_hits < 3) fillHistograms(73 + offset, b, b.event_weight);
         const bool radius_cut = b.cluster_radius > 500. && b.cluster_radius < 580.;
         const bool crv_cut = true; // b.crv_cluster_nhits <= 0 || std::fabs(b.crv_dt_corrected - 40.) > 30.;
-        if(radius_cut && crv_cut && b.time_cluster_nhigh_z_hits < 3) fillHistograms(74 + offset, b, b.event_weight);
+        if(radius_cut && crv_cut && b.time_cluster_nhigh_z_hits < 3) {
+          fillHistograms(74 + offset, b, b.event_weight);
+          if(is_pu && b.cluster_energy > 65.) {
+            std::cout << ">>> Accepted pileup cluster: "
+                      << b.run << "/" << b.subrun << "/" << b.event
+                      << " energy = " << b.cluster_energy
+                      << " sim_1: type = " << b.sim_1_type
+                      << " creation code = " << b.sim_1_proc
+                      << " pdg = " << b.sim_1_pdg
+                      << " edep = " << b.sim_1_edep
+                      << std::endl;
+          }
+        }
       }
     }
 
