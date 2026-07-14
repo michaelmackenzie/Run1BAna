@@ -5,7 +5,7 @@ DORPC=$2
 NOPLOT=$3
 
 if [[ "${DATASETS}" == "" ]]; then
-    DATASETS="CE PILEUP NEUTRON"
+    DATASETS="CE PILEUP NEUTRON PROTON COSMIC"
 fi
 
 # Script + dataset inputs
@@ -14,6 +14,7 @@ PILEUP="mnbs0b1s51r0003"
 DIO="diob0b1s51r0004"
 COSMIC="csms0b1s51r0003"
 CE="cele0b1s51r0003"
+RMC="fgam0b1s51r0003"
 NEUTRON="neut0b1s51r0003"
 PROTON="prot0b1s51r0003"
 TAG="v40"
@@ -37,7 +38,7 @@ fi
 if [[ "${DATASETS}" == *"CE"* ]] && [[ "${DORPC}" == "" ]]; then
     INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${CE}/nts.mmackenz.${CE}.Run1BAna.*.root"
     OUTDATA="Run1BAna.${CE}.hist"
-    root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\")"
+    root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\", 2e5)"
 fi
 
 # Cosmic histogram
@@ -47,16 +48,26 @@ if [[ "${DATASETS}" == *"COSMIC"* ]] && [[ "${DORPC}" == "" ]]; then
     root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\")"
 fi
 
+
+# RMC histogram
+if [[ "${DATASETS}" == *"RMC"* ]]; then
+    INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${RMC}/nts.mmackenz.${RMC}.Run1BAna.*.root"
+    OUTDATA="Run1BAna.${RMC}.hist"
+    root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\")"
+fi
+
 # Neutron histogram
 if [[ "${DATASETS}" == *"NEUTRON"* ]] && [[ "${DORPC}" == "" ]]; then
-    INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${NEUTRON}/nts.mmackenz.${NEUTRON}.Run1BAna.*.root"
+    # INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${NEUTRON}/nts.mmackenz.${NEUTRON}.Run1BAna.*.root"
+    INDATA="nts.owner.neut0b1s51r0003.Run1BAna.sequencer.root"
     OUTDATA="Run1BAna.${NEUTRON}.hist"
     root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\")"
 fi
 
 # Proton histogram
 if [[ "${DATASETS}" == *"PROTON"* ]] && [[ "${DORPC}" == "" ]]; then
-    INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${PROTON}/nts.mmackenz.${PROTON}.Run1BAna.*.root"
+    # INDATA="/exp/mu2e/data/users/mmackenz/run1b/data/${PROTON}/nts.mmackenz.${PROTON}.Run1BAna.*.root"
+    INDATA="nts.owner.prot0b1s51r0003.Run1BAna.sequencer.root"
     OUTDATA="Run1BAna.${PROTON}.hist"
     root -l -q -b "${SCRIPT}(\"${INDATA}\", \"${OUTDATA}\")"
 fi

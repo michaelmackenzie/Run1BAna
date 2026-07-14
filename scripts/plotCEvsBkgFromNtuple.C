@@ -34,12 +34,12 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40") {
   plot_nmuons_   = nmuons;
 
   // CE info
-  rmue_  = 1.e-9; // signal branching fraction
+  rmue_  = 1.e-8; // signal branching fraction
 
   const vector<TString> enabled_process_ids = {
-    "ce", "ce_pu", "ce_cpu", "protons", "neutrons", "pileup_lo", "pileup_ot", "calomu"
+    "ce", "ce_pu", "ce_cpu", "cosmics", "protons", "neutrons", "rmc", "pileup_lo", "pileup_ot", "calomu"
   };
-  const auto process_specs = selectNominalProcessSpecs(enabled_process_ids);
+  const auto process_specs = selectNominalProcessSpecs(enabled_process_ids, false);
 
   // Set the list of processes to consider
   processes_ = buildProcesses(datasets, files, included_dataset_keys, process_specs, npot, nevents, livetime_week_, rmue_);
@@ -82,7 +82,7 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40") {
   vector<int> proc_sets = {70, 71, 80};
   for(const int set : proc_sets) {
     for(const bool normalize : {false, true}) {
-      plot("cluster_energy"                 , set, normalize, 2, emin,  emax, true);
+      plot("cluster_energy"                 , set, normalize, 2, emin,  emax, "MeV", true);
       plot("cluster_time"                   , set, normalize, 5, 400., 1800.);
       plot("cluster_radius"                 , set, normalize, 1, 300.,  700.);
       plot("cluster_disk"                   , set, normalize, 1,   0.,    2.);
@@ -94,6 +94,7 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40") {
       plot("time_cluster_nhits"             , set, normalize, 2,   0.,  100.);
       plot("time_cluster_nstraw_hits"       , set, normalize, 2,   0.,  100.);
       plot("time_cluster_nhigh_z_hits"      , set, normalize, 1,   0.,   20.);
+      plot("line_nhits"                     , set, normalize, 1,   0.,  100.);
       plot("sim_1_2_nhits"                  , set, normalize, 1,   1.,   -1.);
       plot("sim_1_edep_frac"                , set, normalize, 1,   0.,    1.);
       plot("sim_2_edep_frac"                , set, normalize, 1,   0.,    1.);

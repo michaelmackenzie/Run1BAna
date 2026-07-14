@@ -36,8 +36,20 @@ namespace mu2e
     static double closureApprox(const double energy, const double kmax = 90.1) {
       if(energy < 0. || energy > kmax || kmax == 0.) return 0.;
       const double x = energy/kmax;
-      const double p = 20.*(1. - 2.*x + 2.*x*x)*x*(1.-x)*(1.-x);
+      const double p = (20./kmax)*(1. - 2.*x + 2.*x*x)*x*(1.-x)*(1.-x);
       return p;
+    }
+
+    //--------------------------------------------------------------------------------------
+    static double closureIntegral(double K_1, double K_2, double KMax) {
+      if(KMax <= 0.) return 0.;
+      const double x_1 = std::max(0., std::min(KMax, K_1))/KMax;
+      const double x_2 = std::max(0., std::min(KMax, K_2))/KMax;
+      if(x_1 >= x_2) return 0.;
+      const double val_1 = -1./3.*x_1*x_1*(-20.*pow(x_1,4)+72.*pow(x_1,3) -105.*x_1*x_1 + 80.*x_1 - 30.);
+      const double val_2 = -1./3.*x_2*x_2*(-20.*pow(x_2,4)+72.*pow(x_2,3) -105.*x_2*x_2 + 80.*x_2 - 30.);
+      const double integral = (val_2 - val_1);
+      return integral;
     }
 
     //--------------------------------------------------------------------------------------

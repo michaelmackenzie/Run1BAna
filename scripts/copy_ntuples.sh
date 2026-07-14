@@ -30,7 +30,7 @@ if [[ "${OUTDATA}" == "" ]] || [[ "${JOBID}" == "" ]] || [[ "${JOB}" == "" ]] ||
 fi
 
 if [[ "${TYPE}" == "" ]]; then
-    TYPE="stn"
+    TYPE="root"
 fi
 
 

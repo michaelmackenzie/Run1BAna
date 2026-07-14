@@ -2413,7 +2413,10 @@ namespace mu2e
       if(primary_sim && primary_sim->creationCode() == mu2e::ProcessCode::mu2eFlatPhoton) { // RMC
         const double e_gen = primary_sim->startMomentum().e();
         constexpr double kmax = 90.1; // use for reference
-        weight = Run1BAnaUtils::closureApprox(e_gen, kmax);
+        constexpr double ref_energy = 57.; // branching fractions defined above here
+        const double w = Run1BAnaUtils::closureApprox(e_gen, kmax);
+        const double n = Run1BAnaUtils::closureIntegral(ref_energy, kmax, kmax);
+        weight = w / n;
       } else if(primary_sim && (primary_sim->creationCode() == mu2e::ProcessCode::mu2eExternalRPC ||
                                 primary_sim->creationCode() == mu2e::ProcessCode::mu2eInternalRPC)) { // RPC
         const PhysicsParams& gc = *GlobalConstantsHandle<PhysicsParams>();

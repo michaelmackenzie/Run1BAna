@@ -45,7 +45,7 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40") {
   printf("============================================================\n");
 
   const vector<TString> enabled_process_ids = {
-    "rmc", "rmc_pu", "rmc_cpu", "cosmics", "neutrons", "pileup_lo", "pileup_ot", "calomu"
+    "rmc", "rmc_pu", "rmc_cpu", "cosmics", "neutrons", "protons", "pileup_lo", "pileup_ot", "calomu"
   };
   const auto process_specs = selectNominalProcessSpecs(enabled_process_ids);
 
@@ -77,7 +77,7 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40") {
   vector<int> proc_sets = {70, 71, 72, 73, 74};
   for(const int set : proc_sets) {
     for(const bool normalize : {false, true}) {
-      plot("cluster_energy"                 , set, normalize, 2, emin,  emax, true, false);
+      plot("cluster_energy"                 , set, normalize, 2, emin,  emax, "MeV", true, false);
       plot("cluster_time"                   , set, normalize, 5, 600., 1650.);
       plot("cluster_radius"                 , set, normalize, 1, 300.,  700.);
       plot("cluster_disk"                   , set, normalize, 1,   0.,    2.);

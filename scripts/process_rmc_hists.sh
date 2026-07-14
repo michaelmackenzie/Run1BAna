@@ -5,7 +5,7 @@ TAG=$2
 NOPLOT=$3
 
 if [[ "${DATASETS}" == "" ]]; then
-    DATASETS="RMC DIO RPC COSMIC CE PILEUP"
+    DATASETS="RMC DIO RPC COSMIC CE PILEUP NEUTRON PROTON"
 fi
 if [[ "${TAG}" == "" ]]; then
     TAG="v40"

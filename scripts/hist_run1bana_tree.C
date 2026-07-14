@@ -11,26 +11,50 @@
 #include <vector>
 #include <iostream>
 
-const bool veto_neutrons_pileup_ = true; // Veto neutron clusters with KE > 60 MeV
-const bool veto_protons_pileup_  = true; // Veto protons clusters with KE > 60 MeV
-const bool veto_rmc_pileup_      = true; // Veto RMC clusters from pileup
+const bool use_plestid_rmc_      =  true; // Use phase-space approx instead of closure approx for RMC
+const bool veto_neutrons_pileup_ =  true; // Veto neutron clusters with KE > 60 MeV
+const bool veto_protons_pileup_  =  true; // Veto protons clusters with KE > 60 MeV
+const bool veto_rmc_pileup_      =  true; // Veto RMC clusters from pileup
+
+int debug_ = 0;
+
+// Integral from k_1 to k_2 of the Plestid phase-space approximation spectrum shape
+double plestid_integral(double K_1, double K_2, double KMax, int knockout) {
+  if(KMax <= 0.) return 0.;
+  if(knockout < 0) return 0.;
+  K_1 = std::max(0., std::min(KMax, K_1));
+  K_2 = std::max(0., std::min(KMax, K_2));
+  if(K_1 >= K_2) return 0.;
+  const double power = 2. + 1.5*knockout;
+  const double x_1 = K_1 / KMax;
+  const double x_2 = K_2 / KMax;
+  const double val_1 = (x_1 - 1.)*std::pow(1-x_1, power)*(power*x_1+x_1+1.);
+  const double val_2 = (x_2 - 1.)*std::pow(1-x_2, power)*(power*x_2+x_2+1.);
+  const double integral = val_2 - val_1;
+  return integral;
+}
 
 // Plestid spectra
-double plestid_spectrum(const double energy, const int knockout) {
-  const double x = energy;
-  const double k_0 = 101.866;
-  const double k_1 = 95.449;
-  const double k_2 = 84.395;
-  const double norm_0 = (k_0 > 0.) ? 12./1. / k_0 : 0.;
-  const double norm_1 = (k_1 > 0.) ? 99./4. / k_1 : 0.;
-  const double norm_2 = (k_2 > 0.) ? 42./1. / k_2 : 0.;
+double plestid_spectrum(const double energy, const double kmax, const int knockout) {
+  if(energy <= 0. || energy >= kmax) return 0.;
 
-  double k = 0.; double norm = 0.; double power = 0.;
-  if(knockout == 0) { k = k_0; norm = norm_0; power = 2.0;}
-  if(knockout == 1) { k = k_1; norm = norm_1; power = 3.5;}
-  if(knockout == 2) { k = k_2; norm = norm_2; power = 5.0;}
-  const double p = (x < k && x > 0.) ? norm * x/k * pow(1.-x/k, power) : 0.;
+  const double power = 2. + 1.5*knockout;
+  const double norm = (power + 1.) * (power + 2.) / kmax;
+  const double x = energy / kmax;
+  const double p = norm * x * pow(1.-x, power);
   return p;
+}
+
+// Closure approximation integral from k_1 to k_2 given kmax
+double closure_integral(double K_1, double K_2, double KMax) {
+  if(KMax <= 0.) return 0.;
+  const double x_1 = std::max(0., std::min(KMax, K_1))/KMax;
+  const double x_2 = std::max(0., std::min(KMax, K_2))/KMax;
+  if(x_1 >= x_2) return 0.;
+  const double val_1 = -1./3.*x_1*x_1*(-20.*pow(x_1,4)+72.*pow(x_1,3) -105.*x_1*x_1 + 80.*x_1 - 30.);
+  const double val_2 = -1./3.*x_2*x_2*(-20.*pow(x_2,4)+72.*pow(x_2,3) -105.*x_2*x_2 + 80.*x_2 - 30.);
+  const double integral = (val_2 - val_1);
+  return integral;
 }
 
 //--------------------------------------------------------------------------------------
@@ -577,7 +601,7 @@ bool sel_energy(const TreeBranches& b) {
 }
 
 bool sel_energy_time(const TreeBranches& b) {
-  return sel_energy(b) && b.cluster_time > 400. && b.cluster_time < 1650.;
+  return sel_energy(b) && b.cluster_time > 500. && b.cluster_time < 1650.;
 }
 
 bool sel_photon_id(const TreeBranches& b) {
@@ -588,7 +612,7 @@ bool sel_signal_id(const TreeBranches& b) {
   return sel_energy_time(b)
     && b.cluster_ncr  > 1
     && b.cluster_ncr  < 6
-                        && b.cluster_frac_1       > 0.60f
+    && b.cluster_frac_1       > 0.60f
     && b.cluster_frac_2       > 0.80f
     && b.cluster_t_var        < 1.0f
     && b.cluster_second_moment< 1.e3f
@@ -735,7 +759,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
   // Event loop
   //--------------------------------------------------------------------------------------
 
-  const bool is_pu = TString(inputFiles).Contains("mnbs");
+  const bool is_pu  = TString(inputFiles).Contains("mnbs");
   const bool is_csm = TString(inputFiles).Contains("csms");
   const bool is_fgm = TString(inputFiles).Contains("fgam");
   const bool is_neu = TString(inputFiles).Contains("neut");
@@ -785,13 +809,29 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
     }
 
     // Apply Plestid spectrum shape weights
-    if(is_fgm && (is_v08 || is_v09)) {
-      const float energy = b.gen_energy;
-      float weight = 0.;
-      weight += 0.0007 * plestid_spectrum(energy, 0);
-      weight += 0.1967 * plestid_spectrum(energy, 1);
-      weight += 0.8026 * plestid_spectrum(energy, 2);
-      b.event_weight = weight;
+    if(debug_ > 0) printf("  E(gen) = %6.2f MeV, w = %.5f\n",
+                          b.gen_energy, b.event_weight);
+    if(is_fgm) {
+      if(use_plestid_rmc_) {
+        const float energy = b.gen_energy;
+        float weight = 0.;
+        constexpr double k_0 = 101.866;
+        constexpr double k_1 = 95.449;
+        constexpr double k_2 = 84.395;
+        constexpr double br_0n      = 0.099; // defined for E_photon > 57 MeV
+        constexpr double br_1n      = 0.901;
+        constexpr double ref_energy = 57.;
+        const     double frac_ref_0 = plestid_integral(ref_energy, k_0, k_0, 0); // fraction above 57 MeV
+        const     double frac_ref_1 = plestid_integral(ref_energy, k_1, k_1, 1);
+        // Normalize the spectra from 57 - kmax, then use branching fraction weights
+        const     double w_0 = plestid_spectrum(energy, k_0, 0) / frac_ref_0;
+        const     double w_1 = plestid_spectrum(energy, k_1, 1) / frac_ref_1;
+        weight += br_0n * w_0;
+        weight += br_1n * w_1;
+        b.event_weight = weight;
+        if(debug_ > 0) printf("  E(gen) = %6.2f MeV, frac_0 = %.3f, w_0 = %.5f, frac_1 = %.3f, w_1 = %.5f, w = %.5f\n",
+                              energy, frac_ref_0, w_0, frac_ref_1, w_1, weight);
+      } else b.event_weight /= (90.1*closure_integral(57., 90.1, 90.1)); // FIXME: Was missing this in previous versions
     }
 
     // Fill each selection set
@@ -851,7 +891,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
     // Offset selections
 
     // RMC
-    if(b.cluster_time > 600. && b.cluster_energy > 60. && b.cluster_energy < 150.) {
+    if(b.cluster_time > 500. && b.cluster_energy > 60. && b.cluster_energy < 150.) {
       fillHistograms(70 + offset, b, b.event_weight);
       if(sel_signal_id(b)) {
         fillHistograms(71 + offset, b, b.event_weight);
@@ -862,14 +902,16 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
         if(radius_cut && crv_cut && b.time_cluster_nhigh_z_hits < 3) {
           fillHistograms(74 + offset, b, b.event_weight);
           if(is_pu && b.cluster_energy > 65.) {
-            std::cout << ">>> Accepted pileup cluster: "
-                      << b.run << "/" << b.subrun << "/" << b.event
-                      << " energy = " << b.cluster_energy
-                      << " sim_1: type = " << b.sim_1_type
-                      << " creation code = " << b.sim_1_proc
-                      << " pdg = " << b.sim_1_pdg
-                      << " edep = " << b.sim_1_edep
-                      << std::endl;
+            printf(">>> [RMC] Accepted PU (%3i): %4i/%5i/%6i E = %.1f, T = %6.1f, sim_1: type = %i code = %3i pdg = %4i edep = %.1f sim_2: type = %i code = %3i pdg = %4i edep = %.1f\n",
+                   offset, b.run, b.subrun, b.event, b.cluster_energy, b.cluster_time,
+                   b.sim_1_type, b.sim_1_proc, b.sim_1_pdg, b.sim_1_edep,
+                   b.sim_2_type, b.sim_2_proc, b.sim_2_pdg, b.sim_2_edep);
+          }
+          if(is_csm && b.cluster_energy > 80. && b.cluster_energy < 100.) {
+            printf(">>> [RMC] Accepted Cosmic (%3i): %4i/%5i/%6i E = %.1f, T = %6.1f, sim_1: type = %i code = %3i pdg = %4i edep = %.1f sim_2: type = %i code = %3i pdg = %4i edep = %.1f\n",
+                   offset, b.run, b.subrun, b.event, b.cluster_energy, b.cluster_time,
+                   b.sim_1_type, b.sim_1_proc, b.sim_1_pdg, b.sim_1_edep,
+                   b.sim_2_type, b.sim_2_proc, b.sim_2_pdg, b.sim_2_edep);
           }
         }
       }
@@ -877,11 +919,17 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
 
     // CE
     if(sel_signal_id(b) && sel_energy_time(b)) {
-      if(b.line_nhits > 0) {
-        fillHistograms(80, b, b.event_weight);
+      const bool tc_hits = b.time_cluster_nhits > 10 && b.time_cluster_nhits < 40;
+      if(b.line_nhits > 0 && tc_hits) {
+        fillHistograms(80 + offset, b, b.event_weight);
+        if(is_pu && b.cluster_energy > 65.) {
+          printf(">>> [CE]  Accepted PU (%3i): %4i/%5i/%6i E = %.1f, T = %6.1f, sim_1: type = %i code = %3i pdg = %4i edep = %.1f sim_2: type = %i code = %3i pdg = %4i edep = %.1f\n",
+                 offset, b.run, b.subrun, b.event, b.cluster_energy, b.cluster_time,
+                 b.sim_1_type, b.sim_1_proc, b.sim_1_pdg, b.sim_1_edep,
+                 b.sim_2_type, b.sim_2_proc, b.sim_2_pdg, b.sim_2_edep);
+        }
       }
     }
-
 
     // Low time selection
     if(b.cluster_time > 300. && b.cluster_time < 550.) {

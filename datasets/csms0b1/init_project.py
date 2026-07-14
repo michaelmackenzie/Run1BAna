@@ -26,7 +26,7 @@ class Project(ProjectBase):
 
         job.fNInputFiles             = 995                      # number of the job segments
 
-        job.fMaxInputFilesPerSegment =  1                       # MC generator
+        job.fMaxInputFilesPerSegment =  2                       # MC generator
         job.fMaxSegments             = 1000
         # job.fNEventsPerSegment       =  -1                    # defined by the input dataset
         job.fResample                = 'no'                     # yes/no

@@ -20,12 +20,14 @@ double sig_skim_eff_ = 1.;
 double norm_sig_     = 0.;
 double norm_bkg_     = 0.;
 
-bool stack_bkgs_ = true;
-bool draw_no_calo_mu_ = true;
 double plot_livetime_ = 0.;
-double plot_npot_ = 0.;
-double plot_nmuons_ = 0.;
-double rmue_ = -1.;
+double plot_npot_     = 0.;
+double plot_nmuons_   = 0.;
+double rmue_          = -1.;
+
+bool stack_bkgs_      = true;
+bool draw_no_calo_mu_ = false;
+
 
 int verbose_ = 10;
 
@@ -63,7 +65,7 @@ struct ProcessSpec_t {
 
 //-------------------------------------------------------------------------------
 vector<TString> nominalIncludedDatasetKeysCE() {
-  return {"cele", "mnbs", "csms", "neut", "prot"};
+  return {"cele", "mnbs", "csms", "neut", "prot", "fgam"};
 }
 
 //-------------------------------------------------------------------------------
@@ -77,14 +79,15 @@ vector<TString> nominalIncludedDatasetKeysRPC() {
 }
 
 //-------------------------------------------------------------------------------
-vector<ProcessSpec_t> nominalProcessSpecs() {
+vector<ProcessSpec_t> nominalProcessSpecs(bool is_rmc = true) {
+  int rmc_color = (is_rmc) ? kBlue : kGray;
   return {
     {"ce"        , "#mu^{-}#rightarrowe^{-}", "cele",   0, true , kBlue    , false},
     {"ce_pu"     , "CE_pu"                  , "cele", 100, true , kBlue    , false},
     {"ce_cpu"    , "CE_cpu"                 , "cele", 200, true , kBlue    , false},
-    {"rmc"       , "RMC"                    , "fgam",   0, true , kBlue    , false},
-    {"rmc_pu"    , "RMC_pu"                 , "fgam", 100, true , kBlue    , false},
-    {"rmc_cpu"   , "RMC_cpu"                , "fgam", 200, true , kBlue    , false},
+    {"rmc"       , "RMC"                    , "fgam",   0, is_rmc, rmc_color, false},
+    {"rmc_pu"    , "RMC_pu"                 , "fgam", 100, is_rmc, rmc_color, false},
+    {"rmc_cpu"   , "RMC_cpu"                , "fgam", 200, is_rmc, rmc_color, false},
     {"rpc"       , "RPC"                    , "rpce",   0, true , kBlue    , false},
     {"rpc_pu"    , "RPC_pu"                 , "rpce", 100, true , kBlue    , false},
     {"rpc_cpu"   , "RPC_cpu"                , "rpce", 200, true , kBlue    , false},
@@ -98,9 +101,9 @@ vector<ProcessSpec_t> nominalProcessSpecs() {
 }
 
 //-------------------------------------------------------------------------------
-vector<ProcessSpec_t> selectNominalProcessSpecs(const vector<TString>& enabled_ids) {
+vector<ProcessSpec_t> selectNominalProcessSpecs(const vector<TString>& enabled_ids, bool is_rmc = true) {
   vector<ProcessSpec_t> selected;
-  const auto all_specs = nominalProcessSpecs();
+  const auto all_specs = nominalProcessSpecs(is_rmc);
   for(const auto& spec : all_specs) {
     if(std::find(enabled_ids.begin(), enabled_ids.end(), spec.id) != enabled_ids.end()) {
       selected.push_back(spec);
@@ -453,7 +456,13 @@ void plot(const char* name, const int set, const bool normalize,
   }
 
   pad1.cd();
-  TLegend legend(pad1.GetLeftMargin()+0.02, (sig_plot) ? 0.75 : 0.80, 1. - pad1.GetLeftMargin() - 0.02, 1. - pad1.GetTopMargin() - 0.01);
+  const int nhists = (stack_bkgs_) ? 1 + h_bkgs.size() : 2;
+  const int ncol = 3;
+  const double leg_y_offset = ((nhists / ncol) - 1)*0.05;
+  TLegend legend(pad1.GetLeftMargin()+0.02,
+                 ((sig_plot) ? 0.75 : 0.80) - leg_y_offset,
+                 1. - pad1.GetLeftMargin() - 0.02,
+                 1. - pad1.GetTopMargin() - 0.01);
   legend.SetNColumns(3);
   legend.AddEntry(h_sig, "Signal", "F");
   if(!stack_bkgs_) legend.AddEntry(h_bkg, "Background", "F");

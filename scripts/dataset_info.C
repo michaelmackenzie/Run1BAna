@@ -10,17 +10,21 @@ struct Dataset_t {
   Double_t nGen;  // N(generated events) or livetime for cosmic datasets
   Double_t nDigi; // N(digitized events) in the parent dataset
   Double_t xsec;  // Rate per POT for beam processes
+  Double_t emin;  // Generation range for flat datasets
+  Double_t emax;
   TString parent; // Input digi dataset name
 
   Dataset_t(TString name_ = "", Double_t nGen_ = 0, Double_t nDigi_ = 0, Double_t xsec_ = 0, TString parent_ = "")
-    : name(name_), nGen(nGen_), nDigi(nDigi_), xsec(xsec_), parent(parent_) {}
+    : name(name_), nGen(nGen_), nDigi(nDigi_), xsec(xsec_), emin(0.), emax(1.), parent(parent_) {}
+  Dataset_t(TString name_, Double_t nGen_, Double_t nDigi_, Double_t xsec_, Double_t emin_, Double_t emax_, TString parent_ = "")
+    : name(name_), nGen(nGen_), nDigi(nDigi_), xsec(xsec_), emin(emin_), emax(emax_), parent(parent_) {}
 
   bool isCosmic() const { return name.BeginsWith("csms"); }
   double norm(double npot, double livetime) const {
     if (isCosmic()) {
       return livetime / nGen;
     } else {
-      return (npot * xsec) / nGen;
+      return (npot * xsec * (emax - emin)) / nGen;
     }
   }
   TString fileName() const {
@@ -48,20 +52,20 @@ map<TString, Dataset_t> getDatasets(TString version = "v40") {
   const double rate_dio_80_90 = rate_dio*dio_frac_80_90_;
   const double rate_rpc       = pion_stop_rate_*pion_survive_frac_*rpc_br_; // FIXME
   const double rate_rpc_int   = rate_rpc*rpc_int_br_; // FIXME
-  const double rate_rmc       = muon_capture_fraction_*br_rmc_/rmc_frac_57_;
+  const double rate_rmc       = muon_capture_fraction_*br_rmc_; // inputs are normalized above 57 MeV
   const double rate_rmc_conv  = rate_rmc*rmc_conv_;
   const double rate_rmc_int   = rate_rmc*rmc_int_br_;
 
   if(version == "v40") {
     const double muons_per_pot = 5.066e-04;
     nmuons_per_pot_ = muons_per_pot;
-    datasets.emplace("mnbs", Dataset_t("mnbs0b1s51r0003",   99995000, 99995000, 1.0                   , "dig.mu2e.NoPrimaryMix1BB.Run1Ban_best_v1_4-000.art"));
-    datasets.emplace("cele", Dataset_t("cele0b1s51r0003", 1999000000,  1326786, rate_ce *muons_per_pot, "dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art"));
-    datasets.emplace("fgam", Dataset_t("fgam0b1s51r0003", 1999000000,  1039674, rate_rmc*muons_per_pot, "dig.mu2e.FlatGammaMix1BB.Run1Ban_best_v1_4-000.art"));
-    datasets.emplace("csms", Dataset_t("csms0b1s51r0003",    18428.5,  2351533, 1.0                   , "dig.mu2e.CosmicCRYAllMix1BB.Run1Ban_best_v1_4-000.art"));
-    datasets.emplace("dio0", Dataset_t("dio00b1s51r0003",         1.,       1., 1.0                   , "dig.mu2e.DIOMix1BB.Run1Ban_best_v1_4-000.art"));
-    datasets.emplace("neut", Dataset_t("neut0b1s51r0003",    3450000,    16704, rate_neut_calo*muons_per_pot, "dig.mu2e.neut0b0s41r0000.Run1Ban_best_v1_4-000.art"));
-    datasets.emplace("prot", Dataset_t("prot0b1s51r0003",     100000,      633, rate_prot_calo*muons_per_pot, "dig.mu2e.prot0b0s41r0000.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("mnbs", Dataset_t("mnbs0b1s51r0003",   99995000, 99995000, 1.0                         ,            "dig.mu2e.NoPrimaryMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("cele", Dataset_t("cele0b1s51r0003", 1999000000,  1326786, rate_ce *muons_per_pot      ,            "dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("fgam", Dataset_t("fgam0b1s51r0003", 1999000000,  1039674, rate_rmc*muons_per_pot      , 50., 110., "dig.mu2e.FlatGammaMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("csms", Dataset_t("csms0b1s51r0003",    18428.5,  2351533, 1.0                         ,            "dig.mu2e.CosmicCRYAllMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("dio0", Dataset_t("dio00b1s51r0003",         1.,       1., 1.0                         ,            "dig.mu2e.DIOMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("neut", Dataset_t("neut0b1s51r0003",    3450000,    16704, rate_neut_calo*muons_per_pot,            "dig.mu2e.neut0b0s41r0000.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("prot", Dataset_t("prot0b1s51r0003",     100000,      633, rate_prot_calo*muons_per_pot,            "dig.mu2e.prot0b0s41r0000.Run1Ban_best_v1_4-000.art"));
   } else {
     std::cerr << "Unknown dataset version: " << version << std::endl;
   }
