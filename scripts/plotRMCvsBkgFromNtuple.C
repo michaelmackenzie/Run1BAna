@@ -45,7 +45,7 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40") {
   printf("============================================================\n");
 
   const vector<TString> enabled_process_ids = {
-    "rmc", "rmc_pu", "rmc_cpu", "cosmics", "neutrons", "protons", "pileup_lo", "pileup_ot", "calomu"
+    "rmc", "rmc_pu", "rmc_cpu", "cosmics", "neutrons", "protons", "poly", "pileup_lo", "pileup_ot", "calomu"
   };
   const auto process_specs = selectNominalProcessSpecs(enabled_process_ids);
 

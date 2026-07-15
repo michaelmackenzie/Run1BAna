@@ -37,7 +37,7 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40") {
   rmue_  = 1.e-8; // signal branching fraction
 
   const vector<TString> enabled_process_ids = {
-    "ce", "ce_pu", "ce_cpu", "cosmics", "protons", "neutrons", "rmc", "pileup_lo", "pileup_ot", "calomu"
+    "ce", "ce_pu", "ce_cpu", "cosmics", "protons", "neutrons", "poly", "rmc", "pileup_lo", "pileup_ot", "calomu"
   };
   const auto process_specs = selectNominalProcessSpecs(enabled_process_ids, false);
 

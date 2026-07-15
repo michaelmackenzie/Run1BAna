@@ -1,0 +1,6 @@
+#include "Run1BAna/fcl/event_display.fcl"
+
+services.GeometryService.inputFile                   : "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
+# services.ProditionsService.crvStatus.useDb           : false
+# services.ProditionsService.crvCalib.useDb            : false
+# services.DbService.textFile : ["Offline/CRVConditions/data/status_run1a_v01.txt","Offline/CRVConditions/data/photonyield_run1a_v01.txt", "Offline/CRVConditions/data/calib_run1a_v01.txt"]

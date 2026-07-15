@@ -762,6 +762,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
   const bool is_pu  = TString(inputFiles).Contains("mnbs");
   const bool is_csm = TString(inputFiles).Contains("csms");
   const bool is_fgm = TString(inputFiles).Contains("fgam");
+  const bool is_pgm = TString(inputFiles).Contains("pgam");
   const bool is_neu = TString(inputFiles).Contains("neut");
   const bool is_v07 = TString(outputFile).Contains("7b");
   const bool is_v08 = TString(outputFile).Contains("fgam8b"); // Plestid fit
@@ -832,6 +833,30 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
         if(debug_ > 0) printf("  E(gen) = %6.2f MeV, frac_0 = %.3f, w_0 = %.5f, frac_1 = %.3f, w_1 = %.5f, w = %.5f\n",
                               energy, frac_ref_0, w_0, frac_ref_1, w_1, weight);
       } else b.event_weight /= (90.1*closure_integral(57., 90.1, 90.1)); // FIXME: Was missing this in previous versions
+    }
+
+    if(is_pgm) {
+      if(use_plestid_rmc_) {
+        const float energy = b.gen_energy;
+        float weight = 0.;
+        // fit_plestid: 1992_C Kinematic endpoints: 0n =  91.30 1n =  87.96 2n =  76.59, p1 =  77.31, p2 =  -1.00, np =  76.82
+        constexpr double k_0 = 91.30;
+        constexpr double k_1 = 87.96;
+        constexpr double k_2 = 76.59;
+        constexpr double br_0n      = 0.20; // defined for E_photon > 57 MeV
+        constexpr double br_1n      = 0.80; // using approximate values based on typical results
+        constexpr double ref_energy = 57.;
+        const     double frac_ref_0 = plestid_integral(ref_energy, k_0, k_0, 0); // fraction above 57 MeV
+        const     double frac_ref_1 = plestid_integral(ref_energy, k_1, k_1, 1);
+        // Normalize the spectra from 57 - kmax, then use branching fraction weights
+        const     double w_0 = plestid_spectrum(energy, k_0, 0) / frac_ref_0;
+        const     double w_1 = plestid_spectrum(energy, k_1, 1) / frac_ref_1;
+        weight += br_0n * w_0;
+        weight += br_1n * w_1;
+        b.event_weight = weight;
+        if(debug_ > 0) printf("  E(gen) = %6.2f MeV, frac_0 = %.3f, w_0 = %.5f, frac_1 = %.3f, w_1 = %.5f, w = %.5f\n",
+                              energy, frac_ref_0, w_0, frac_ref_1, w_1, weight);
+      }
     }
 
     // Fill each selection set

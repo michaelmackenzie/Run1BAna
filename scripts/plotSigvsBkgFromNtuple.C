@@ -65,12 +65,12 @@ struct ProcessSpec_t {
 
 //-------------------------------------------------------------------------------
 vector<TString> nominalIncludedDatasetKeysCE() {
-  return {"cele", "mnbs", "csms", "neut", "prot", "fgam"};
+  return {"cele", "mnbs", "csms", "neut", "prot", "fgam", "pgam"};
 }
 
 //-------------------------------------------------------------------------------
 vector<TString> nominalIncludedDatasetKeysRMC() {
-  return {"fgam", "mnbs", "csms", "neut", "prot"};
+  return {"fgam", "mnbs", "csms", "neut", "prot", "pgam"};
 }
 
 //-------------------------------------------------------------------------------
@@ -82,21 +82,24 @@ vector<TString> nominalIncludedDatasetKeysRPC() {
 vector<ProcessSpec_t> nominalProcessSpecs(bool is_rmc = true) {
   int rmc_color = (is_rmc) ? kBlue : kGray;
   return {
-    {"ce"        , "#mu^{-}#rightarrowe^{-}", "cele",   0, true , kBlue    , false},
-    {"ce_pu"     , "CE_pu"                  , "cele", 100, true , kBlue    , false},
-    {"ce_cpu"    , "CE_cpu"                 , "cele", 200, true , kBlue    , false},
+    {"ce"        , "#mu^{-}#rightarrowe^{-}", "cele",   0, true  , kBlue    , false},
+    {"ce_pu"     , "CE_pu"                  , "cele", 100, true  , kBlue    , false},
+    {"ce_cpu"    , "CE_cpu"                 , "cele", 200, true  , kBlue    , false},
+    {"poly"      , "COL5 RMC"               , "pgam",   0, false , 26       , false},
+    {"poly_pu"   , "COL5 RMC"               , "pgam", 100, false , 26       , false},
+    {"poly_cpu"  , "COL5 RMC"               , "pgam", 200, false , 26       , false},
     {"rmc"       , "RMC"                    , "fgam",   0, is_rmc, rmc_color, false},
     {"rmc_pu"    , "RMC_pu"                 , "fgam", 100, is_rmc, rmc_color, false},
     {"rmc_cpu"   , "RMC_cpu"                , "fgam", 200, is_rmc, rmc_color, false},
-    {"rpc"       , "RPC"                    , "rpce",   0, true , kBlue    , false},
-    {"rpc_pu"    , "RPC_pu"                 , "rpce", 100, true , kBlue    , false},
-    {"rpc_cpu"   , "RPC_cpu"                , "rpce", 200, true , kBlue    , false},
-    {"protons"   , "Protons"                , "prot",   0, false, kAtlantic, false},
-    {"neutrons"  , "Neutrons"               , "neut",   0, false, kViolet+6, false},
-    {"cosmics"   , "Cosmics"                , "csms",   0, false, kGreen-6 , false},
-    {"pileup_lo" , "Low pileup clusters"    , "mnbs",   0, false, kPink    , true },
-    {"pileup_ot" , "Other pileup"           , "mnbs", 100, false, kViolet  , true },
-    {"calomu"    , "Calo muon stops"        , "mnbs", 200, false, kOrange  , true }
+    {"rpc"       , "RPC"                    , "rpce",   0, true  , kBlue    , false},
+    {"rpc_pu"    , "RPC_pu"                 , "rpce", 100, true  , kBlue    , false},
+    {"rpc_cpu"   , "RPC_cpu"                , "rpce", 200, true  , kBlue    , false},
+    {"protons"   , "Protons"                , "prot",   0, false , kAtlantic, false},
+    {"neutrons"  , "Neutrons"               , "neut",   0, false , kViolet+6, false},
+    {"cosmics"   , "Cosmics"                , "csms",   0, false , kGreen-6 , false},
+    {"pileup_lo" , "Low pileup clusters"    , "mnbs",   0, false , kPink    , true },
+    {"pileup_ot" , "Other pileup"           , "mnbs", 100, false , kViolet  , true },
+    {"calomu"    , "Calo muon stops"        , "mnbs", 200, false , kOrange  , true }
   };
 }
 
@@ -458,6 +461,7 @@ void plot(const char* name, const int set, const bool normalize,
   pad1.cd();
   const int nhists = (stack_bkgs_) ? 1 + h_bkgs.size() : 2;
   const int ncol = 3;
+  const int nrows = (max((nhists - 1), 0) / ncol) + 1;
   const double leg_y_offset = ((nhists / ncol) - 1)*0.05;
   TLegend legend(pad1.GetLeftMargin()+0.02,
                  ((sig_plot) ? 0.75 : 0.80) - leg_y_offset,
@@ -494,7 +498,7 @@ void plot(const char* name, const int set, const bool normalize,
   const double max_bkg = h_bkg->GetMaximum();
   const double max_val = std::max(max_sig, max_bkg);
   const double min_max = (max_sig <= 0.) ? max_bkg : (max_bkg <= 0.) ? max_sig : std::min(max_sig, max_bkg);
-  h_sig->GetYaxis()->SetRangeUser(0., 1.2*max_val);
+  h_sig->GetYaxis()->SetRangeUser(0., (1. + 0.1*nrows)*max_val);
 
   if(min_max < 0.) {
     cout << "!!! " << name << "/" << set << ": Max(sig) = " << max_sig
@@ -561,7 +565,7 @@ void plot(const char* name, const int set, const bool normalize,
 
   double ymin = std::max(((normalize) ? 1.e-5 : min_max*1.e-3), 1.e-6);
   double r = max_val/ymin;
-  double factor = std::max(2., std::log10(r)*20.); // scale up proportional to orders of magnitude spanned
+  double factor = std::max(2., std::log10(r)*10.*nrows); // scale up proportional to orders of magnitude spanned
   double ymax = max_val*factor;
   h_sig->GetYaxis()->SetRangeUser(ymin, ymax);
   pad1.SetLogy();

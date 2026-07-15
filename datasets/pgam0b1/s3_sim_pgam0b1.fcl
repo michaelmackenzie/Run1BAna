@@ -1,0 +1,13 @@
+#include "Production/JobConfig/primary/PolyFlatGamma.fcl"
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
+physics.filters.PrimaryFilter.StrawGasSteps: []
+physics.filters.TargetStopResampler.mu2e.MaxEventsToSkip: 980
+
+source.firstRun: 1470
+source.firstSubRun: 0
+physics.filters.TargetStopResampler.fileNames: [
+  "sim.owner.MuminusPolyStopsCat.version.sequencer.art"
+]
+outputs.PrimaryOutput.fileName: "dts.mu2e.pgam0b0s31r0003.Run1BAna.version.art"
+services.SeedService.baseSeed: 1
