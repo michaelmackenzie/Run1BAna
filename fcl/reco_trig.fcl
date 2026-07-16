@@ -29,28 +29,29 @@ Reconstruction.OnSpillPath : [
 ]
 
 Run1BRecoPath : [
-      "CaloRecoDigiMaker",
-      "CaloHitMaker",
-      "CaloProtoClusterMaker",
-      "CaloClusterMaker",
-      "PBTFSD",
-      "makeSH",
-      "makePH",
-      "makeSTH",
-      # "flagPH",
-      "CrvRecoPulses",
-      "CrvCoincidenceClusterFinder",
-      "CalTimeClusterFinder",
-      # "TimeAndPhiClusterFinder",
-      "LineFinder",
-      "KKLine",
-      # "KLFilter",
-      "SelectReco",
-      "CaloHitTruthMatch",
-      "CaloClusterTruthMatch",
-      "CrvCoincidenceClusterMatchMC",
-      "compressRecoMCs",
-      "CrvCoincidenceClusterMCAssns"
+  "CaloRecoDigiMaker",
+  "CaloHitMaker",
+  "CaloProtoClusterMaker",
+  "CaloClusterMaker",
+  "PBTFSD",
+  "makeSH",
+  "makePH",
+  "makeSTH",
+  # "flagPH",
+  "CrvRecoPulses",
+  "CrvCoincidenceClusterFinder",
+  "CalTimeClusterFinder",
+  "TZClusterFinder",
+  # "TimeAndPhiClusterFinder",
+  "LineFinder",
+  "KKLine",
+  # "KLFilter",
+  "SelectReco",
+  "CaloHitTruthMatch",
+  "CaloClusterTruthMatch",
+  "CrvCoincidenceClusterMatchMC",
+  "compressRecoMCs",
+  "CrvCoincidenceClusterMCAssns"
 ]
 END_PROLOG
 
@@ -175,9 +176,18 @@ physics.producers.TZClusterFinder.chCollLabel              : "makePH"
 physics.producers.TZClusterFinder.chCollLabel              : "makePH"
 physics.producers.KKLine.ModuleSettings.ComboHitCollection : "makeSH" # LineFinder fills straw hits, not combo hits
 
+# require calo clusters in TZClusterFinder
+physics.producers.TZClusterFinder.requireCCs               : true
+
+# Using time clusters that agree with the target -> cluster hypothesis
 physics.producers.LineFinder.TimeClusterCollection : "CalTimeClusterFinder"
 physics.producers.LineFinder.ComboHitCollection    : "makePH"
 physics.analyzers.Run1BAna.timeClusterCollection   : "CalTimeClusterFinder"
+
+# # Using any TZ cluster that has a calo cluster
+# physics.producers.LineFinder.TimeClusterCollection : "TZClusterFinder"
+# physics.producers.LineFinder.ComboHitCollection    : "makePH"
+# physics.analyzers.Run1BAna.timeClusterCollection   : "TZClusterFinder"
 
 outputs : {
   Output : {
@@ -241,3 +251,15 @@ services.TFileService.fileName     : "nts.owner.reco_trig.Run1B.sequencer.root"
 services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
 services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v03.txt"
 # services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v01.txt"
+
+
+# v40 defaults
+physics.analyzers.Run1BAna.simVersion : 2
+physics.filters.CaloClusterFilter.MinClusterEnergy : 60.
+physics.producers.CalTimeClusterFinder.MinCaloClusterEnergy : 40.
+physics.producers.TZClusterFinder.minCaloEnergy : 40.
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
+services.DbService.nearestMatch: true
+services.DbService.purpose: "Sim_best"
+services.DbService.version: "v1_5"
+services.DbService.verbose : 2

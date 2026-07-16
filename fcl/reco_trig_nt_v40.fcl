@@ -5,6 +5,7 @@ services.DbService.nearestMatch: true
 physics.analyzers.Run1BAna.simVersion : 2
 physics.filters.CaloClusterFilter.MinClusterEnergy : 60.
 physics.producers.CalTimeClusterFinder.MinCaloClusterEnergy : 40.
+physics.producers.TZClusterFinder.minCaloEnergy : 40.
 
 services.DbService.purpose: "Sim_best"
 services.DbService.version: "v1_5"

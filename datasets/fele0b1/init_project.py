@@ -1,0 +1,45 @@
+#!/usr/bin/python
+
+from local_classes import *
+import os
+
+class Project(ProjectBase):
+    def init_datasets(self):
+#------------------------------------------------------------------------------
+# init datasets - for stage 4, the input is a dataset produced at stage 3
+#------------------------------------------------------------------------------
+        self.add_dataset(Dataset('dig.mu2e.fele0b1s41r0003.Run1BAna.art','fele0b1s41r0003','local'));
+
+
+    def __init__(self,idsid=None):
+        familyID  = 'fele0b1'
+        user      = os.getenv('USER')
+
+        ProjectBase.__init__(self,project='Run1BAna',family_id='fele0b1',idsid=idsid);
+        self.init_datasets();
+
+#------------------------------------------------------------------------------
+# s5:reco_trig_nt
+#------------------------------------------------------------------------------
+        s                            = self.new_stage('s5');
+        job                          = s.new_job('reco_trig_nt','fele0b1s41r0003'); #idsid);
+
+        job.fNInputFiles             = 1998                     # number of the job segments
+
+        job.fMaxInputFilesPerSegment =  20                      # MC generator
+        job.fMaxSegments             = 1000
+        # job.fNEventsPerSegment       =  -1                    # defined by the input dataset
+        job.fResample                = 'no'                     # yes/no
+        job.fMaxMemory               = '2000MB'
+        job.fRequestedTime           = '24h'
+        job.fIfdh                    = 'xrootd'                 # ifdh/xrootd
+        job.fOutputPath              = [ 'out' ]
+
+        reco_version                 = 'r0003'
+        job.fOutputStream            = [ 'defaultOutput'                    ]
+        job.fOutputDsID              = [ familyID+s.name()+'1'+reco_version ]
+        job.fOutputFnPattern         = [ 'nts.'+user+'.'+job.fOutputDsID[0] ]
+        job.fOutputFormat            = [ 'root'                             ]
+#------------------------------------------------------------------------------
+# end
+#------------------------------------------------------------------------------

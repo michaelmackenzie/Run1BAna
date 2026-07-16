@@ -198,6 +198,7 @@ namespace Run1BAnaStructs {
       int   subrun;
       int   run;
       float event_weight;
+      float primary_estart;
 
       // Cluster info
       float cluster_energy;

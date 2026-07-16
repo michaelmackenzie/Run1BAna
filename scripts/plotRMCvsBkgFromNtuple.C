@@ -3,7 +3,7 @@
 #include "Run1BAna/scripts/plotSigvsBkgFromNtuple.C"
 
 //------------------------------------------------------------------------------
-void plotRMCvsBkgFromNtuple(const char* tag = "v40") {
+void plotRMCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
 
   auto datasets = getDatasets(tag);
   if(datasets.empty()) {
@@ -13,7 +13,7 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40") {
 
   const auto included_dataset_keys = nominalIncludedDatasetKeysRMC();
   map<TString, TFile*> files;
-  if(!openIncludedDatasetFiles(datasets, included_dataset_keys, files, __func__)) return;
+  if(!openIncludedDatasetFiles(datasets, included_dataset_keys, files, hist_tag, __func__)) return;
 
   TFile* f_sig = getDatasetFile(files, "fgam");
   TFile* f_bkg = getDatasetFile(files, "mnbs");
@@ -25,7 +25,8 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40") {
   // General info
   const double onspill_time   = livetime_week_*duty_cycle_1bb_;
   const double nevents        = onspill_time/1.695e-6; // N(events) in a week
-  const double npot_per_event = 1.6e7*(1.5/3.8); // N(POT) per event
+  const double npot_per_event = getNPOT(f_sig); // N(POT) per event, from simulated mean value
+  // const double npot_per_event = 1.6e7*(1.5/3.8); // N(POT) per event
   const double npot           = nevents*npot_per_event; // N(POT) in a week
   const double nmuons         = npot*nmuons_per_pot_run1b_;
   plot_npot_     = npot;
@@ -66,6 +67,7 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40") {
   }
   // Set up the figure directory and style
   dir_ = (tag) ? Form("figures/rmc_vs_bkg_nt_%s", tag) : "figures/rmc_vs_bkg";
+  if(hist_tag) dir_ += "_" + hist_tag;
   gSystem->Exec(Form("mkdir -p %s", dir_.Data()));
   gStyle->SetOptStat(0);
 

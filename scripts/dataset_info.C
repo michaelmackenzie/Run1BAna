@@ -27,8 +27,10 @@ struct Dataset_t {
       return (npot * xsec * (emax - emin)) / nGen;
     }
   }
-  TString fileName() const {
-    TString histName = "Run1BAna." + name + ".hist";
+  TString fileName(TString hist_tag = "") const {
+    TString histName = "Run1BAna." + name;
+    if(hist_tag != "") histName += "-" + hist_tag;
+    histName += ".hist";
     return histName;
   }
 
@@ -69,6 +71,7 @@ map<TString, Dataset_t> getDatasets(TString version = "v40") {
     datasets.emplace("pgam", Dataset_t("pgamcb1s51r0003",      50000,     3494, rate_pgamc*poly_muons_per_pot, 50., 110., "dig.mu2e.PolyFlatGammaCaloMix1BB.Run1Ban_best_v1_4-000.art"));
     datasets.emplace("csms", Dataset_t("csms0b1s51r0003",    18428.5,  2351533, 1.0                          ,            "dig.mu2e.CosmicCRYAllMix1BB.Run1Ban_best_v1_4-000.art"));
     datasets.emplace("dio0", Dataset_t("dio00b1s51r0003",         1.,       1., 1.0                          ,            "dig.mu2e.DIOMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace("fele", Dataset_t("fele0b1s51r0003", 1998000000,   704053, rate_dio*muons_per_pot       , 50., 110., "dig.mu2e.FlateMinusMix1BB.Run1Ban_best_v1_4-000.art"));
     datasets.emplace("neut", Dataset_t("neut0b1s51r0003",    3450000,    16704, rate_neut_calo*muons_per_pot ,            "dig.mu2e.neut0b0s41r0000.Run1Ban_best_v1_4-000.art"));
     datasets.emplace("prot", Dataset_t("prot0b1s51r0003",     100000,      633, rate_prot_calo*muons_per_pot ,            "dig.mu2e.prot0b0s41r0000.Run1Ban_best_v1_4-000.art"));
   } else {

@@ -65,12 +65,12 @@ struct ProcessSpec_t {
 
 //-------------------------------------------------------------------------------
 vector<TString> nominalIncludedDatasetKeysCE() {
-  return {"cele", "mnbs", "csms", "neut", "prot", "fgam", "pgam"};
+  return {"cele", "mnbs", "csms", "neut", "prot", "fgam", "pgam", "fele"};
 }
 
 //-------------------------------------------------------------------------------
 vector<TString> nominalIncludedDatasetKeysRMC() {
-  return {"fgam", "mnbs", "csms", "neut", "prot", "pgam"};
+  return {"fgam", "mnbs", "csms", "neut", "prot", "pgam", "fele"};
 }
 
 //-------------------------------------------------------------------------------
@@ -88,6 +88,7 @@ vector<ProcessSpec_t> nominalProcessSpecs(bool is_rmc = true) {
     {"poly"      , "COL5 RMC"               , "pgam",   0, false , 26       , false},
     {"poly_pu"   , "COL5 RMC"               , "pgam", 100, false , 26       , false},
     {"poly_cpu"  , "COL5 RMC"               , "pgam", 200, false , 26       , false},
+    {"dio_tail"  , "DIO tail"               , "fele",   0, false , 46       , false},
     {"rmc"       , "RMC"                    , "fgam",   0, is_rmc, rmc_color, false},
     {"rmc_pu"    , "RMC_pu"                 , "fgam", 100, is_rmc, rmc_color, false},
     {"rmc_cpu"   , "RMC_cpu"                , "fgam", 200, is_rmc, rmc_color, false},
@@ -124,6 +125,7 @@ bool isDatasetIncluded(const vector<TString>& included_dataset_keys, const TStri
 bool openIncludedDatasetFiles(const map<TString, Dataset_t>& datasets,
                               const vector<TString>& included_dataset_keys,
                               map<TString, TFile*>& files,
+                              TString hist_tag,
                               const char* caller = "openIncludedDatasetFiles") {
   files.clear();
   for(const auto& key : included_dataset_keys) {
@@ -132,9 +134,9 @@ bool openIncludedDatasetFiles(const map<TString, Dataset_t>& datasets,
       Warning(caller, "Dataset key %s not defined", key.Data());
       continue;
     }
-    TFile* f = TFile::Open(it->second.fileName(), "READ");
+    TFile* f = TFile::Open(it->second.fileName(hist_tag), "READ");
     if(!f || f->IsZombie()) {
-      Error(caller, "Could not open file for dataset key %s (%s)", key.Data(), it->second.fileName().Data());
+      Error(caller, "Could not open file for dataset key %s (%s)", key.Data(), it->second.fileName(hist_tag).Data());
       return false;
     }
     files[key] = f;
@@ -183,8 +185,11 @@ TLatex* draw_info(const double scale = 0.75) {
   const float head_pot = plot_npot_ / std::pow(10.,std::max(0,ntens_pot));
   const int ntens_time = (plot_livetime_ > 0.) ? int(std::log10(plot_livetime_)) : 0;
   const float head_time = plot_livetime_ / std::pow(10.,std::max(0,ntens_time));
-  TString lumistamp = Form("%.1f x 10^{%i} POT (1.5 kW); %.1f x 10^{%i} s",
-                           head_pot, ntens_pot,
+  const float energy =  8.*1.602176634e-10; // 8 GeV proton KE in joules
+  // const float nevents = plot_livetime_ * 1.695e-6;
+  const float power = energy * (plot_npot_ / plot_livetime_)/1000.; // in kW
+  TString lumistamp = Form("%.1f x 10^{%i} POT (%.1f kW); %.1f x 10^{%i} s",
+                           head_pot, ntens_pot, power,
                            head_time, ntens_time);
   float textSize = 0.042 * 1.25 * scale;
   float extraOverTextSize  = 0.76;
@@ -239,6 +244,21 @@ double getNSampled(TFile* f, int set = -1) {
     return 0.;
   }
   return entries;
+}
+
+//----- -------------------------------------------------------------------------
+double getNPOT(TFile* f) {
+  TH1* h = (TH1*) f->Get("npot");
+  if(!h) {
+    Error("getNPOT", "Could not retrieve N(POT) histogram!");
+    return 0.;
+  }
+  const double npot = h->Integral();
+  if(npot <= 0.) {
+    Error("getNPOT", "N(POT) histogram has non-positive content!");
+    return 0.;
+  }
+  return npot;
 }
 
 //------------------------------------------------------------------------------
@@ -565,7 +585,7 @@ void plot(const char* name, const int set, const bool normalize,
 
   double ymin = std::max(((normalize) ? 1.e-5 : min_max*1.e-3), 1.e-6);
   double r = max_val/ymin;
-  double factor = std::max(2., std::log10(r)*10.*nrows); // scale up proportional to orders of magnitude spanned
+  double factor = pow(r, 0.15*nrows); // space needed depends on the legend size
   double ymax = max_val*factor;
   h_sig->GetYaxis()->SetRangeUser(ymin, ymax);
   pad1.SetLogy();

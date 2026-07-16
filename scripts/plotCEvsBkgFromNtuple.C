@@ -4,7 +4,7 @@
 
 
 //------------------------------------------------------------------------------
-void plotCEvsBkgFromNtuple(const char* tag = "v40") {
+void plotCEvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
 
   auto datasets = getDatasets(tag);
   if(datasets.empty()) {
@@ -14,7 +14,7 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40") {
 
   const auto included_dataset_keys = nominalIncludedDatasetKeysCE();
   map<TString, TFile*> files;
-  if(!openIncludedDatasetFiles(datasets, included_dataset_keys, files, __func__)) return;
+  if(!openIncludedDatasetFiles(datasets, included_dataset_keys, files, hist_tag, __func__)) return;
 
   TFile* f_sig = getDatasetFile(files, "cele");
   TFile* f_bkg = getDatasetFile(files, "mnbs");
@@ -26,7 +26,8 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40") {
   // General info
   const double onspill_time   = livetime_week_*duty_cycle_1bb_;
   const double nevents        = onspill_time/1.695e-6; // N(events) in a week
-  const double npot_per_event = 1.6e7*(1.5/3.8); // N(POT) per event
+  const double npot_per_event = getNPOT(f_sig); // N(POT) per event, from simulated mean value
+  // const double npot_per_event = 1.6e7*(1.5/3.8); // N(POT) per event
   const double npot           = nevents*npot_per_event; // N(POT) in a week
   const double nmuons         = npot*nmuons_per_pot_run1b_;
   plot_npot_     = npot;
@@ -37,7 +38,7 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40") {
   rmue_  = 1.e-8; // signal branching fraction
 
   const vector<TString> enabled_process_ids = {
-    "ce", "ce_pu", "ce_cpu", "cosmics", "protons", "neutrons", "poly", "rmc", "pileup_lo", "pileup_ot", "calomu"
+    "ce", "ce_pu", "ce_cpu", "cosmics", "protons", "neutrons", "dio_tail", "poly", "rmc", "pileup_lo", "pileup_ot", "calomu"
   };
   const auto process_specs = selectNominalProcessSpecs(enabled_process_ids, false);
 
@@ -72,6 +73,7 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40") {
 
   // Set up the figure directory and style
   dir_ = (tag) ? Form("figures/ce_vs_bkg_nt_%s", tag) : "figures/ce_vs_bkg_nt";
+  if(hist_tag) dir_ += "_" + hist_tag;
   gSystem->Exec(Form("mkdir -p %s", dir_.Data()));
   gStyle->SetOptStat(0);
 
@@ -95,11 +97,13 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40") {
       plot("time_cluster_nstraw_hits"       , set, normalize, 2,   0.,  100.);
       plot("time_cluster_nhigh_z_hits"      , set, normalize, 1,   0.,   20.);
       plot("line_nhits"                     , set, normalize, 1,   0.,  100.);
+      plot("line_cos"                       , set, normalize, 1,  0.8,   1.1);
       plot("sim_1_2_nhits"                  , set, normalize, 1,   1.,   -1.);
       plot("sim_1_edep_frac"                , set, normalize, 1,   0.,    1.);
       plot("sim_2_edep_frac"                , set, normalize, 1,   0.,    1.);
       plot("sim_1_type"                     , set, normalize, 1,  -1.,   10.);
       plot("sim_1_pdg"                      , set, normalize, 1, -15.,   15.);
+      plot("gen_energy"                     , set, normalize, 2, emin,  emax, "MeV", true);
     }
   }
 

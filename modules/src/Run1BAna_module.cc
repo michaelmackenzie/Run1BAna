@@ -245,6 +245,8 @@ namespace mu2e
     bool           fill_trees_;
     int            debug_level_;
 
+    TH1*           h_dio_spectrum_;
+
     enum {kMaxHists = 100};
     Hist_t* hist_[kMaxHists];
     Tree_t tree_;
@@ -402,6 +404,40 @@ namespace mu2e
 
   //--------------------------------------------------------------------------------------
   void Run1BAna::beginJob() {
+    TTree* tree = new TTree("t1","t1");
+    tree->SetDirectory(nullptr);
+
+    double emin  = 0.;
+    double emax  = 110.;
+    TString table = "Run1BAna/data/heeck_finer_binning_2016_szafron.tbl";
+    double width = 0.01;
+    const int nb = static_cast<int>((emax - emin) / width + 0.99);
+
+    tree->ReadFile(table,"e/D:w/D");
+    int n = tree->GetEntries();
+    h_dio_spectrum_ = new TH1D("h_dio_spectrum","DIO spectrum",nb,emin,emax);
+
+    double e, w;
+
+    tree->SetBranchAddress("e",&e);
+    tree->SetBranchAddress("w",&w);
+
+    int bin_prev = -1; // for validating the table reading
+    for (int i=0; i<n; i++) {
+      tree->GetEntry(i);
+
+      const int bin = h_dio_spectrum_->GetXaxis()->FindBin(e + 1.e-4); // ensure bin edges round up
+      // skip underflows
+      if (bin > 0) h_dio_spectrum_->SetBinContent(bin,w);
+
+      if(bin_prev >= 0 && bin != bin_prev + 1) printf(" %5i %10.3f %12.5e\n",bin,e,w);
+      bin_prev = bin;
+    }
+
+    delete tree;
+
+    // Normalize the input spectral shape to per DIO event
+    h_dio_spectrum_->Scale(1./(h_dio_spectrum_->Integral() * h_dio_spectrum_->GetBinWidth(1)));
   }
 
   //--------------------------------------------------------------------------------------
@@ -2423,7 +2459,12 @@ namespace mu2e
         const std::vector<int> decayOffCodes = {PDGCode::pi_plus, PDGCode::pi_minus};
         const double tau = SimParticleGetTau::calculate(primary_sim->parent(), decayOffCodes, gc);
         weight = std::exp(-tau);
+      } else if(primary_sim && primary_sim->creationCode() == mu2e::ProcessCode::mu2eFlateMinus) { // DIO
+        const double e_gen = primary_sim->startMomentum().e();
+        const double w = (e_gen < 105.) ? h_dio_spectrum_->Interpolate(e_gen) : 0.;
+        weight = w;
       }
+
       // Ignore pileup clusters in the signal samples
       if(primary_sim) {
         is_gen_matched  = isRelated(cluster_par_.primary_sim  , primary_sim);

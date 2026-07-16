@@ -11,10 +11,20 @@
 #include <vector>
 #include <iostream>
 
+#include "Run1BAna/scripts/utilities.C" // for beam weights
+
 const bool use_plestid_rmc_      =  true; // Use phase-space approx instead of closure approx for RMC
 const bool veto_neutrons_pileup_ =  true; // Veto neutron clusters with KE > 60 MeV
 const bool veto_protons_pileup_  =  true; // Veto protons clusters with KE > 60 MeV
 const bool veto_rmc_pileup_      =  true; // Veto RMC clusters from pileup
+const bool veto_dio_pileup_      =  true; // Veto DIO tail clusters from pileup
+
+// For beam re-weighting
+double beam_mu_nominal_  = 5.92e6; // For Run1Ban sims
+double beam_sdf_nominal_ = 0.8   ; // For Run1Ban sims
+double beam_mu_goal_     = 1.6e7 ; // Goal beam intensity
+double beam_sdf_goal_    = 0.8   ; //
+double beam_max_         = 35.5e6; // Cut-off for sims
 
 int debug_ = 0;
 
@@ -159,6 +169,8 @@ struct Hist_t {
   TH1F* event_weight;
   TH1F* gen_energy;
   TH1F* gen_energy_nowt;
+  TH1F* npot;
+  TH1F* npot_nowt;
 
   // Directory for this histogram set
   TDirectory* dir = nullptr;
@@ -253,6 +265,7 @@ struct TreeBranches {
   float sim_2_main_crystal_energy;
   float event_weight;
   float gen_energy;
+  float npot;
 };
 
 //--------------------------------------------------------------------------------------
@@ -401,6 +414,8 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->event_weight          = new TH1F("event_weight"         , "Event weight;Weight;"                  , 100,   0.,    5.);
   H->gen_energy            = new TH1F("gen_energy"           , ";Generated energy (MeV);"             ,  90,  50.,  140.);
   H->gen_energy_nowt       = new TH1F("gen_energy_nowt"      , ";Generated energy (MeV);"             ,  90,  50.,  140.);
+  H->npot                  = new TH1F("npot"                 , ";N(POT);"                             , 100,   0.,  4.e7);
+  H->npot_nowt             = new TH1F("npot_nowt"            , ";N(POT);"                             , 100,   0.,  4.e7);
 }
 
 //--------------------------------------------------------------------------------------
@@ -506,6 +521,8 @@ void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) 
   H->event_weight         ->Fill(b.event_weight,          w);
   H->gen_energy           ->Fill(b.gen_energy,            w);
   H->gen_energy_nowt      ->Fill(b.gen_energy);
+  H->npot                 ->Fill(b.npot,                  w);
+  H->npot_nowt            ->Fill(b.npot);
 }
 
 //--------------------------------------------------------------------------------------
@@ -590,6 +607,18 @@ void setBranchAddresses(TTree* tree, TreeBranches& b) {
   tree->SetBranchAddress("sim_2_main_crystal_energy", &b.sim_2_main_crystal_energy);
   tree->SetBranchAddress("event_weight"            , &b.event_weight);
   tree->SetBranchAddress("gen_energy"              , &b.gen_energy);
+  tree->SetBranchAddress("npot"                    , &b.npot);
+}
+
+//--------------------------------------------------------------------------------------
+// Print functions
+//--------------------------------------------------------------------------------------
+void print_cluster_event(TreeBranches& b, int offset, const char* tag) {
+  printf(">>> [%12s] Accepted (%3i): %4i/%5i/%6i E = %5.1f, T = %6.1f, sim_1: type = %2i code = %3i pdg = %4i edep = %5.1f sim_2: type = %2i code = %3i pdg = %4i edep = %5.1f\n",
+         tag, offset, b.run, b.subrun, b.event, b.cluster_energy, b.cluster_time,
+         b.sim_1_type, b.sim_1_proc, b.sim_1_pdg, b.sim_1_edep,
+         b.sim_2_type, b.sim_2_proc, b.sim_2_pdg, b.sim_2_edep);
+
 }
 
 //--------------------------------------------------------------------------------------
@@ -697,6 +726,12 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
   TH1* hnorm = new TH1D("norm", "Normalization;N;", 1, 0., 1.);
   hnorm->SetBinContent(1, nsampled*norm_scale);
   hnorm->Write();
+  TH1* hnpot = new TH1D("npot", "N(POT)", 1, 0., 1.);
+  hnpot->SetBinContent(1, beam_mu_goal_);
+  hnpot->Write();
+  TH1* hsdf = new TH1D("sdf", "SDF", 1, 0., 1.);
+  hsdf->SetBinContent(1, beam_sdf_goal_);
+  hsdf->Write();
 
   // Book histogram sets
   bookHistograms(  0, "all"                                   , fout);
@@ -764,6 +799,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
   const bool is_fgm = TString(inputFiles).Contains("fgam");
   const bool is_pgm = TString(inputFiles).Contains("pgam");
   const bool is_neu = TString(inputFiles).Contains("neut");
+  const bool is_fel = TString(inputFiles).Contains("fele");
   const bool is_v07 = TString(outputFile).Contains("7b");
   const bool is_v08 = TString(outputFile).Contains("fgam8b"); // Plestid fit
   const bool is_v09 = TString(outputFile).Contains("fgam9b");
@@ -786,6 +822,12 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
        b.cluster_energy > 50. && b.sim_1_edep / b.mc_cluster_energy > 0.80) continue;
     if(is_pu && veto_rmc_pileup_ && b.sim_1_pdg == 22 && b.sim_1_type == 0 &&
        b.cluster_energy > 50. && b.sim_1_edep / b.mc_cluster_energy > 0.80) continue;
+    if(is_pu && veto_dio_pileup_ && b.sim_1_pdg == 11 && b.sim_1_proc == 166 &&
+       b.cluster_energy > 60. && b.sim_1_edep / b.mc_cluster_energy > 0.80) continue;
+    // if(is_fel && (b.gen_energy < 70. || b.sim_1_pdg != 11 || b.sim_1_edep / b.mc_cluster_energy < 0.8)) continue;
+
+    // Ignore non-primary clusters in primary samples
+    if((is_fgm || is_pgm || is_fel) && b.sim_1_type != 0) continue;
 
     int offset = 0;
     if(!is_csm) { // for now, don't offset cosmics due to gen matching issues
@@ -859,6 +901,27 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
       }
     }
 
+    // Beam re-weighting
+    if(b.npot > 1. && (beam_mu_nominal_ != beam_mu_goal_ ||
+                       beam_sdf_nominal_ != beam_sdf_nominal_)) {
+      const double x = b.npot;
+      if(is_pu || is_csm) { // follow log-normal
+        const double p_1 =  lognormal_pdf(x        , beam_mu_nominal_, beam_sdf_nominal_);
+        const double p_2 =  lognormal_pdf(x        , beam_mu_goal_   , beam_sdf_goal_   );
+        const double c_1 =  lognormal_cdf(beam_max_, beam_mu_nominal_, beam_sdf_nominal_);
+        const double c_2 =  lognormal_cdf(beam_max_, beam_mu_goal_   , beam_sdf_goal_   );
+        const double w = (p_2/c_2) / (p_1/c_1); // normalize each PDF over the range simulated
+        b.event_weight *= w;
+      } else {              // follow x*log-normal
+        const double p_1 = xlognormal_pdf(x        , beam_mu_nominal_, beam_sdf_nominal_);
+        const double p_2 = xlognormal_pdf(x        , beam_mu_goal_   , beam_sdf_goal_   );
+        const double c_1 = xlognormal_cdf(beam_max_, beam_mu_nominal_, beam_sdf_nominal_);
+        const double c_2 = xlognormal_cdf(beam_max_, beam_mu_goal_   , beam_sdf_goal_   );
+        const double w = (p_2/c_2) / (p_1/c_1); // normalize each PDF over the range simulated
+        b.event_weight *= w;
+      }
+    }
+
     // Fill each selection set
     fillHistograms(0, b, b.event_weight);
     fillHistograms(1, b);
@@ -926,18 +989,10 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
         const bool crv_cut = true; // b.crv_cluster_nhits <= 0 || std::fabs(b.crv_dt_corrected - 40.) > 30.;
         if(radius_cut && crv_cut && b.time_cluster_nhigh_z_hits < 3) {
           fillHistograms(74 + offset, b, b.event_weight);
-          if(is_pu && b.cluster_energy > 65.) {
-            printf(">>> [RMC] Accepted PU (%3i): %4i/%5i/%6i E = %.1f, T = %6.1f, sim_1: type = %i code = %3i pdg = %4i edep = %.1f sim_2: type = %i code = %3i pdg = %4i edep = %.1f\n",
-                   offset, b.run, b.subrun, b.event, b.cluster_energy, b.cluster_time,
-                   b.sim_1_type, b.sim_1_proc, b.sim_1_pdg, b.sim_1_edep,
-                   b.sim_2_type, b.sim_2_proc, b.sim_2_pdg, b.sim_2_edep);
-          }
-          if(is_csm && b.cluster_energy > 80. && b.cluster_energy < 100.) {
-            printf(">>> [RMC] Accepted Cosmic (%3i): %4i/%5i/%6i E = %.1f, T = %6.1f, sim_1: type = %i code = %3i pdg = %4i edep = %.1f sim_2: type = %i code = %3i pdg = %4i edep = %.1f\n",
-                   offset, b.run, b.subrun, b.event, b.cluster_energy, b.cluster_time,
-                   b.sim_1_type, b.sim_1_proc, b.sim_1_pdg, b.sim_1_edep,
-                   b.sim_2_type, b.sim_2_proc, b.sim_2_pdg, b.sim_2_edep);
-          }
+          if(is_pu && b.cluster_energy > 65.)
+            print_cluster_event(b, offset, "RMC: PU");
+          if(is_csm && b.cluster_energy > 80. && b.cluster_energy < 100.)
+            print_cluster_event(b, offset, "RMC: Cosmic");
         }
       }
     }
@@ -945,14 +1000,18 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
     // CE
     if(sel_signal_id(b) && sel_energy_time(b)) {
       const bool tc_hits = b.time_cluster_nhits > 10 && b.time_cluster_nhits < 40;
-      if(b.line_nhits > 0 && tc_hits) {
+      const bool line_hits = b.line_nhits > 0;
+      const bool line_slope = b.line_cos > 0.985; // not cosmic-like
+      if(tc_hits && line_hits && line_slope) {
         fillHistograms(80 + offset, b, b.event_weight);
-        if(is_pu && b.cluster_energy > 65.) {
-          printf(">>> [CE]  Accepted PU (%3i): %4i/%5i/%6i E = %.1f, T = %6.1f, sim_1: type = %i code = %3i pdg = %4i edep = %.1f sim_2: type = %i code = %3i pdg = %4i edep = %.1f\n",
-                 offset, b.run, b.subrun, b.event, b.cluster_energy, b.cluster_time,
-                 b.sim_1_type, b.sim_1_proc, b.sim_1_pdg, b.sim_1_edep,
-                 b.sim_2_type, b.sim_2_proc, b.sim_2_pdg, b.sim_2_edep);
+        if(is_pu && b.cluster_energy > 65.)
+          print_cluster_event(b, offset, "CE: PU");
+        if(is_csm && b.cluster_energy > 80. && b.cluster_energy < 100.) {
+          print_cluster_event(b, offset, "CE: Cosmic");
         }
+        // if(is_fgm && b.cluster_energy > 65) {
+        //   print_cluster_event(b, offset, "CE: RMC");
+        // }
       }
     }
 
