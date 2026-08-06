@@ -22,7 +22,8 @@ const bool veto_dio_pileup_      =  true; // Veto DIO tail clusters from pileup
 // For beam re-weighting
 double beam_mu_nominal_  = 5.92e6; // For Run1Ban sims
 double beam_sdf_nominal_ = 0.8   ; // For Run1Ban sims
-double beam_mu_goal_     = 1.6e7 ; // Goal beam intensity
+double beam_mu_goal_     = 5.92e6; // Goal beam intensity
+// double beam_mu_goal_     = 1.6e7 ; // Goal beam intensity
 double beam_sdf_goal_    = 0.8   ; //
 double beam_max_         = 35.5e6; // Cut-off for sims
 

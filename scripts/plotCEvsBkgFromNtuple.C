@@ -73,7 +73,7 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
 
   // Set up the figure directory and style
   dir_ = (tag) ? Form("figures/ce_vs_bkg_nt_%s", tag) : "figures/ce_vs_bkg_nt";
-  if(hist_tag) dir_ += "_" + hist_tag;
+  if(hist_tag != "") dir_ += "_" + hist_tag;
   gSystem->Exec(Form("mkdir -p %s", dir_.Data()));
   gStyle->SetOptStat(0);
 
@@ -105,6 +105,7 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
       plot("sim_1_pdg"                      , set, normalize, 1, -15.,   15.);
       plot("gen_energy"                     , set, normalize, 2, emin,  emax, "MeV", true);
     }
+    evaluate_summary(set);
   }
 
   // Plot the histograms

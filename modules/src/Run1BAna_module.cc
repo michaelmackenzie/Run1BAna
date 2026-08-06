@@ -11,6 +11,7 @@
 #include "canvas/Persistency/Common/TriggerResults.h"
 
 // Mu2e
+#include "Offline/ConfigTools/inc/ConfigFileLookupPolicy.hh"
 #include "Offline/DataProducts/inc/PDGCode.hh"
 #include "Offline/RecoDataProducts/inc/CaloHit.hh"
 #include "Offline/RecoDataProducts/inc/CaloCluster.hh"
@@ -409,11 +410,12 @@ namespace mu2e
 
     double emin  = 0.;
     double emax  = 110.;
-    TString table = "Run1BAna/data/heeck_finer_binning_2016_szafron.tbl";
+    std::string table = "Offline/EventGenerator/data/heeck_finer_binning_2016_szafron.tbl";
     double width = 0.01;
     const int nb = static_cast<int>((emax - emin) / width + 0.99);
 
-    tree->ReadFile(table,"e/D:w/D");
+    std::string file = ConfigFileLookupPolicy()(table);
+    tree->ReadFile(file.c_str(),"e/D:w/D");
     int n = tree->GetEntries();
     h_dio_spectrum_ = new TH1D("h_dio_spectrum","DIO spectrum",nb,emin,emax);
 

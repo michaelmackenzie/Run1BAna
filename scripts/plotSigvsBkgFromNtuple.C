@@ -177,6 +177,27 @@ vector<Process_t> buildProcesses(const map<TString, Dataset_t>& datasets,
 vector<Process_t> processes_;
 
 //-------------------------------------------------------------------------------
+void evaluate_summary(const int set) {
+  const char* name = "cluster_energy";
+  printf("Summary info for set %i\n", set);
+  double nsig(0.), nbkg(0.);
+  for(auto& process : processes_) {
+    TH1* h = (TH1*) process.f->Get(Form("hist_%i/%s", set + process.set_offset, name));
+    if(!h) {
+      Error(__func__, "Could not retrieve histogram %s from process %s", name, process.name.Data());
+      return;
+    }
+    const double counts = h->Integral(0, h->GetNbinsX());
+    const double rate   = process.norm*counts;
+    printf("%25s: %10.4e (%10.4g*%10.4e)\n", process.name.Data(), rate, counts, process.norm);
+    if(process.is_signal) nsig += rate;
+    else                  nbkg += rate;
+  }
+  printf("Totals: Signal = %.3g, Background = %.3g, SES = %.3g\n",
+         nsig, nbkg, (rmue_ < 0.) ? -1. : rmue_/nsig);
+}
+
+//-------------------------------------------------------------------------------
 TLatex* draw_info(const double scale = 0.75) {
   TLatex *logo = new TLatex();
 
@@ -204,7 +225,7 @@ TLatex* draw_info(const double scale = 0.75) {
   logo->SetTextFont(52);
   logo->DrawLatex(x0 + 0.08, y0,  "Simulation");
   logo->SetTextSize(extraTextSize);
-  logo->SetTextFont(42);
+  logo->SetTextFont(132);
   logo->SetTextAlign(31);
   if(rmue_ > 0.) {
     const double rmue = rmue_;
@@ -373,6 +394,7 @@ void plot_signal(TFile* f_sig, const char* name, const int set,
   TCanvas c("c","c", 1000, 800);
   c.SetLeftMargin(0.08);
   c.SetRightMargin(0.05);
+  c.SetTicks();
   h_sig->SetTitle("");
   h_sig->Draw("hist");
 
@@ -392,6 +414,10 @@ void plot(const char* name, const int set, const bool normalize,
           TString unit = "",
           const bool sig_plot = false, const bool smooth = false) {
   TGaxis::SetExponentOffset(-0.06, 0.008, "Y");
+  gStyle->SetTextFont(132);
+  gStyle->SetLabelFont(132, "XYZ");
+  gStyle->SetTitleFont(132, "XYZ");
+
   TH1* h_sig = nullptr;
   TH1* h_bkg = nullptr;
   TH1* h_bkg_no_calo_mu = nullptr;
@@ -468,6 +494,8 @@ void plot(const char* name, const int set, const bool normalize,
   TPad pad2("pad2", "pad2", 0., 0., 1., 0.3);
   pad1.SetLeftMargin(0.13);
   pad1.SetRightMargin(0.05);
+  pad1.SetTicks();
+  pad2.SetTicks();
   pad1.Draw();
   if(sig_plot) {
     pad2.SetLeftMargin(pad1.GetLeftMargin());
@@ -492,6 +520,7 @@ void plot(const char* name, const int set, const bool normalize,
   if(!stack_bkgs_) legend.AddEntry(h_bkg, "Background", "F");
   legend.SetBorderSize(0);
   legend.SetFillStyle(0);
+  legend.SetTextFont(132);
 
   h_sig->SetLineColor(kBlue);
   h_bkg->SetLineColor(kRed);
@@ -547,7 +576,7 @@ void plot(const char* name, const int set, const bool normalize,
     if(x_min < x_max) h_lower_axis->GetXaxis()->SetRangeUser(x_min, x_max);
 
     const double text_size = 0.19;
-    const double label_size = 0.11;
+    const double label_size = 0.13;
     const double y_offset = 0.35;
     h_sig->GetXaxis()->SetTitle("");
     h_sig->GetXaxis()->SetLabelSize(0.);
@@ -569,6 +598,7 @@ void plot(const char* name, const int set, const bool normalize,
                                  0.99 - pad2.GetRightMargin(),
                                  0.99 - pad2.GetTopMargin());
     leg_2->SetTextSize(0.10); leg_2->SetLineWidth(0); leg_2->SetFillColor(0);
+    leg_2->SetTextFont(132);
     leg_2->AddEntry(h_sig_full, "Full background", "L");
     if(draw_no_calo_mu_) {
       leg_2->SetNColumns(2);
@@ -576,11 +606,23 @@ void plot(const char* name, const int set, const bool normalize,
     }
     leg_2->Draw();
 
+    h_lower_axis->GetXaxis()->SetLabelFont(132);
+    h_lower_axis->GetXaxis()->SetTitleFont(132);
+    h_lower_axis->GetYaxis()->SetLabelFont(132);
+    h_lower_axis->GetYaxis()->SetTitleFont(132);
+
     pad1.cd();
   }
 
   draw_info((sig_plot) ? 1.1 : 0.75);
   TString fig_name = Form("%s/%s_%i%s", dir_.Data(), name, set, (normalize) ? "_norm" : "");
+
+  h_sig->GetXaxis()->SetLabelFont(132);
+  h_sig->GetXaxis()->SetTitleFont(132);
+  h_sig->GetYaxis()->SetLabelFont(132);
+  h_sig->GetYaxis()->SetTitleFont(132);
+
+  // re-draw axes
   c.SaveAs((fig_name + ".png").Data());
 
   double ymin = std::max(((normalize) ? 1.e-5 : min_max*1.e-3), 1.e-6);

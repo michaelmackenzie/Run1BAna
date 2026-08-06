@@ -1,6 +1,74 @@
-#include "Run1BAna/fcl/event_display.fcl"
+# #include "Run1BAna/fcl/event_display.fcl"
 
+# services.GeometryService.inputFile                   : "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
+# # services.ProditionsService.crvStatus.useDb           : false
+# # services.ProditionsService.crvCalib.useDb            : false
+# # services.DbService.textFile : ["Offline/CRVConditions/data/status_run1a_v01.txt","Offline/CRVConditions/data/photonyield_run1a_v01.txt", "Offline/CRVConditions/data/calib_run1a_v01.txt"]
+
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardProducers.fcl"
+#include "Offline/fcl/standardServices.fcl"
+#include "EventDisplay/fcl/prolog.fcl"
+
+services : @local::Services.Reco
+
+process_name : Run1BDisplay
+
+source : { module_type : RootInput }
+
+physics :
+{
+  analyzers : { @table::REveDis.analyzers}
+  producers : { @table::REveDis.producers }
+  filters : { @table::REveDis.filters }
+}
+
+
+# geometry options
+physics.analyzers.Mu2eEventDisplay.showCrv                    : true
+physics.analyzers.Mu2eEventDisplay.showPS                     : false
+physics.analyzers.Mu2eEventDisplay.showTS                     : false
+physics.analyzers.Mu2eEventDisplay.showDS                     : false
+physics.analyzers.Mu2eEventDisplay.addCrvBars                 : true
+physics.analyzers.Mu2eEventDisplay.addKalInter                : true
+physics.analyzers.Mu2eEventDisplay.addCrystalHits             : true
+physics.analyzers.Mu2eEventDisplay.filler.addHelixSeeds       : false
+physics.analyzers.Mu2eEventDisplay.filler.addKalSeeds         : true
+physics.analyzers.Mu2eEventDisplay.filler.addClusters         : true
+physics.analyzers.Mu2eEventDisplay.filler.addHits             : true #  adds ComboHits
+physics.analyzers.Mu2eEventDisplay.filler.addCaloHist : true
+physics.analyzers.Mu2eEventDisplay.filler.addTrackerHist : true
+physics.analyzers.Mu2eEventDisplay.filler.addCrvClusters      : true
+physics.analyzers.Mu2eEventDisplay.filler.addCrvRecoPulse     : false
+physics.analyzers.Mu2eEventDisplay.filler.addTimeClusters     : false
+physics.analyzers.Mu2eEventDisplay.filler.addSimParts         : false
+physics.analyzers.Mu2eEventDisplay.addTrkStrawHits            : true
+physics.analyzers.Mu2eEventDisplay.addTrkCaloHits             : true
+physics.analyzers.Mu2eEventDisplay.filler.addCosmicTrackSeeds : false
+physics.analyzers.Mu2eEventDisplay.filler.addMCTraj           : true
+physics.analyzers.Mu2eEventDisplay.filler.addHelixSeeds       : false
+
+physics.analyzers.Mu2eEventDisplay.strawdisplay               : false
+physics.analyzers.Mu2eEventDisplay.specifyTag                 : false
+physics.analyzers.Mu2eEventDisplay.seqMode                    : true
+
+physics.analyzers.Mu2eEventDisplay.filler.ComboHitCollection : ["makePH", "compressRecoMCs"]
+physics.analyzers.Mu2eEventDisplay.filler.TimeClusterCollection : ["TrigAprHelixMerger", "MHDe", "compressRecoMCs"]
+physics.analyzers.Mu2eEventDisplay.diagLevel : 0
+
+
+# the path
+physics.EndPath  : [ @sequence::REveDis.seqBase]
+physics.REvePath : @local::REvePath
+physics.trigger_paths :  ["REvePath" ]
+physics.analyzers.Mu2eEventDisplay.SelectEvents : ["REvePath" ]
+
+
+source.inputCommands: ["keep *",
+    "drop mu2e::CaloClusters_CaloClusterFast_*_*"
+    ]
+
+# useless file name
+services.TFileService.fileName: "/dev/null"
+physics.analyzers.Mu2eEventDisplay.gdmlname :"Offline/gen/gdml/mu2e_run1_b_v40.gdml"
 services.GeometryService.inputFile                   : "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
-# services.ProditionsService.crvStatus.useDb           : false
-# services.ProditionsService.crvCalib.useDb            : false
-# services.DbService.textFile : ["Offline/CRVConditions/data/status_run1a_v01.txt","Offline/CRVConditions/data/photonyield_run1a_v01.txt", "Offline/CRVConditions/data/calib_run1a_v01.txt"]

@@ -45,7 +45,9 @@ Run1BRecoPath : [
   # "TimeAndPhiClusterFinder",
   "LineFinder",
   "KKLine",
-  # "KLFilter",
+  "ProtonCalTimeClusterFinder",
+  "ProtonLineFinder",
+  "ProtonKKLine",
   "SelectReco",
   "CaloHitTruthMatch",
   "CaloClusterTruthMatch",
@@ -70,15 +72,20 @@ physics : {
     @table::TrigProducers.producers
     @table::Reconstruction.producers
     CalTimeClusterFinder : {
-      module_type                : CalLineTimePeakFinder
+      @table::CalPatRec.producers.CalTimeClusterFinder
       DiagLevel                  : 0
       ComboHitCollectionLabel    : "makePH"
       CaloClusterCollectionLabel : "CaloClusterMaker"
-      MinTimeClusterHits         : 6
+      MinTimeClusterHits         : 3
       MinCaloClusterEnergy       : 50.
       HitTimeSigmaThresh         : 3.
-      HitXYSigmaThresh           : 8.
+      HitXYSigmaThresh           : 3.
+      MinHitRadius               : 350.
       StoppingTargetRadius       : 200.
+      ClusterRadius              : 50.
+      StrawEDepMin               : 0.
+      StrawEDepMax               : 0.003 # electron-like
+      IgnoreTarget               : false
       ParticleBeta               : 1.
       FitDirection               : "downstream"
     }
@@ -147,13 +154,6 @@ physics : {
 # CalTimePeak
 #--------------------------------------------------------------
 
-physics.producers.CalTimeClusterFinder.DiagLevel            : 0
-physics.producers.CalTimeClusterFinder.ClusterRadius        : 50.
-physics.producers.CalTimeClusterFinder.MinHitRadius         : 350.
-physics.producers.CalTimeClusterFinder.StoppingTargetRadius : 150.
-physics.producers.CalTimeClusterFinder.HitXYSigmaThresh     : 3.
-physics.producers.CalTimeClusterFinder.HitTimeSigmaThresh   : 3.
-physics.producers.CalTimeClusterFinder.MinTimeClusterHits   : 3
 physics.producers.CalTimeLineFinder : {
   @table::physics.producers.LineFinder
   TimeClusterCollection : "CalTimeClusterFinder"
@@ -167,6 +167,9 @@ physics.producers.CalTimeKKLine : {
   }
 }
 
+###############################################
+# Set the correct input collections
+###############################################
 
 # Use this by default
 physics.producers.TPhiClusterFinder.ComboHitCollection     : "makePH"
@@ -189,6 +192,43 @@ physics.analyzers.Run1BAna.timeClusterCollection   : "CalTimeClusterFinder"
 # physics.producers.LineFinder.ComboHitCollection    : "makePH"
 # physics.analyzers.Run1BAna.timeClusterCollection   : "TZClusterFinder"
 
+###############################################
+# Update line reco
+###############################################
+
+physics.producers.LineFinder.minPeak : 3 # Minimum hits in a seed
+physics.producers.LineFinder.diag : 0 # Minimum hits in a seed
+physics.producers.KKLine.ModuleSettings.FitParticle   : 11
+physics.producers.KKLine.ModuleSettings.SeedMomentum  : 105
+physics.producers.KKLine.KKFitSettings.MinNStrawHits  : 3
+physics.producers.KKLine.ModuleSettings.SaveAllFits   : true
+physics.producers.KKLine.ModuleSettings.PrintLevel    : 0
+
+###############################################
+# Add proton reco
+###############################################
+
+physics.producers.ProtonCalTimeClusterFinder : {
+  @table::physics.producers.CalTimeClusterFinder
+  StrawEDepMin               : 0.002 # proton-like
+  StrawEDepMax               : 0.005
+}
+physics.producers.ProtonLineFinder : {
+  @table::physics.producers.LineFinder
+  TimeClusterCollection: "ProtonCalTimeClusterFinder"
+}
+physics.producers.ProtonKKLine : {
+  @table::physics.producers.KKLine
+}
+physics.producers.ProtonKKLine.ModuleSettings.CosmicTrackSeedCollections : [ "ProtonLineFinder" ]
+physics.producers.ProtonKKLine.ModuleSettings.FitParticle: 2212
+physics.producers.ProtonKKLine.ModuleSettings.SeedMomentum  : 400. # ~80 MeV KE
+
+
+###############################################
+# Add outputs
+###############################################
+
 outputs : {
   Output : {
     @table::Reconstruction.Output
@@ -203,6 +243,12 @@ outputs : {
     SelectEvents : [ TriggerableCalo ]
   }
 }
+
+
+###############################################
+# Epilog
+###############################################
+
 physics.analyzers.LHCompressionCheck.SelectEvents : [ "RecoPath" ]
 # final config
 #include "Production/JobConfig/recoMC/epilog.fcl"
@@ -213,22 +259,17 @@ physics.end_paths : [ EndPath ]
 physics.trigger_paths : [ RecoPath, "25:TriggerableCalo", @sequence::Trig_noFieldMenu.trigger_paths ]
 
 
-physics.producers.SelectReco.TimeClusterCollections : [ "CalTimeClusterFinder" ]
+physics.producers.SelectReco.TimeClusterCollections : [ "CalTimeClusterFinder",
+                                                        "ProtonCalTimeClusterFinder" ]
 physics.producers.SelectReco.SaveAllUnusedDigiMCs : true
 # physics.producers.KLFilter : { module_type : NullProducer }
 # physics.filters.KLFilter : @erase
 
-physics.producers.LineFinder.minPeak : 3 # Minimum hits in a seed
-physics.producers.LineFinder.diag : 0 # Minimum hits in a seed
-physics.producers.KKLine.ModuleSettings.FitParticle   : 11
-physics.producers.KKLine.ModuleSettings.SeedMomentum  : 105
-physics.producers.KKLine.KKFitSettings.MinNStrawHits  : 3
-physics.producers.KKLine.ModuleSettings.SaveAllFits   : true
-physics.producers.KKLine.ModuleSettings.PrintLevel    : 0
-
-services.DbService.purpose: "Sim_best"
-services.DbService.version: "v1_4"
-services.DbService.verbose : 2
+# Debugging handles
+physics.producers.makeSH.diagLevel  : 0
+physics.producers.makeSH.printLevel : 0
+physics.producers.CalTimeClusterFinder.DiagLevel : 2
+physics.producers.ProtonCalTimeClusterFinder.DiagLevel : 2
 
 outputs.Output.outputCommands : [
   @sequence::outputs.Output.outputCommands,
@@ -237,7 +278,9 @@ outputs.Output.outputCommands : [
   "keep mu2e::StrawDigiMCs_*_*_*",
   "keep mu2e::StrawDigis_*_*_*",
   "keep mu2e::StrawHitCollection_makeSH_*_*",
-  "keep mu2e::ComboHitCollection_makePH_*_*"
+  "keep mu2e::ComboHitCollection_makePH_*_*",
+  "keep mu2e::KalSeeds_*_*_*",
+  "keep mu2e::KalSeedMCs_*_*_*"
 ]
 outputs.TriggeredOutput.outputCommands   : [ @sequence::outputs.Output.outputCommands ]
 outputs.TriggerableOutput.outputCommands : [ @sequence::outputs.Output.outputCommands ]

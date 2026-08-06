@@ -28,7 +28,7 @@ physics.analyzers.Mu2eEventDisplay.addCrystalHits             : true
 physics.analyzers.Mu2eEventDisplay.filler.addHelixSeeds       : false
 physics.analyzers.Mu2eEventDisplay.filler.addKalSeeds         : true
 physics.analyzers.Mu2eEventDisplay.filler.addClusters         : true
-physics.analyzers.Mu2eEventDisplay.filler.addHits             : true #  adds ComboHits
+physics.analyzers.Mu2eEventDisplay.filler.addHits             : true  # adds ComboHits
 physics.analyzers.Mu2eEventDisplay.filler.addCrvClusters      : true
 physics.analyzers.Mu2eEventDisplay.filler.addCrvRecoPulse     : false
 physics.analyzers.Mu2eEventDisplay.filler.addTimeClusters     : false
@@ -38,6 +38,8 @@ physics.analyzers.Mu2eEventDisplay.addTrkCaloHits             : true
 physics.analyzers.Mu2eEventDisplay.filler.addCosmicTrackSeeds : false
 physics.analyzers.Mu2eEventDisplay.filler.addMCTraj           : true
 physics.analyzers.Mu2eEventDisplay.filler.addHelixSeeds       : false
+physics.analyzers.Mu2eEventDisplay.filler.addCaloHist         : true  # show the calo crystal histogram
+physics.analyzers.Mu2eEventDisplay.filler.addTrackerHist      : false # show detailed tracker info
 
 physics.analyzers.Mu2eEventDisplay.strawdisplay               : false
 physics.analyzers.Mu2eEventDisplay.specifyTag                 : false
