@@ -268,8 +268,8 @@ physics.producers.SelectReco.SaveAllUnusedDigiMCs : true
 # Debugging handles
 physics.producers.makeSH.diagLevel  : 0
 physics.producers.makeSH.printLevel : 0
-physics.producers.CalTimeClusterFinder.DiagLevel : 2
-physics.producers.ProtonCalTimeClusterFinder.DiagLevel : 2
+physics.producers.CalTimeClusterFinder.DiagLevel : 0
+physics.producers.ProtonCalTimeClusterFinder.DiagLevel : 0
 
 outputs.Output.outputCommands : [
   @sequence::outputs.Output.outputCommands,

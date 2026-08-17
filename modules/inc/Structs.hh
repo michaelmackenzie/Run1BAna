@@ -44,6 +44,8 @@ namespace Run1BAnaStructs {
     TH1* trig_paths;
     TH2* sim_dr_dt;
     TH2* hit_x_y;
+    TH1* weight;
+    TH1* log_weight;
   };
 
       // Per cluster

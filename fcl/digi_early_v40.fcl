@@ -1,0 +1,23 @@
+# Process on-spill digitization
+#include "Production/JobConfig/digitize/OnSpill.fcl"
+
+services.GeometryService.bFieldFile: "Offline/Mu2eG4/geom/bfgeom_DSOff.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
+
+services.DbService.purpose     : Sim_best
+services.DbService.version     : v1_5
+services.DbService.verbose     : 2
+services.DbService.nearestMatch: true
+
+
+outputs.Output.fileName   : "dig.user.dataset_early_v40.Run1BAna.sequencer.art"
+
+#include "Production/JobConfig/digitize/OnSpill_run1b_epilog.fcl"
+physics.filters.TriggerableCalo.MinParticleEnergy : 45.
+physics.filters.TriggerableCalo.particleTypes : [11, -11, 13, -13, 211, -211, 22, 2212, 2112]
+services.ProditionsService.strawElectronics.digitizationEnd: "1650"
+physics.producers.CaloShowerROMaker.digitizationEnd: "1650"
+physics.producers.CaloDigiMaker.digitizationEnd: "1650"
+services.ProditionsService.strawElectronics.digitizationStart: "250"
+physics.producers.CaloShowerROMaker.digitizationStart: "250"
+physics.producers.CaloDigiMaker.digitizationStart: "250"

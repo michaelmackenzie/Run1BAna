@@ -40,7 +40,6 @@
 #include "Offline/GlobalConstantsService/inc/GlobalConstantsHandle.hh"
 #include "Offline/GlobalConstantsService/inc/PhysicsParams.hh"
 #include "Offline/CalorimeterGeom/inc/Calorimeter.hh"
-#include "Offline/CalorimeterGeom/inc/CaloGeomUtil.hh"
 
 // MC truth associations
 #include "Offline/MCDataProducts/inc/CaloMCTruthAssns.hh"
@@ -484,6 +483,9 @@ namespace mu2e
     Hist->trig_paths    = dir.make<TH1D>("trig_paths"   , "Trigger paths;"              ,  100,    0.,    100);
     Hist->sim_dr_dt = dir.make<TH2F>("sim_dr_dt", "Sim distance vs #Delta t;#Deltat (ns);#Delta r (mm)", 200, -100., 100., 100, 0., 200.);
     Hist->hit_x_y = dir.make<TH2F>("hit_x_y", "Sim hit positions in X-Y plane;X (mm);Y (mm)", 100, -800., 800., 100, -800., 800.);
+
+    Hist->weight = dir.make<TH1D>("weight", "Event weight;"    ,  100,    0.,   2.);
+    Hist->log_weight = dir.make<TH1D>("log_weight", "log10(event weight);"    ,  100,  -10.,   2.);
   }
 
   //--------------------------------------------------------------------------------------
@@ -820,7 +822,7 @@ namespace mu2e
 
     if(CRVCluster) {
       GeomHandle<Calorimeter> cal;
-      const auto cl_pos = cal->geomUtil().diskToMu2e(Cluster->diskID(), Cluster->cog3Vector());
+      const auto cl_pos = cal->diskToMu2e(Cluster->diskID(), Cluster->cog3Vector());
       const CLHEP::Hep3Vector& pos_crv = CRVCluster->GetAvgHitPos();
 
       const double t_crv = CRVCluster->GetStartTime();
@@ -1070,6 +1072,9 @@ namespace mu2e
     Hist->ncrv_clusters    ->Fill((crv_cluster_col_) ? crv_cluster_col_->size() : 0, Weight);
     Hist->ngood_crv_clusters ->Fill(evt_par_.n_good_crv_clusters, Weight);
 
+    Hist->weight->Fill(Weight);
+    Hist->log_weight->Fill((Weight > 0.) ? std::log10(Weight) : -100.);
+
     // Trigger information
     for (size_t index = 0; index < trig_nav_->getTrigPaths().size(); ++index) {
       const std::string path = trig_nav_->getTrigPathNameByIndex(index);
@@ -1236,7 +1241,7 @@ namespace mu2e
     auto CRVCluster = cluster_par_.crv_cluster;
     if(CRVCluster && Cluster) {
       GeomHandle<Calorimeter> cal;
-      const auto cl_pos = cal->geomUtil().diskToMu2e(Cluster->diskID(), Cluster->cog3Vector());
+      const auto cl_pos = cal->diskToMu2e(Cluster->diskID(), Cluster->cog3Vector());
       const CLHEP::Hep3Vector& pos_crv = CRVCluster->GetAvgHitPos();
       const double t_transit = transitTime(pos_crv, cl_pos, 1.);
       tree_.crv_dt =  CRVCluster->GetStartTime() - Cluster->time();
@@ -1808,7 +1813,7 @@ namespace mu2e
     if(!crv_clusters) return;
     const auto cluster = par.cluster;
     GeomHandle<Calorimeter> cal;
-    const auto cl_pos = cal->geomUtil().diskToMu2e(cluster->diskID(), cluster->cog3Vector());
+    const auto cl_pos = cal->diskToMu2e(cluster->diskID(), cluster->cog3Vector());
     constexpr double max_dt = 300.; // ns
     float dt_curr(1.e10);
     for(const auto& crv_cluster : *crv_clusters) {
@@ -1925,7 +1930,7 @@ namespace mu2e
   CLHEP::Hep3Vector Run1BAna::getCrystalPosition(const int crystalID) const {
     mu2e::GeomHandle<mu2e::Calorimeter> cal;
     CLHEP::Hep3Vector pos = cal->crystal(crystalID).position();
-    cal->geomUtil().crystalToMu2e(crystalID, pos);
+    cal->crystalToMu2e(crystalID, pos);
     return pos;
   }
 

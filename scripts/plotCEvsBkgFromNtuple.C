@@ -1,6 +1,7 @@
 // Plot CE vs. Bkg
 
 #include "Run1BAna/scripts/plotSigvsBkgFromNtuple.C"
+#include "Run1BAna/scripts/build_model.C"
 
 
 //------------------------------------------------------------------------------
@@ -106,7 +107,9 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
       plot("gen_energy"                     , set, normalize, 2, emin,  emax, "MeV", true);
     }
     evaluate_summary(set);
+    plotModel(processes_, "cluster_energy", set);
   }
+  return;
 
   // Plot the histograms
   vector<int> sets = {0, 3, 5, 6, 7, 20, 23, 30};

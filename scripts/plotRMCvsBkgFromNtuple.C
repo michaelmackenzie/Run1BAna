@@ -1,6 +1,7 @@
 // Plot RMC vs. Bkg
 
 #include "Run1BAna/scripts/plotSigvsBkgFromNtuple.C"
+#include "Run1BAna/scripts/build_model.C"
 
 //------------------------------------------------------------------------------
 void plotRMCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
@@ -39,10 +40,11 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
 
   // Print summary information
   printf("============================================================\n");
-  printf("Livetime      = %.2e s\n", plot_livetime_);
-  printf("N(POT)        = %.2e\n"  , plot_npot_);
-  printf("N(muon stops) = %.2e\n"  , plot_nmuons_);
-  printf("N(events)     = %.2e\n"  , nevents);
+  printf("Livetime       = %.3e s\n", plot_livetime_);
+  printf("N(POT)         = %.3e\n"  , plot_npot_);
+  printf("N(muon stops)  = %.3e\n"  , plot_nmuons_);
+  printf("N(events)      = %.3e\n"  , nevents);
+  printf("N(POT / event) = %.3e\n"  , npot_per_event);
   printf("============================================================\n");
 
   const vector<TString> enabled_process_ids = {
@@ -101,7 +103,10 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
       plot("sim_2_edep"                     , set, normalize, 1,   0.,  100.);
       plot("sim_1_type"                     , set, normalize, 1,  -1.,   10.);
     }
+    plotModel(processes_, "cluster_energy", set);
   }
+
+  return;
 
   // Plot the histograms
   vector<int> sets = {0, 1, 3, 4, 18, 20, 23, 24, 35, 38};

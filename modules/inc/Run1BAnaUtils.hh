@@ -66,7 +66,7 @@ namespace mu2e
       const auto dir  = line.direction();
       if(std::abs(pos0.x()) > 1.e10) return CLHEP::HepLorentzVector(0.,0.,0., 0.); // bad line
 
-      const auto pos_cl_trk = cal->geomUtil().mu2eToTracker(cal->geomUtil().diskToMu2e(disk_id, cl->cog3Vector()));
+      const auto pos_cl_trk = cal->mu2eToTracker(cal->diskToMu2e(disk_id, cl->cog3Vector()));
       const double dx = pos_cl_trk.x() - pos0.x();
       const double dy = pos_cl_trk.y() - pos0.y();
       const double dz = pos_cl_trk.z() - pos0.z();
@@ -75,7 +75,7 @@ namespace mu2e
       // Get the position at the calo disk
       auto pos = pos0 + (dz/dir.z())*dir;
       CLHEP::Hep3Vector pos_trk(pos.x(), pos.y(), pos.z());
-      const auto pos_cal = cal->geomUtil().mu2eToDisk(disk_id, cal->geomUtil().trackerToMu2e(pos_trk));
+      const auto pos_cal = cal->mu2eToDisk(disk_id, cal->trackerToMu2e(pos_trk));
 
       // Get the time at the calo disk
       const double speed = line.speed();
@@ -110,7 +110,7 @@ namespace mu2e
       const auto seed_dir = seed->track().Dir().unit();
       const auto t0 = seed->t0().t0();
 
-      const auto pos_cl_trk = cal->geomUtil().mu2eToTracker(cal->geomUtil().diskToMu2e(disk_id, cl->cog3Vector()));
+      const auto pos_cl_trk = cal->mu2eToTracker(cal->diskToMu2e(disk_id, cl->cog3Vector()));
       const double dx = pos_cl_trk.x() - seed_int.x();
       const double dy = pos_cl_trk.y() - seed_int.y();
       const double dz = pos_cl_trk.z() - seed_int.z();
@@ -120,7 +120,7 @@ namespace mu2e
 
       auto pos_at_cal = seed_int + (dz/seed_dir.z())*seed_dir;
       CLHEP::Hep3Vector pos_trk(pos_at_cal.x(), pos_at_cal.y(), pos_at_cal.z());
-      const auto pos_cal = cal->geomUtil().mu2eToDisk(disk_id, cal->geomUtil().trackerToMu2e(pos_trk));
+      const auto pos_cal = cal->mu2eToDisk(disk_id, cal->trackerToMu2e(pos_trk));
 
       // Get the time at the calo disk
       const double speed = CLHEP::c_light; // assume c, good for electrons
