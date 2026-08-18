@@ -1,0 +1,26 @@
+# Filter to events that passed digitization
+
+#include "Offline/fcl/minimalMessageService.fcl"
+#include "Offline/fcl/standardServices.fcl"
+
+process_name : SplitTriggerResults
+
+source : {
+  module_type : RootInput
+  fileNames   : @nil
+}
+
+physics : {
+  EndPath       : [ Output ]
+  trigger_paths : [ ]
+  end_paths     : [ EndPath ]
+}
+
+outputs : {
+  Output : {
+    module_type     : RootOutput
+    SelectEvents  : [ "Digitize:DigitizePath" ]
+    outputCommands  :   [ "keep *_*_*_*" ]
+    fileName        : "dig.owner.DigitizePath.Run1B.%6r_%8s.art"
+  }
+}
