@@ -453,8 +453,9 @@ namespace mu2e
     // Get the generator counter
     auto genCounterHandle = subrun.getHandle<GenEventCount>("genCounter");
     if(genCounterHandle.isValid()) {
-      ngen_ = genCounterHandle->count();
-      hist_ngen_->Fill(0., double(ngen_));
+      const auto ngen = genCounterHandle->count();
+      hist_ngen_->Fill(0., double(ngen));
+      ngen_ += ngen;
     } else {
       std::cerr << "Warning: GenEventCount not found in subrun" << std::endl;
     }

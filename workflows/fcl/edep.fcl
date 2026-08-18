@@ -6,7 +6,7 @@
 process_name : EDep
 
 services : @local::Services.Reco
-services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
 
 source: {
   module_type: RootInput
@@ -21,6 +21,7 @@ physics : {
       module_type              : EdepAna
       CaloShowerStepCollection : "compressDetStepMCs"
       CaloClusterCollection    : "CaloClusterMaker"
+      StrawGasStepCollection   : "compressDetStepMCs"
       StepPointMCCollection    : "compressDetStepMCs:virtualdetector"
       primary                  : "FindMCPrimary"
       debugLevel               : 0

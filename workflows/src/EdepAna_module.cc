@@ -11,8 +11,10 @@
 
 // Offline
 #include "Offline/RecoDataProducts/inc/CaloCluster.hh"
-#include "Offline/MCDataProducts/inc/PrimaryParticle.hh"
+#include "Offline/MCDataProducts/inc/GenEventCount.hh"
 #include "Offline/MCDataProducts/inc/CaloShowerStep.hh"
+#include "Offline/MCDataProducts/inc/PrimaryParticle.hh"
+#include "Offline/MCDataProducts/inc/StrawGasStep.hh"
 #include "Offline/MCDataProducts/inc/StepPointMC.hh"
 #include "Offline/Mu2eUtilities/inc/StopWatch.hh"
 
@@ -40,6 +42,7 @@ namespace mu2e {
       fhicl::Atom<art::InputTag> primaryTag     { Name("primary")                 , Comment("PrimaryParticle tag") };
       fhicl::Atom<art::InputTag> caloClusterTag { Name("CaloClusterCollection")   , Comment("CaloCluster collection") };
       fhicl::Atom<art::InputTag> caloShowerTag  { Name("CaloShowerStepCollection"), Comment("CaloShowerStep collection") };
+      fhicl::Atom<art::InputTag> strawGasStepTag{ Name("StrawGasStepCollection")  , Comment("StrawGasStep collection") };
       fhicl::Atom<art::InputTag> stepPointTag   { Name("StepPointMCCollection")   , Comment("StepPointMC collection") };
       fhicl::Atom<int>           debugLevel     { Name("debugLevel")              , Comment("Debug level"), 0 };
     };
@@ -78,6 +81,7 @@ namespace mu2e {
     explicit EdepAna(const Parameters& conf);
     virtual void analyze(const art::Event& event) override;
     virtual void endJob() override;
+    virtual void beginSubRun(const art::SubRun& subrun);
 
     void bookHistograms(const int index, const char* title);
     void fillHistograms(Hist_t* Hist, const double Weight = 1.);
@@ -234,6 +238,7 @@ namespace mu2e {
     art::InputTag primary_tag_;
     art::InputTag cluster_tag_;
     art::InputTag calo_shower_tag_;
+    art::InputTag straw_gas_tag_;
     art::InputTag step_point_tag_;
     int debug_level_;
     std::unique_ptr<StopWatch> watch_ = std::make_unique<StopWatch>();
@@ -244,10 +249,13 @@ namespace mu2e {
     const PrimaryParticle*                 primary_        = nullptr;
     const CaloClusterCollection*           cluster_col_    = nullptr;
     const CaloShowerStepCollection*        shower_col_     = nullptr;
+    const StrawGasStepCollection*          straw_step_col_ = nullptr;
     const StepPointMCCollection*           step_point_col_ = nullptr;
     double total_events_ = 0.;
     double events_above_50_mev_ = 0.;
     double total_calo_edep_ = 0.;
+    double total_tracker_edep_ = 0.;
+    unsigned long ngen_ = 0;
   };
 
 
@@ -256,6 +264,7 @@ namespace mu2e {
     , primary_tag_(conf().primaryTag())
     , cluster_tag_(conf().caloClusterTag())
     , calo_shower_tag_(conf().caloShowerTag())
+    , straw_gas_tag_(conf().strawGasStepTag())
     , step_point_tag_(conf().stepPointTag())
     , debug_level_(conf().debugLevel())
   {
@@ -263,6 +272,7 @@ namespace mu2e {
     consumes<PrimaryParticle>(primary_tag_);
     consumes<CaloClusterCollection>(cluster_tag_);
     consumes<CaloShowerStepCollection>(calo_shower_tag_);
+    consumes<StrawGasStepCollection>(straw_gas_tag_);
     consumes<StepPointMCCollection>(step_point_tag_);
 
     for(int i = 0; i < kMaxHists; ++i) hists_[i] = nullptr;
@@ -272,6 +282,17 @@ namespace mu2e {
     bookHistograms(3, "edep 50 MeV");
     watch_->Calibrate();
     h_dio_spectrum_ = GetDIOSpectrum();
+  }
+
+  //--------------------------------------------------------------------------------------
+  void EdepAna::beginSubRun(const art::SubRun& subrun) {
+    // Get the generator counter
+    auto genCounterHandle = subrun.getHandle<GenEventCount>("genCounter");
+    if(genCounterHandle.isValid()) {
+      ngen_ += genCounterHandle->count();
+    } else {
+      std::cerr << "Warning: GenEventCount not found in subrun" << std::endl;
+    }
   }
 
   void EdepAna::bookHistograms(const int index, const char* title) {
@@ -375,6 +396,11 @@ namespace mu2e {
     event.getByLabel(calo_shower_tag_, cssH);
     shower_col_ = (cssH.isValid()) ? cssH.product() : nullptr;
 
+    // Straw gas steps
+    art::Handle<StrawGasStepCollection> sgsH;
+    event.getByLabel(straw_gas_tag_, sgsH);
+    straw_step_col_ = (sgsH.isValid()) ? sgsH.product() : nullptr;
+
     // StepPointMC collection
     art::Handle<StepPointMCCollection> spH;
     event.getByLabel(step_point_tag_, spH);
@@ -387,6 +413,14 @@ namespace mu2e {
     //-------------------------------------------------------------
 
     watch_->SetTime("event info computation");
+
+    double totalTrackerE = 0.;
+    if(straw_step_col_) {
+      for(const auto& step : *straw_step_col_) {
+        const double e = step.ionizingEdep();
+        totalTrackerE += e;
+      }
+    }
 
     double totalCaloE = 0.;
     if(shower_col_) {
@@ -420,6 +454,7 @@ namespace mu2e {
     total_events_ += info_.weight_;
     total_calo_edep_ += info_.weight_ * totalCaloE;
     if(totalCaloE > 50.) events_above_50_mev_ += info_.weight_;
+    total_tracker_edep_ += info_.weight_ * totalTrackerE;
 
     watch_->StopTime("event info computation");
 
@@ -476,15 +511,21 @@ namespace mu2e {
       std::cout << std::format("Primary Edep - tracker front StepPointMC energy distribution: MPV = {:.2f} MeV, FWHM = {:.2f} MeV, efficiency = {:.4g}", mpv, fwhm, eff) << std::endl;
     }
 
-    const double averageCaloEdep = (total_events_ > 0)
-      ? total_calo_edep_ / static_cast<double>(total_events_)
-      : 0.;
+    const double averageCaloEdep    = (total_events_ > 0) ? total_calo_edep_    / total_events_ : 0.;
+    const double averageCaloEdepGen = (ngen_         > 0) ? total_calo_edep_    / ngen_         : 0.;
+    const double averageTrkEdep     = (total_events_ > 0) ? total_tracker_edep_ / total_events_ : 0.;
+    const double averageTrkEdepGen  = (ngen_         > 0) ? total_tracker_edep_ / ngen_         : 0.;
+    const double eventRate          = (ngen_         > 0) ? total_events_       / ngen_         : 0.;
 
     std::cout
-      << "EdepAna summary: Saw " << total_events_ << " events"
-      << ", average calo energy deposition per event: " << averageCaloEdep << " MeV"
-      << ", events with Edep > 50 MeV: " << events_above_50_mev_
-      << std::endl;
+      << "EdepAna summary:\n"
+      << "  Saw " << total_events_ << " events" << " (" << ngen_ << " gen events) --> output rate = "
+      << eventRate << " events / gen event" << std::endl
+      << "  Average calo energy deposition per event: " << averageCaloEdep << " MeV" << std::endl
+      << "  Average calo energy deposition per gen event: " << averageCaloEdepGen << " MeV" << std::endl
+      << "  Events with calo Edep > 50 MeV: " << events_above_50_mev_ << std::endl
+      << "  Average tracker energy deposition per event: " << averageTrkEdep << " MeV" << std::endl
+      << "  Average tracker energy deposition per gen event: " << averageTrkEdepGen << " MeV" << std::endl;
   }
 
 }
