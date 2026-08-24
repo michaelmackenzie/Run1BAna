@@ -132,7 +132,7 @@ void plotModel(const vector<Process_t>& processes, const char* name, const int s
   h_signal->GetXaxis()->SetTitleOffset(0.9);
   h_signal->GetYaxis()->SetTitleOffset(0.9);
 
-  draw_info();
+  draw_info(0.85);
 
   double max_val = std::max(h_signal->GetMaximum(), h_stack.GetMaximum());
   h_signal->GetYaxis()->SetRangeUser(0., 1.3*max_val);
