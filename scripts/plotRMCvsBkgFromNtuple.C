@@ -27,7 +27,6 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
   const double onspill_time   = livetime_week_*duty_cycle_1bb_;
   const double nevents        = onspill_time/1.695e-6; // N(events) in a week
   const double npot_per_event = getNPOT(f_sig); // N(POT) per event, from simulated mean value
-  // const double npot_per_event = 1.6e7*(1.5/3.8); // N(POT) per event
   const double npot           = nevents*npot_per_event; // N(POT) in a week
   const double nmuons         = npot*nmuons_per_pot_run1b_;
   plot_npot_     = npot;
@@ -78,17 +77,22 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
 
   // Plot by process
   // Plot the histograms
-  vector<int> proc_sets = {70, 71, 72, 73, 74};
+  vector<int> proc_sets = {/*70, 71, 72, 73,*/ 74, 75};
   for(const int set : proc_sets) {
-    for(const bool normalize : {false, true}) {
+    for(const bool normalize : {false}) {
       plot("cluster_energy"                 , set, normalize, 2, emin,  emax, "MeV", true, false);
       plot("cluster_time"                   , set, normalize, 5, 600., 1650.);
       plot("cluster_radius"                 , set, normalize, 1, 300.,  700.);
       plot("cluster_disk"                   , set, normalize, 1,   0.,    2.);
+      plot("cluster_e1"                     , set, normalize, 1,   0.,  100.);
+      plot("cluster_e2"                     , set, normalize, 1,   0.,  100.);
       plot("cluster_frac_1"                 , set, normalize, 1,   1.,   -1.);
       plot("cluster_frac_2"                 , set, normalize, 1,   1.,   -1.);
+      plot("cluster_e1_over_e"              , set, normalize, 1,   0.,    1.);
+      plot("cluster_e2_over_e"              , set, normalize, 1,   0.,    1.);
       plot("cluster_e9_over_e"              , set, normalize, 1,   0.,    1.);
       plot("cluster_e25_over_e"             , set, normalize, 1,   0.,    1.);
+      plot("cluster_e2p_over_e"             , set, normalize, 1,   0.,    1.);
       plot("cluster_e8_over_e"              , set, normalize, 1,   0.,    1.);
       plot("cluster_e24_over_e"             , set, normalize, 1,   0.,    1.);
       plot("cluster_ncr"                    , set, normalize, 1,   0.,   15.);

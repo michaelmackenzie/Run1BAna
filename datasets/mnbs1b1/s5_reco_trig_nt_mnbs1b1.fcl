@@ -2,3 +2,16 @@
 
 physics.analyzers.DumpJson.fileName : "jsn.owner.mnbs1b1s51r0003.Run1BAna.reco_trig_skim_clusters.json"
 services.TFileService.fileName      : "nts.owner.mnbs1b1s51r0003.Run1BAna.sequencer.root"
+
+# speed up ntupling by skipping events without the calo_cluster_50 trigger
+physics.filters.TriggerResultsFilter : {
+  module_type : TriggerResultsFilter
+  ProcessName : "Digitize"
+  TriggerNames : [ "calo_cluster_50" ]
+}
+physics.RecoPath        : [ TriggerResultsFilter, @sequence::physics.RecoPath ]
+physics.CaloClusterPath : [ TriggerResultsFilter, @sequence::physics.CaloClusterPath ]
+physics.trigger_paths   : [ RecoPath, CaloClusterPath ]
+
+physics.analyzers.Run1BAna.trigger        : "calo_cluster_50"
+physics.analyzers.Run1BAna.triggerProcess : "Digitize"

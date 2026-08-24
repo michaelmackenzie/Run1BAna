@@ -119,6 +119,7 @@ namespace mu2e
       fhicl::Atom<art::InputTag>      pbi              { Name("PBI")                    , Comment("ProtonBunchIntensity tag")            };
       fhicl::Atom<art::InputTag>      genCounter       { Name("genCounter")             , Comment("Generator counter tag")              , "genCounter"};
       fhicl::Atom<bool>               fromReco         { Name("fromReco")               , Comment("From reco sample")                   , false};
+      fhicl::Atom<std::string>        trigger          { Name("trigger")                , Comment("Require this trigger to fire")       , ""};
       fhicl::Atom<int>                simVersion       { Name("simVersion")             , Comment("Simulation version (for cuts)")      , 0};
       fhicl::Atom<bool>               fillTrees        { Name("fillTrees")              , Comment("Fill trees")                         , false};
       fhicl::Atom<double>             maxGenEnergy     { Name("maxGenEnergy")           , Comment("Cut on the maximum primary energy")  , -1.};
@@ -241,6 +242,7 @@ namespace mu2e
     art::InputTag  pbi_tag_;
     double         max_gen_energy_;
     bool           from_reco_;
+    std::string    trigger_;
     int            sim_version_;
     bool           fill_trees_;
     int            debug_level_;
@@ -303,6 +305,7 @@ namespace mu2e
     , pbi_tag_            (config().pbi())
     , max_gen_energy_     (config().maxGenEnergy())
     , from_reco_          (config().fromReco())
+    , trigger_            (config().trigger())
     , sim_version_        (config().simVersion())
     , fill_trees_         (config().fillTrees())
     , debug_level_        (config().debugLevel())
@@ -1971,13 +1974,20 @@ namespace mu2e
     hist_norm_->Fill(0.);
     event_ = &event;
 
+    auto triggerH = event.getValidHandle<art::TriggerResults>  (trig_tag_);
+    TriggerResultsNavigator trigNav(triggerH.product());
+
+    // If a trigger is required, skip events that fail it
+    if(trigger_ != "") {
+      if(!trigNav.accepted(trigger_)) return;
+    }
+
     //--------------------------------------------------------------------------------------
     // Retrieve the collections
     //--------------------------------------------------------------------------------------
 
     watch_->SetTime("DataRetrieval");
     auto clusterH = event.getValidHandle<CaloClusterCollection>(clusters_tag_); // require clusters and a trigger
-    auto triggerH = event.getValidHandle<art::TriggerResults>  (trig_tag_);
     art::Handle<SimParticleCollection> simH                  ; event.getByLabel(sim_tag_            , simH);
     art::Handle<PrimaryParticle>       primaryH              ; event.getByLabel(primary_tag_        , primaryH);
     art::Handle<StrawDigiMCCollection> mc_digiH              ; event.getByLabel(mc_digi_tag_        , mc_digiH);
@@ -1993,7 +2003,6 @@ namespace mu2e
     art::Handle<CrvCoincidenceClusterCollection> crv_clusterH; event.getByLabel(crv_cluster_tag_    , crv_clusterH);
     art::Handle<ProtonBunchIntensity>  pbiH                  ; event.getByLabel(pbi_tag_            , pbiH);
 
-    TriggerResultsNavigator trigNav(triggerH.product());
     sim_col_              = (simH                .isValid()) ? simH.product()                 : nullptr;
     primary_              = (primaryH            .isValid()) ? primaryH.product()             : nullptr;
     mc_digi_col_          = (mc_digiH            .isValid()) ? mc_digiH.product()             : nullptr;

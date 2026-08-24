@@ -1,5 +1,7 @@
 // Build a model for the cluster energy fit
 
+#include "plotSigvsBkgFromNtuple.C"
+
 struct Component_t {
   TString name;
   TH1* h;
@@ -24,7 +26,8 @@ vector<Component_t> getComponents(const vector<Process_t>& processes, const char
 }
 
 vector<Component_t> buildModel(const vector<Process_t>& processes, const char* name, const int set,
-                               const double xmin = 60., const double xmax = 100.) {
+                               const double xmin = 60., const double xmax = 100.,
+                               TString model = "ce") {
   vector<Component_t> components = getComponents(processes, name, set);
   if(components.empty()) {
     Error(__func__, "No components found for model!");
@@ -44,7 +47,7 @@ vector<Component_t> buildModel(const vector<Process_t>& processes, const char* n
         }
     } else if(comp.is_signal) {
         // For signal, no need to smooth (stats are high)
-    } else {
+    } else if(model != "rpc") {
         // For all other backgrounds, assume an exponential falloff and smooth the histogram
         // Find the tail
         int bins_found = 0; int start_bin = 1;
@@ -69,9 +72,10 @@ vector<Component_t> buildModel(const vector<Process_t>& processes, const char* n
   return components;
 }
 
-void plotModel(const vector<Process_t>& processes, const char* name, const int set) {
-  const double xmin = 60., xmax = 100.;
-  vector<Component_t> components = buildModel(processes, name, set, xmin, xmax);
+void plotModel(const vector<Process_t>& processes, const char* name, const int set,
+               const double xmin = 60., const double xmax = 100.,
+               TString model = "ce") {
+  vector<Component_t> components = buildModel(processes, name, set, xmin, xmax, model);
   if(components.empty()) return;
 
   // Create a canvas to plot the model
@@ -82,7 +86,7 @@ void plotModel(const vector<Process_t>& processes, const char* name, const int s
   legend.SetNColumns(3);
   legend.SetBorderSize(0);
   legend.SetFillStyle(0);
-  const int rebin = 2;
+  const int rebin = (model == "rpc") ? 4 : 2;
   for(const auto& comp : components) {
     if(!comp.h) continue;
     comp.h->SetLineColor(comp.color);
@@ -114,11 +118,27 @@ void plotModel(const vector<Process_t>& processes, const char* name, const int s
   h_stack.Draw("hist same noclear");
   h_signal->Draw("hist same");
   legend.Draw();
+  h_signal->SetTitle("");
+  h_signal->GetXaxis()->SetTitle("Cluster energy (MeV)");
+  h_signal->GetYaxis()->SetTitle(Form("N(events) / %.2g MeV", h_signal->GetBinWidth(1)));
+  h_signal->GetXaxis()->SetTitleFont(132);
+  h_signal->GetYaxis()->SetTitleFont(132);
+  h_signal->GetXaxis()->SetLabelFont(132);
+  h_signal->GetYaxis()->SetLabelFont(132);
+  h_signal->GetXaxis()->SetLabelSize(0.045);
+  h_signal->GetYaxis()->SetLabelSize(0.045);
+  h_signal->GetXaxis()->SetTitleSize(0.05);
+  h_signal->GetYaxis()->SetTitleSize(0.05);
+  h_signal->GetXaxis()->SetTitleOffset(0.9);
+  h_signal->GetYaxis()->SetTitleOffset(0.9);
+
+  draw_info();
+
   double max_val = std::max(h_signal->GetMaximum(), h_stack.GetMaximum());
   h_signal->GetYaxis()->SetRangeUser(0., 1.3*max_val);
-  h_signal->GetXaxis()->SetRangeUser(65., xmax);
+  h_signal->GetXaxis()->SetRangeUser(xmin, xmax);
   c.SaveAs(Form("%s/model_%s_%i.png", dir_.Data(), name, set));
-  h_signal->GetYaxis()->SetRangeUser(1.e-6*max_val, 200*max_val);
+  h_signal->GetYaxis()->SetRangeUser(1.e-4*max_val, 200*max_val);
   c.SetLogy();
   c.SaveAs(Form("%s/model_%s_%i_log.png", dir_.Data(), name, set));
 }

@@ -22,8 +22,9 @@ const bool veto_dio_pileup_      =  true; // Veto DIO tail clusters from pileup
 // For beam re-weighting
 double beam_mu_nominal_  = 5.92e6; // For Run1Ban sims
 double beam_sdf_nominal_ = 0.8   ; // For Run1Ban sims
-double beam_mu_goal_     = 5.92e6; // Goal beam intensity
-// double beam_mu_goal_     = 1.6e7 ; // Goal beam intensity
+double beam_mu_goal_     = 6.14e6; // Goal beam intensity (1.5 kW)
+// double beam_mu_goal_     = 1.6e7 ; // Goal beam intensity (1BB)
+// double beam_mu_goal_     = 6.14e5; // Goal beam intensity (150 W) for early time samples
 double beam_sdf_goal_    = 0.8   ; //
 double beam_max_         = 35.5e6; // Cut-off for sims
 
@@ -89,6 +90,7 @@ struct Hist_t {
   TH1F* cluster_t_var;
   TH1*  cluster_e1_over_e;
   TH1*  cluster_e2_over_e;
+  TH1*  cluster_e2p_over_e;
   TH1*  cluster_e9_over_e;
   TH1*  cluster_e25_over_e;
   TH1*  cluster_e8_over_e;
@@ -335,7 +337,8 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->cluster_e25           = new TH1F("cluster_e25"          , "E25;E_{5x5} (MeV);"                        , 300,   0.,  300.);
   H->cluster_t_var         = new TH1F("cluster_t_var"        , "Time variance;Cluster #sigma_{t}^{2} (ns^{2});", 200,   0.,   10.);
   H->cluster_e1_over_e     = new TH1F("cluster_e1_over_e"    , "E1/E;E_{1}/E_{cluster};"                            , 110,   0.,  1.1);
-  H->cluster_e2_over_e     = new TH1F("cluster_e2_over_e"    , "E2/E;E_{2}/E_{cluster};"                            , 110,   0.,  1.1);
+  H->cluster_e2_over_e     = new TH1F("cluster_e2_over_e"    , "E2/E;E_{1+2}/E_{cluster};"                          , 110,   0.,  1.1);
+  H->cluster_e2p_over_e    = new TH1F("cluster_e2p_over_e"   , "E2/E;E_{2}/E_{cluster};"                            , 110,   0.,  1.1);
   H->cluster_e9_over_e     = new TH1F("cluster_e9_over_e"    , "E9/E;E_{3x3}/E_{cluster};"                            , 110,   0.,  1.1);
   H->cluster_e25_over_e    = new TH1F("cluster_e25_over_e"   , "E25/E;E_{5x5}/E_{cluster};"                          , 110,   0.,  1.1);
   H->cluster_e8_over_e     = new TH1F("cluster_e8_over_e"    , "(E9 - E1)/E;(E_{3x3}-E_{1})/E_{cluster};"                , 110,   0.,  1.1);
@@ -443,6 +446,7 @@ void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) 
   H->cluster_t_var        ->Fill(b.cluster_t_var,         w);
   H->cluster_e1_over_e    ->Fill(b.cluster_e1 / b.cluster_energy, w);
   H->cluster_e2_over_e    ->Fill(b.cluster_e2 / b.cluster_energy, w);
+  H->cluster_e2p_over_e   ->Fill((b.cluster_e2-b.cluster_e1) / b.cluster_energy, w);
   H->cluster_e9_over_e    ->Fill(b.cluster_e9 / b.cluster_energy, w);
   H->cluster_e25_over_e   ->Fill(b.cluster_e25 / b.cluster_energy, w);
   H->cluster_e8_over_e    ->Fill((b.cluster_e9 - b.cluster_e1) / b.cluster_energy, w);
@@ -771,6 +775,7 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
     bookHistograms( 72 + offset*100, "id_r_500"         , fout);
     bookHistograms( 73 + offset*100, "id_tcl_hits"      , fout);
     bookHistograms( 74 + offset*100, "id_r_500_tcl_hits", fout);
+    bookHistograms( 75 + offset*100, "id_neutron_veto"  , fout);
 
     // CE sets
     bookHistograms( 80 + offset*100, "id_line"          , fout);
@@ -801,9 +806,11 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
   const bool is_pgm = TString(inputFiles).Contains("pgam");
   const bool is_neu = TString(inputFiles).Contains("neut");
   const bool is_fel = TString(inputFiles).Contains("fele");
+  const bool is_rpc = TString(inputFiles).Contains("rpc");
   const bool is_v07 = TString(outputFile).Contains("7b");
   const bool is_v08 = TString(outputFile).Contains("fgam8b"); // Plestid fit
   const bool is_v09 = TString(outputFile).Contains("fgam9b");
+  const bool is_v40 = TString(inputFiles).Contains("0b");
 
   TTree* current_tree = nullptr;
   for(Long64_t i = 0; i < nEntries; ++i) {
@@ -815,6 +822,9 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
 
     if(i % 10000 == 0)
       std::cout << "  Entry " << i << " / " << nEntries << std::endl;
+
+    // // Remove event weight from physical RPC sample
+    // if(is_v40 && is_rpc) b.event_weight = 1.;
 
     // Modeling these in pileup or not
     if(is_pu && veto_neutrons_pileup_ && b.sim_1_pdg == 2112 &&
@@ -994,6 +1004,13 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
             print_cluster_event(b, offset, "RMC: PU");
           if(is_csm && b.cluster_energy > 80. && b.cluster_energy < 100.)
             print_cluster_event(b, offset, "RMC: Cosmic");
+
+          // Reject neutrons
+          const float e24_over_e = (b.cluster_e25 - b.cluster_e1) / b.cluster_energy;
+          const float e2p_over_e = (b.cluster_e2 - b.cluster_e1) / b.cluster_energy;
+          if(e24_over_e > 0.075 && e2p_over_e < 0.3) {
+            fillHistograms(75 + offset, b, b.event_weight);
+          }
         }
       }
     }
@@ -1017,15 +1034,15 @@ void hist_run1bana_tree(const char* inputFiles    = "input.root",  // comma- or 
     }
 
     // Low time selection
-    if(b.cluster_time > 300. && b.cluster_time < 550.) {
+    if(b.cluster_time > 300. && b.cluster_time < 550. && b.cluster_energy > 60. && b.cluster_energy < 150.) {
       fillHistograms(90 + offset, b, b.event_weight);
-      const bool signal_id = (   b.cluster_energy > 60.
-                              && b.cluster_ncr  > 2
-                              && b.cluster_ncr  < 8
-                              // && b.cluster_frac_1       > 0.60f
-                              // && b.cluster_frac_2       > 0.80f
-                              && b.cluster_t_var        < 1.f
-                              && b.cluster_second_moment< 2.e3f
+      const bool signal_id = (b.cluster_ncr  > 1
+                              && b.cluster_ncr  < 6
+                              && b.cluster_frac_1       > 0.60f
+                              && b.cluster_frac_2       > 0.80f
+                              && b.cluster_t_var        < 1.0f
+                              && b.cluster_second_moment< 1.e3f
+                              && b.cluster_disk == 0
                               );
       if(signal_id) {
         fillHistograms(91 + offset, b, b.event_weight);

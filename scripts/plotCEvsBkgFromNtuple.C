@@ -84,7 +84,7 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
   // Plot by process
   vector<int> proc_sets = {70, 71, 80};
   for(const int set : proc_sets) {
-    for(const bool normalize : {false, true}) {
+    for(const bool normalize : {false}) {
       plot("cluster_energy"                 , set, normalize, 2, emin,  emax, "MeV", true);
       plot("cluster_time"                   , set, normalize, 5, 400., 1800.);
       plot("cluster_radius"                 , set, normalize, 1, 300.,  700.);

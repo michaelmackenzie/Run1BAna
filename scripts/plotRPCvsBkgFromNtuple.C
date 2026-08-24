@@ -1,9 +1,10 @@
 // Plot RPC vs. Bkg
 
 #include "Run1BAna/scripts/plotSigvsBkgFromNtuple.C"
+#include "Run1BAna/scripts/build_model.C"
 
 //------------------------------------------------------------------------------
-void plotRPCvsBkgFromNtuple(const char* tag = "v40") {
+void plotRPCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
 
   auto datasets = getDatasets(tag);
   if(datasets.empty()) {
@@ -11,12 +12,9 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v40") {
     return;
   }
 
-  const double rpc_xsec = (11978542. / 1000000000.) * (16096977. / 100000000.) * rpc_br_;
-  datasets.emplace("rpce", Dataset_t("rpce4b0s51r0002", 1002530508, 9487, rpc_xsec, ""));
-
   const auto included_dataset_keys = nominalIncludedDatasetKeysRPC();
   map<TString, TFile*> files;
-  if(!openIncludedDatasetFiles(datasets, included_dataset_keys, files, __func__)) return;
+  if(!openIncludedDatasetFiles(datasets, included_dataset_keys, files, hist_tag, __func__)) return;
 
   TFile* f_sig = getDatasetFile(files, "rpce");
   TFile* f_bkg = getDatasetFile(files, "mnbs");
@@ -28,7 +26,7 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v40") {
   // General info
   const double onspill_time   = livetime_week_*duty_cycle_1bb_;
   const double nevents        = onspill_time/1.695e-6; // N(events) in a week
-  const double npot_per_event = 1.6e7*(1.5/3.8); // N(POT) per event
+  const double npot_per_event = getNPOT(f_bkg); // N(POT) per event, from simulated mean value
   const double npot           = nevents*npot_per_event; // N(POT) in a week
   const double nmuons         = npot*nmuons_per_pot_run1b_;
   plot_npot_     = npot;
@@ -54,9 +52,9 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v40") {
   const auto process_specs = selectNominalProcessSpecs(enabled_process_ids);
   processes_ = buildProcesses(datasets, files, included_dataset_keys, process_specs, npot, nevents, livetime_week_);
 
-  printf("%25s %10s %10s %10s %10s %10s %15s %10s\n", "Process", "N(sampled)", "N(digi)", "N(gen)", "Bare norm", "Norm", "Dataset", "Set offset");
+  printf("%25s %10s %10s %10s %10s %10s %15s %10s %10s\n", "Process", "N(sampled)", "N(digi)", "N(gen)", "Bare norm", "Norm", "Dataset", "Set offset", "File");
   for(const auto& process : processes_) {
-    printf("%25s %10.2e %10.2e %10.2e%10.2e %10.2e %15s %10d\n",
+    printf("%25s %10.2e %10.2e %10.2e%10.2e %10.2e %15s %10d %10s\n",
            process.name.Data(),
            getNSampled(process.f),
            process.dataset.nDigi,
@@ -64,20 +62,22 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v40") {
            process.dataset.norm((process.dataset.name.BeginsWith("mnbs")) ? nevents : plot_npot_, plot_livetime_),
            process.norm,
            process.dataset.name.Data(),
-           process.set_offset);
+           process.set_offset,
+           process.f->GetName());
   }
 
   // Set up the figure directory and style
   dir_ = (tag) ? Form("figures/rpc_vs_bkg_nt_%s", tag) : "figures/rpc_vs_bkg";
+  if(hist_tag != "") dir_ += "_" + hist_tag;
   gSystem->Exec(Form("mkdir -p %s", dir_.Data()));
   gStyle->SetOptStat(0);
 
   // Plot by process
   // Plot the histograms
-  vector<int> proc_sets = {90, 91, 92, 93, 94, 95, 97, 98, 99};
+  vector<int> proc_sets = {90, 94};
   for(const int set : proc_sets) {
-    for(const bool normalize : {false, true}) {
-      plot("cluster_energy"                 , set, normalize, 2,  60.,  140., "MeV", true, false);
+    for(const bool normalize : {false}) {
+      plot("cluster_energy"                 , set, normalize, 4,  60.,  140., "MeV", true, false);
       plot("cluster_time"                   , set, normalize, 2, 250., 1000., "ns" , true);
       continue;
       plot("cluster_radius"                 , set, normalize, 1, 300.,  700.);
@@ -90,6 +90,8 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v40") {
       plot("time_cluster_nhits"             , set, normalize, 1,   0.,  100.);
       plot("time_cluster_nstraw_hits"       , set, normalize, 1,   0.,  100.);
       plot("time_cluster_nhigh_z_hits"      , set, normalize, 1,   0.,   20.);
+      plot("line_nhits"                     , set, normalize, 1,   0.,  100.);
+      plot("line_cos"                       , set, normalize, 1,   0.,   1.1);
       plot("sim_1_2_nhits"                  , set, normalize, 1,   1.,   -1.);
       plot("sim_1_edep"                     , set, normalize, 1,   0.,  150.);
       plot("sim_2_edep"                     , set, normalize, 1,   0.,  100.);
@@ -97,6 +99,7 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v40") {
       plot("sim_2_time"                     , set, normalize, 1, 300., 2000.);
       plot("sim_1_type"                     , set, normalize, 1,  -1.,   10.);
     }
+    plotModel(processes_, "cluster_energy", set, 60., 140., "rpc");
   }
   return;
 

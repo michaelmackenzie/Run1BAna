@@ -143,10 +143,10 @@ physics : {
   TriggerableCalo : [ TriggerableCalo ]
   RecoPath : [ @sequence::Run1BRecoPath ]
   EndPath  : [
-    @sequence::Reconstruction.OnSpillEndSequence, Output,
-    # TriggerableOutput, TriggeredOutput,
-    # HitOriginAna,
-    Run1BAna
+    @sequence::Reconstruction.OnSpillEndSequence
+    , Output
+    # HitOriginAna
+    , Run1BAna
   ]
 }
 
@@ -258,9 +258,20 @@ physics.analyzers.LHCompressionCheck.SelectEvents : [ "RecoPath" ]
 physics.end_paths : [ EndPath ]
 physics.trigger_paths : [ RecoPath, "25:TriggerableCalo", @sequence::Trig_noFieldMenu.trigger_paths ]
 
+# Remove hit flagging for the lumi stream
+# physics.trigger_paths : [ ]
+# physics.producers.TrigTZClusterFinder.chCollLabel : "TrigMakePH"
+# physics.producers.TrigMakePH.MaximumEnergy : 0.003 # MeV, for proton flagging
+# physics.producers.TrigTZClusterFinder.clusterThresh : 8
+# physics.producers.TrigAprHelixFinder.chCollLabel : "TrigMakePH"
+# physics.producers.TrigAprHelixFinder.diagLevel   : 0
 
-physics.producers.SelectReco.TimeClusterCollections : [ "CalTimeClusterFinder",
-                                                        "ProtonCalTimeClusterFinder" ]
+
+physics.producers.SelectReco.TimeClusterCollections : [
+  "CalTimeClusterFinder",
+  "ProtonCalTimeClusterFinder",
+  "TZClusterFinder"
+]
 physics.producers.SelectReco.SaveAllUnusedDigiMCs : true
 # physics.producers.KLFilter : { module_type : NullProducer }
 # physics.filters.KLFilter : @erase

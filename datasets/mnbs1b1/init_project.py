@@ -24,9 +24,9 @@ class Project(ProjectBase):
         s                            = self.new_stage('s5');
         job                          = s.new_job('reco_trig_nt','mnbs1b1s41r0003'); #idsid);
 
-        job.fNInputFiles             = 19999                    # number of the job segments
+        job.fNInputFiles             = 20000                    # number of the job segments
 
-        job.fMaxInputFilesPerSegment =  50                      # MC generator
+        job.fMaxInputFilesPerSegment =  20                      # MC generator
         job.fMaxSegments             = int(1000)
         # job.fNEventsPerSegment       =  -1                    # defined by the input dataset
         job.fResample                = 'no'                     # yes/no

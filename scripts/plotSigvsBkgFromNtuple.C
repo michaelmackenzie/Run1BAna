@@ -1,5 +1,8 @@
 // Plot Signal vs. Bkg
 
+#ifndef __PLOT_SIG_BKG__
+#define __PLOT_SIG_BKG__
+
 #include "Run1BAna/analysis/physics.C"
 #include "Run1BAna/scripts/dataset_info.C"
 
@@ -429,7 +432,7 @@ void plot(const char* name, const int set, const bool normalize,
     TH1* h = (TH1*) process.f->Get(Form("hist_%i/%s", set + process.set_offset, name));
     if(!h) {
       Error(__func__, "Could not retrieve histogram %s from process %s", name, process.name.Data());
-      return;
+      continue;
     }
     if(smooth) h = smooth_tail(h, x_min, x_max, rebin);
     if(!h_loc) {
@@ -500,7 +503,7 @@ void plot(const char* name, const int set, const bool normalize,
   if(sig_plot) {
     pad2.SetLeftMargin(pad1.GetLeftMargin());
     pad2.SetRightMargin(pad1.GetRightMargin());
-    pad1.SetBottomMargin(0.02);
+    pad1.SetBottomMargin(0.03);
     pad2.SetTopMargin(0.05);
     pad2.SetBottomMargin(0.35);
     pad2.Draw();
@@ -511,16 +514,17 @@ void plot(const char* name, const int set, const bool normalize,
   const int ncol = 3;
   const int nrows = (max((nhists - 1), 0) / ncol) + 1;
   const double leg_y_offset = ((nhists / ncol) - 1)*0.05;
-  TLegend legend(pad1.GetLeftMargin()+0.02,
+  TLegend legend(pad1.GetLeftMargin()+0.03,
                  ((sig_plot) ? 0.75 : 0.80) - leg_y_offset,
-                 1. - pad1.GetLeftMargin() - 0.02,
-                 1. - pad1.GetTopMargin() - 0.01);
+                 1. - pad1.GetLeftMargin() - 0.03,
+                 1. - pad1.GetTopMargin() - 0.02);
   legend.SetNColumns(3);
   legend.AddEntry(h_sig, "Signal", "F");
   if(!stack_bkgs_) legend.AddEntry(h_bkg, "Background", "F");
   legend.SetBorderSize(0);
   legend.SetFillStyle(0);
   legend.SetTextFont(132);
+  legend.SetTextSize((sig_plot) ? 0.05 : 0.035);
 
   h_sig->SetLineColor(kBlue);
   h_bkg->SetLineColor(kRed);
@@ -572,7 +576,7 @@ void plot(const char* name, const int set, const bool normalize,
     h_sig_full->SetLineColor(kRed);
     // h_sig_full->Draw("hist same");
     const double max_val = maxInRange(h_lower_axis, x_min, x_max);
-    h_lower_axis->GetYaxis()->SetRangeUser(0., 1.2*max_val);
+    h_lower_axis->GetYaxis()->SetRangeUser(0., 1.3*max_val);
     if(x_min < x_max) h_lower_axis->GetXaxis()->SetRangeUser(x_min, x_max);
 
     const double text_size = 0.19;
@@ -594,10 +598,10 @@ void plot(const char* name, const int set, const bool normalize,
     h_lower_axis->GetYaxis()->SetNdivisions(505, kTRUE);
     h_lower_axis->GetYaxis()->SetMaxDigits(3);
     TLegend* leg_2 = new TLegend((draw_no_calo_mu_) ? 0.5 : 0.7,
-                                 0.90 - pad2.GetTopMargin(),
+                                 0.87 - pad2.GetTopMargin(),
                                  0.99 - pad2.GetRightMargin(),
-                                 0.99 - pad2.GetTopMargin());
-    leg_2->SetTextSize(0.10); leg_2->SetLineWidth(0); leg_2->SetFillColor(0);
+                                 0.98 - pad2.GetTopMargin());
+    leg_2->SetTextSize(0.11); leg_2->SetLineWidth(0); leg_2->SetFillColor(0);
     leg_2->SetTextFont(132);
     leg_2->AddEntry(h_sig_full, "Full background", "L");
     if(draw_no_calo_mu_) {
@@ -755,3 +759,5 @@ void plot_gen_eff(TFile* f, int set) {
 
   c.SaveAs(Form("%s/gen_eff_%i.png", dir_.Data(), set));
 }
+
+#endif
