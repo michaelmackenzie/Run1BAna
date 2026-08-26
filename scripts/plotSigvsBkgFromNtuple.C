@@ -28,8 +28,12 @@ double plot_npot_     = 0.;
 double plot_nmuons_   = 0.;
 double rmue_          = -1.;
 
-bool stack_bkgs_      = true;
-bool draw_no_calo_mu_ = false;
+bool rough_sys_        = true;
+bool show_pot_         = false;
+bool stack_bkgs_       = true;
+bool draw_no_calo_mu_  = false;
+int  signal_color_     = kBlue;
+int  background_color_ = kRed;
 
 
 int verbose_ = 10;
@@ -212,9 +216,14 @@ TLatex* draw_info(const double scale = 0.75) {
   const float energy =  8.*1.602176634e-10; // 8 GeV proton KE in joules
   // const float nevents = plot_livetime_ * 1.695e-6;
   const float power = energy * (plot_npot_ / plot_livetime_)/1000.; // in kW
-  TString lumistamp = Form("%.1f x 10^{%i} POT (%.1f kW); %.1f x 10^{%i} s",
-                           head_pot, ntens_pot, power,
-                           head_time, ntens_time);
+  TString lumistamp;
+  if(show_pot_) {
+    lumistamp = Form("%.1f x 10^{%i} POT (%.3g kW); %.1f x 10^{%i} s",
+                     head_pot, ntens_pot, power,
+                     head_time, ntens_time);
+  } else {
+    lumistamp = Form("%.3g kW Beam; %.1f x 10^{%i} s On-Spill", power, head_time, ntens_time);
+  }
   float textSize = 0.042 * 1.25 * scale;
   float extraOverTextSize  = 0.76;
   float extraTextSize = extraOverTextSize*textSize;
@@ -326,7 +335,22 @@ double maxInRange(TH1* h, double x_min, double x_max) {
 }
 
 //------------------------------------------------------------------------------
-TH1* significance_hist(TH1* h_sig, TH1* h_bkg, double x_min = 1., double x_max = -1.) {
+// Fractional systematic uncertainty assumed for a given background process.
+// Defaults to 10%; add entries here to override for specific process names.
+double bkgSystFrac(const TString& name) {
+  static const map<TString, double> overrides = {
+    // {"Cosmics", 0.20},
+  };
+  const auto it = overrides.find(name);
+  return (it != overrides.end()) ? it->second : 0.10;
+}
+
+//------------------------------------------------------------------------------
+// bkg_components/bkg_names (if provided, and rough_sys_ is true) are used to add
+// a per-process systematic uncertainty (in quadrature) to the statistical term.
+TH1* significance_hist(TH1* h_sig, TH1* h_bkg, double x_min = 1., double x_max = -1.,
+                       const vector<TH1*>* bkg_components = nullptr,
+                       const vector<TString>* bkg_names = nullptr) {
   if(!h_sig || !h_bkg) return nullptr;
   TH1* h = (TH1*) h_sig->Clone(Form("%s_significance", h_sig->GetName()));
   h->Reset();
@@ -334,10 +358,20 @@ TH1* significance_hist(TH1* h_sig, TH1* h_bkg, double x_min = 1., double x_max =
   const int nbins = h->GetNbinsX();
   const int bin_min = (x_min < x_max) ? max(1, min(nbins, h_sig->GetXaxis()->FindBin(x_min))) : 1;
   const int bin_max = (x_min < x_max) ? max(1, min(nbins, h_sig->GetXaxis()->FindBin(x_max))) : nbins;
+  const bool use_sys = rough_sys_ && bkg_components && bkg_names && (bkg_components->size() == bkg_names->size());
   for(int bin = bin_min; bin <= bin_max; ++bin) {
     const double s = h_sig->GetBinContent(bin);
-    const double b = h_bkg->GetBinContent(bin);
-    const double sig = (b <= 0.) ? 0. : s/sqrt(b);
+    double var_b = h_bkg->GetBinContent(bin); // Poisson stat variance approximation
+    if(use_sys) {
+      double sys2 = 0.;
+      for(size_t i = 0; i < bkg_components->size(); ++i) {
+        const double bi = (*bkg_components)[i]->GetBinContent(bin);
+        const double frac = bkgSystFrac((*bkg_names)[i]);
+        sys2 += (frac*bi)*(frac*bi);
+      }
+      var_b += sys2;
+    }
+    const double sig = (var_b <= 0.) ? 0. : s/sqrt(var_b);
     h->SetBinContent(bin, sig);
     h->SetBinError  (bin, 0.);
   }
@@ -424,7 +458,11 @@ void plot(const char* name, const int set, const bool normalize,
   TH1* h_sig = nullptr;
   TH1* h_bkg = nullptr;
   TH1* h_bkg_no_calo_mu = nullptr;
+  TString sig_title = "Signal";
   vector<TH1*> h_bkgs;
+  vector<TString> h_bkg_names;
+  vector<TH1*> h_bkgs_no_calo_mu;
+  vector<TString> h_bkg_no_calo_mu_names;
   THStack h_stack("h_stack", "Background stack");
 
   for(auto& process : processes_) {
@@ -438,7 +476,7 @@ void plot(const char* name, const int set, const bool normalize,
     if(!h_loc) {
       h_loc = (TH1*) h->Clone(Form("h_%s_%i_%s", name, set, (process.is_signal) ? "sig" : "bkg"));
       h_loc->Scale(process.norm);
-      if(process.is_signal) h_sig = h_loc;
+      if(process.is_signal) {h_sig = h_loc; sig_title = process.name;}
       else                  h_bkg = h_loc;
     }
     else h_loc->Add(h, process.norm);
@@ -463,6 +501,11 @@ void plot(const char* name, const int set, const bool normalize,
         h->SetLineColor(kBlack);
       }
       h_bkgs.push_back(h);
+      h_bkg_names.push_back(process.name);
+      if(process.set_offset != 200) {
+        h_bkgs_no_calo_mu.push_back(h);
+        h_bkg_no_calo_mu_names.push_back(process.name);
+      }
     }
   }
   if(!h_sig || !h_bkg) {
@@ -519,21 +562,21 @@ void plot(const char* name, const int set, const bool normalize,
                  1. - pad1.GetLeftMargin() - 0.03,
                  1. - pad1.GetTopMargin() - 0.02);
   legend.SetNColumns(3);
-  legend.AddEntry(h_sig, "Signal", "F");
+  legend.AddEntry(h_sig, sig_title, "F");
   if(!stack_bkgs_) legend.AddEntry(h_bkg, "Background", "F");
   legend.SetBorderSize(0);
   legend.SetFillStyle(0);
   legend.SetTextFont(132);
   legend.SetTextSize((sig_plot) ? 0.05 : 0.035);
 
-  h_sig->SetLineColor(kBlue);
-  h_bkg->SetLineColor(kRed);
+  h_sig->SetLineColor(signal_color_);
+  h_bkg->SetLineColor(background_color_);
   h_sig->SetLineWidth(3);
   h_bkg->SetLineWidth(3);
   h_sig->SetFillStyle(3004);
   h_bkg->SetFillStyle(3005);
   h_bkg->SetLineStyle(kDashed);
-  h_sig->SetFillColor(kBlue);
+  h_sig->SetFillColor(signal_color_);
   // h_bkg->SetFillColor(kRed);
   h_sig->SetTitle("");
   h_sig->SetYTitle(Form("N(events) / %.3g %s", h_sig->GetBinWidth(1), unit.Data()));
@@ -564,8 +607,8 @@ void plot(const char* name, const int set, const bool normalize,
   if(sig_plot) {
     pad2.cd();
 
-    TH1* h_sig_full = significance_hist(h_sig, h_bkg, x_min, x_max); h_sig_full->SetName("significance_full");
-    TH1* h_sig_cut  = significance_hist(h_sig, h_bkg_no_calo_mu, x_min, x_max);
+    TH1* h_sig_full = significance_hist(h_sig, h_bkg, x_min, x_max, &h_bkgs, &h_bkg_names); h_sig_full->SetName("significance_full");
+    TH1* h_sig_cut  = significance_hist(h_sig, h_bkg_no_calo_mu, x_min, x_max, &h_bkgs_no_calo_mu, &h_bkg_no_calo_mu_names);
     TH1* h_lower_axis = (draw_no_calo_mu_) ? h_sig_cut : h_sig_full;
     if(draw_no_calo_mu_) {
       h_sig_cut->Draw("hist");
@@ -587,7 +630,7 @@ void plot(const char* name, const int set, const bool normalize,
     h_sig->GetYaxis()->SetLabelSize(0.15*0.3/0.7);
     h_sig->GetYaxis()->SetTitleSize(text_size*0.3/0.7);
     h_sig->GetYaxis()->SetTitleOffset(y_offset*0.7/0.3);
-    h_lower_axis->SetYTitle("S/#sqrt{B}");
+    h_lower_axis->SetYTitle((rough_sys_) ? "S/#sigma_{B}" : "S/#sqrt{B}");
     h_lower_axis->GetXaxis()->SetTitleSize(text_size);
     h_lower_axis->GetYaxis()->SetTitleSize(text_size);
     h_lower_axis->GetXaxis()->SetTitleOffset(0.70);

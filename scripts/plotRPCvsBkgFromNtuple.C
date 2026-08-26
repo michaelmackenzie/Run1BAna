@@ -45,7 +45,6 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
   printf("============================================================\n");
 
   // Set the list of processes to consider
-  draw_no_calo_mu_ = true;
   const vector<TString> enabled_process_ids = {
     "rpc", "rpc_pu", "rpc_cpu", "cosmics", "pileup_lo", "pileup_ot", "calomu"
   };
@@ -71,6 +70,8 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
   if(hist_tag != "") dir_ += "_" + hist_tag;
   gSystem->Exec(Form("mkdir -p %s", dir_.Data()));
   gStyle->SetOptStat(0);
+
+  signal_color_ = kBlack;
 
   // Plot by process
   // Plot the histograms

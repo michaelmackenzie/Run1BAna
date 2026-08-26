@@ -39,32 +39,41 @@ vector<Component_t> buildModel(const vector<Process_t>& processes, const char* n
     // Smooth the histogram to create a model
     TH1* h_smooth = (TH1*) comp.h->Clone(Form("%s_smooth", comp.name.Data()));
     if(comp.name.Contains("Cosmic")) {
-        // Assume cosmics are roughly flat
+      const bool do_flat = false; // flat or poly assumption
+      if(do_flat) { // Assume cosmics are roughly flat
         const double rate = h_smooth->Integral(h_smooth->FindBin(xmin), h_smooth->FindBin(xmax));
         h_smooth->Reset();
         for(int i = 1; i <= h_smooth->GetNbinsX(); ++i) {
-            h_smooth->SetBinContent(i, rate / (xmax - xmin)*h_smooth->GetBinWidth(i));
+          h_smooth->SetBinContent(i, rate / (xmax - xmin)*h_smooth->GetBinWidth(i));
         }
+      } else { // Assume it follows a polynomial
+        TF1 func("func", "pol3", xmin, xmax);
+        h_smooth->Fit(&func, "R");
+        h_smooth->Reset();
+        for(int bin = h_smooth->FindBin(xmin+1.e-3); bin <= h_smooth->FindBin(xmax-1.e-3); ++bin) {
+          h_smooth->SetBinContent(bin, func.Eval(h_smooth->GetBinCenter(bin)));
+        }
+      }
     } else if(comp.is_signal) {
-        // For signal, no need to smooth (stats are high)
+      // For signal, no need to smooth (stats are high)
     } else if(model != "rpc") {
-        // For all other backgrounds, assume an exponential falloff and smooth the histogram
-        // Find the tail
-        int bins_found = 0; int start_bin = 1;
-        for(int bin = h_smooth->GetNbinsX(); bin > 0; --bin) {
-            if(h_smooth->GetBinContent(bin) > 0) {
-                ++bins_found;
-                start_bin = bin;
-                if(bins_found > 8) break; // enough bins for a git
-            }
+      // For all other backgrounds, assume an exponential falloff and smooth the histogram
+      // Find the tail
+      int bins_found = 0; int start_bin = 1;
+      for(int bin = h_smooth->GetNbinsX(); bin > 0; --bin) {
+        if(h_smooth->GetBinContent(bin) > 0) {
+          ++bins_found;
+          start_bin = bin;
+          if(bins_found > 8) break; // enough bins for a git
         }
-        if(h_smooth->GetBinCenter(start_bin) < xmax) {
-            TF1 f("f", "expo(0)", h_smooth->GetBinCenter(start_bin), h_smooth->GetBinCenter(h_smooth->GetNbinsX()));
-            h_smooth->Fit(&f, "RX0");
-            for(int bin = start_bin; bin <= h_smooth->GetNbinsX(); ++bin) {
-                h_smooth->SetBinContent(bin, f.Eval(h_smooth->GetBinCenter(bin)));
-            }
+      }
+      if(h_smooth->GetBinCenter(start_bin) < xmax) {
+        TF1 f("f", "expo(0)", h_smooth->GetBinCenter(start_bin), h_smooth->GetBinCenter(h_smooth->GetNbinsX()));
+        h_smooth->Fit(&f, "RX0");
+        for(int bin = start_bin; bin <= h_smooth->GetNbinsX(); ++bin) {
+          h_smooth->SetBinContent(bin, f.Eval(h_smooth->GetBinCenter(bin)));
         }
+      }
     }
     comp.h = h_smooth;
   }
@@ -79,10 +88,14 @@ void plotModel(const vector<Process_t>& processes, const char* name, const int s
   if(components.empty()) return;
 
   // Create a canvas to plot the model
-  TCanvas c("c", "Model", 800, 600);
+  TCanvas c("c", "Model", 1000, 800);
+  c.SetTicks();
   THStack h_stack("h_stack", "Model Components");
   TH1* h_signal = nullptr;
-  TLegend legend(0.15, 0.70, 0.85, 0.89);
+  TLegend legend(c.GetLeftMargin()+0.03,
+                 0.88 - c.GetTopMargin(),
+                 0.97 - c.GetLeftMargin(),
+                 0.97 - c.GetTopMargin());
   legend.SetNColumns(3);
   legend.SetBorderSize(0);
   legend.SetFillStyle(0);
@@ -118,6 +131,8 @@ void plotModel(const vector<Process_t>& processes, const char* name, const int s
   h_stack.Draw("hist same noclear");
   h_signal->Draw("hist same");
   legend.Draw();
+  h_signal->SetLineColor(signal_color_);
+  h_signal->SetFillColor(signal_color_);
   h_signal->SetTitle("");
   h_signal->GetXaxis()->SetTitle("Cluster energy (MeV)");
   h_signal->GetYaxis()->SetTitle(Form("N(events) / %.2g MeV", h_signal->GetBinWidth(1)));
@@ -132,7 +147,7 @@ void plotModel(const vector<Process_t>& processes, const char* name, const int s
   h_signal->GetXaxis()->SetTitleOffset(0.9);
   h_signal->GetYaxis()->SetTitleOffset(0.9);
 
-  draw_info(0.85);
+  draw_info(0.75);
 
   double max_val = std::max(h_signal->GetMaximum(), h_stack.GetMaximum());
   h_signal->GetYaxis()->SetRangeUser(0., 1.3*max_val);

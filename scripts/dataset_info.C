@@ -85,7 +85,8 @@ map<TString, Dataset_t> getDatasets(TString version = "v40") {
     datasets.emplace  ("pgam", Dataset_t("pgamcb1s51r0003",  100000000,   5249814, rate_pgamc*poly_muons_per_pot, 50., 110., "dig.mu2e.PolyFlatGammaCaloMix1BB.Run1Baq_best_v1_5.art"));
     datasets.emplace  ("neut", Dataset_t("neut0b1s51r0003",  125000000,    154086, rate_neut_calo*muons_per_pot ,            "dig.mu2e.MuCapNeutronTailCaloMix1BB.Run1Baq_best_v1_5.art"));
     datasets.emplace  ("prot", Dataset_t("prot0b1s51r0003",  100000000,    158688, rate_prot_calo*muons_per_pot ,            "dig.mu2e.MuCapProtonTailCaloMix1BB.Run1Baq_best_v1_5.art"));
-    datasets.emplace  ("rpce", Dataset_t("rpce0b1s51r0003",   87265429,     26186, rpc_stops_per_pot            ,            "dig.owner.rpce0b0.version.sequencer.art"));
+    datasets.emplace  ("rpce", Dataset_t("rpce0b1s51r0003", 4999841344,    643155, rpc_stops_per_pot            ,            "dig.mu2e.RPCExternalMix1BB.Run1Bap_best_v1_5-000.art"));
+    // datasets.emplace  ("rpce", Dataset_t("rpce0b1s51r0003",   87265429,     26186, rpc_stops_per_pot            ,            "dig.owner.rpce0b0.version.sequencer.art"));
   } else {
     std::cerr << "Unknown dataset version: " << version << std::endl;
   }
