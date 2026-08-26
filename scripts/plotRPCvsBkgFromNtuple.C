@@ -4,7 +4,8 @@
 #include "Run1BAna/scripts/build_model.C"
 
 //------------------------------------------------------------------------------
-void plotRPCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
+void plotRPCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "",
+                            const double pot_scale = 1.) {
 
   auto datasets = getDatasets(tag);
   if(datasets.empty()) {
@@ -25,23 +26,30 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
 
   // General info
   const double onspill_time   = livetime_week_*duty_cycle_1bb_;
-  const double nevents        = onspill_time/1.695e-6; // N(events) in a week
-  const double npot_per_event = getNPOT(f_bkg); // N(POT) per event, from simulated mean value
+   double      nevents        = onspill_time/1.695e-6; // N(events) in a week
+  const double npot_per_event = pot_scale* getNPOT(f_sig); // N(POT) per event, from simulated mean value
   const double npot           = nevents*npot_per_event; // N(POT) in a week
   const double nmuons         = npot*nmuons_per_pot_run1b_;
+  const float energy =  8.*1.602176634e-10; // 8 GeV proton KE in joules
+  const float power = energy * (npot / livetime_week_)/1000.; // in kW
   plot_npot_     = npot;
   plot_livetime_ = livetime_week_;
   plot_nmuons_   = nmuons;
+
+  // Adjust N(events) given POT scaling
+  nevents *= pot_scale;
 
   sig_skim_eff_ = datasets["rpce"].nDigi / datasets["rpce"].nGen;
   norm_sig_ = getNorm(datasets["rpce"], f_sig, npot, livetime_week_);
   norm_bkg_ = getNorm(datasets["mnbs"], f_bkg, nevents, livetime_week_);
 
   printf("============================================================\n");
-  printf("Livetime      = %.2e s\n", plot_livetime_);
-  printf("N(POT)        = %.2e\n"  , plot_npot_);
-  printf("N(muon stops) = %.2e\n"  , plot_nmuons_);
-  printf("N(events)     = %.2e\n"  , nevents);
+  printf("Livetime       = %.3e s\n", plot_livetime_);
+  printf("N(POT)         = %.3e\n"  , plot_npot_);
+  printf("N(muon stops)  = %.3e\n"  , plot_nmuons_);
+  printf("N(events)      = %.3e\n"  , nevents);
+  printf("N(POT / event) = %.3e\n"  , npot_per_event);
+  printf("Power          = %.3f\n"  , power);
   printf("============================================================\n");
 
   // Set the list of processes to consider
@@ -52,7 +60,8 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
   processes_ = buildProcesses(datasets, files, included_dataset_keys, process_specs, npot, nevents, livetime_week_);
 
   printf("%25s %10s %10s %10s %10s %10s %15s %10s %10s\n", "Process", "N(sampled)", "N(digi)", "N(gen)", "Bare norm", "Norm", "Dataset", "Set offset", "File");
-  for(const auto& process : processes_) {
+  for(auto& process : processes_) {
+    if(pot_scale != 1. && (process.name == "Other pileup")) process.norm *= pot_scale; // goes as rate^2
     printf("%25s %10.2e %10.2e %10.2e%10.2e %10.2e %15s %10d %10s\n",
            process.name.Data(),
            getNSampled(process.f),
@@ -68,6 +77,7 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "") {
   // Set up the figure directory and style
   dir_ = (tag) ? Form("figures/rpc_vs_bkg_nt_%s", tag) : "figures/rpc_vs_bkg";
   if(hist_tag != "") dir_ += "_" + hist_tag;
+  if(pot_scale != 1.) dir_ += Form("_pot_scale_%id%02i", int(pot_scale), int(pot_scale*100.) - int(pot_scale)*100);
   gSystem->Exec(Form("mkdir -p %s", dir_.Data()));
   gStyle->SetOptStat(0);
 
