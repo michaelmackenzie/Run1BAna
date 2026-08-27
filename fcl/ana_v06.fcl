@@ -1,5 +1,5 @@
 #include "Run1BAna/fcl/ana.fcl"
-services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v06.txt"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
 services.DbService.nearestMatch: true
 
 physics.filters.CaloClusterFilter.MinClusterEnergy : 45.

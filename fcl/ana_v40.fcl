@@ -1,0 +1,7 @@
+#include "Run1BAna/fcl/ana.fcl"
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_run1_b_v40.txt"
+services.DbService.nearestMatch: true
+
+physics.analyzers.Run1BAna.simVersion : 2
+physics.filters.CaloClusterFilter.MinClusterEnergy : 60.
+services.TFileService.fileName     : "nts.owner.ana_v40.Run1B.sequencer.root"
