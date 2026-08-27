@@ -696,6 +696,7 @@ namespace mu2e
     hist_[index]->tree->Branch("line_phi0"              , &tree_.line_phi0);
     hist_[index]->tree->Branch("line_cl_dt"             , &tree_.line_cl_dt);
     hist_[index]->tree->Branch("line_cl_dr"             , &tree_.line_cl_dr);
+    hist_[index]->tree->Branch("line_avg_edep"          , &tree_.line_avg_edep);
 
     // Cosmic seed info (vectors: one entry per matched cosmic seed)
     hist_[index]->tree->Branch("cosmic_seed_col_idx"     , &tree_.cosmic_seed_col_idx);
@@ -713,6 +714,7 @@ namespace mu2e
     hist_[index]->tree->Branch("cosmic_seed_B1"          , &tree_.cosmic_seed_B1);
     hist_[index]->tree->Branch("cosmic_seed_cl_dt"       , &tree_.cosmic_seed_cl_dt);
     hist_[index]->tree->Branch("cosmic_seed_cl_dr"       , &tree_.cosmic_seed_cl_dr);
+    hist_[index]->tree->Branch("cosmic_seed_avg_edep"    , &tree_.cosmic_seed_avg_edep);
 
     // Time cluster info (vectors: one entry per matched time cluster)
     hist_[index]->tree->Branch("time_cluster_col_idx"      , &tree_.time_cluster_col_idx);
@@ -725,6 +727,7 @@ namespace mu2e
     hist_[index]->tree->Branch("time_cluster_phi0"         , &tree_.time_cluster_phi0);
     hist_[index]->tree->Branch("time_cluster_cl_dt"        , &tree_.time_cluster_cl_dt);
     hist_[index]->tree->Branch("time_cluster_cl_dr"        , &tree_.time_cluster_cl_dr);
+    hist_[index]->tree->Branch("time_cluster_avg_edep"     , &tree_.time_cluster_avg_edep);
 
     // CRV cluster info
     hist_[index]->tree->Branch("crv_cluster_nhits"        , &tree_.crv_cluster_nhits);
@@ -1263,6 +1266,18 @@ namespace mu2e
         tree_.line_phi0.push_back(phi0);
         tree_.line_cl_dt.push_back(cl_dt);
         tree_.line_cl_dr.push_back(cl_dr);
+        // Compute average tracker hit energy deposition for this line
+        {
+          float edep_sum = 0.f;
+          int nactive = 0;
+          for(const auto& hit : Line->hits()) {
+            if(hit._flag.hasAllProperties(StrawHitFlag::active)) {
+              edep_sum += hit.energyDep();
+              ++nactive;
+            }
+          }
+          tree_.line_avg_edep.push_back((nactive > 0) ? edep_sum / nactive : 0.f);
+        }
       }
     }
 
@@ -1286,6 +1301,16 @@ namespace mu2e
       tree_.cosmic_seed_B1.push_back(Track.FitParams.B1);
       tree_.cosmic_seed_cl_dt.push_back(mcs.dt);
       tree_.cosmic_seed_cl_dr.push_back(mcs.dr);
+      // Compute average tracker hit energy deposition for this cosmic seed
+      {
+        float edep_sum = 0.f;
+        int nhits_s = 0;
+        for(const auto& hit : seed->hits()) {
+          edep_sum += hit.energyDep();
+          ++nhits_s;
+        }
+        tree_.cosmic_seed_avg_edep.push_back((nhits_s > 0) ? edep_sum / nhits_s : 0.f);
+      }
     }
 
     // Time cluster info: fill vector branches from all matched time clusters
@@ -1320,6 +1345,20 @@ namespace mu2e
         tree_.time_cluster_phi0.push_back(TC->position().phi());
         tree_.time_cluster_cl_dt.push_back(cl_dt);
         tree_.time_cluster_cl_dr.push_back(cl_dr);
+        // Compute average tracker hit energy deposition for this time cluster
+        {
+          float edep_sum_tc = 0.f;
+          int edep_count_tc = 0;
+          if(!from_reco_ && combo_hit_col_) {
+            for(const auto& hit_index : TC->hits()) {
+              if(hit_index < combo_hit_col_->size()) {
+                edep_sum_tc += combo_hit_col_->at(hit_index).energyDep();
+                ++edep_count_tc;
+              }
+            }
+          }
+          tree_.time_cluster_avg_edep.push_back((edep_count_tc > 0) ? edep_sum_tc / edep_count_tc : 0.f);
+        }
       }
     }
     tree_.ntcl_hits = (!cluster_par_.matched_time_clusters.empty() && cluster_par_.time_cluster)
@@ -1667,6 +1706,19 @@ namespace mu2e
     par.init(line);
     if(!line) return;
 
+    // Compute average tracker hit energy deposition
+    {
+      float edep_sum = 0.f;
+      int nactive = 0;
+      for(const auto& hit : line->hits()) {
+        if(hit._flag.hasAllProperties(StrawHitFlag::active)) {
+          edep_sum += hit.energyDep();
+          ++nactive;
+        }
+      }
+      par.avg_edep = (nactive > 0) ? edep_sum / nactive : 0.f;
+    }
+
     for(const auto* assn : line_seed_assns_) {
       if(!assn) continue;
       for(const auto& ent : *assn) {
@@ -1686,6 +1738,17 @@ namespace mu2e
   void Run1BAna::initCosmicSeedPar(CosmicSeedPar_t& par, const CosmicTrackSeed* seed) {
     par.init(seed);
     if(!seed) return;
+
+    // Compute average tracker hit energy deposition
+    {
+      float edep_sum = 0.f;
+      int nhits = 0;
+      for(const auto& hit : seed->hits()) {
+        edep_sum += hit.energyDep();
+        ++nhits;
+      }
+      par.avg_edep = (nhits > 0) ? edep_sum / nhits : 0.f;
+    }
   }
 
   //--------------------------------------------------------------------------------------
@@ -1694,7 +1757,9 @@ namespace mu2e
     if(!tc) return;
 
     // reco info about hits in the time cluster
-    if(!from_reco_) {
+    if(!from_reco_ && combo_hit_col_) {
+      float edep_sum = 0.f;
+      int edep_count = 0;
       const auto hit_indices = tc->hits();
       for(size_t i_hit = 0; i_hit < hit_indices.size(); ++i_hit) {
         const size_t hit_index = hit_indices.at(i_hit);
@@ -1707,7 +1772,10 @@ namespace mu2e
         }
         const auto& combo_hit = combo_hit_col_->at(hit_index);
         if(combo_hit.pos().z() > 1300.) ++par.n_hits_high_z; // Number of hits in the final stations
+        edep_sum += combo_hit.energyDep();
+        ++edep_count;
       }
+      par.avg_edep = (edep_count > 0) ? edep_sum / edep_count : 0.f;
     }
 
     if(sim_par_.sim && mc_digi_col_ && !from_reco_) {

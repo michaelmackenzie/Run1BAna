@@ -267,6 +267,7 @@ namespace Run1BAnaStructs {
       std::vector<float> line_phi0;
       std::vector<float> line_cl_dt;
       std::vector<float> line_cl_dr;
+      std::vector<float> line_avg_edep;
 
       // Cosmic seed info (vectors: one entry per matched cosmic seed)
       std::vector<int>   cosmic_seed_col_idx;
@@ -284,6 +285,7 @@ namespace Run1BAnaStructs {
       std::vector<float> cosmic_seed_B1;
       std::vector<float> cosmic_seed_cl_dt;
       std::vector<float> cosmic_seed_cl_dr;
+      std::vector<float> cosmic_seed_avg_edep;
 
       // Time cluster info (vectors: one entry per matched time cluster)
       std::vector<int>   time_cluster_col_idx;
@@ -296,6 +298,7 @@ namespace Run1BAnaStructs {
       std::vector<float> time_cluster_phi0;
       std::vector<float> time_cluster_cl_dt;
       std::vector<float> time_cluster_cl_dr;
+      std::vector<float> time_cluster_avg_edep;
 
       // CRV cluster info
       int   crv_cluster_nhits;
@@ -389,6 +392,7 @@ namespace Run1BAnaStructs {
         line_phi0.clear();
         line_cl_dt.clear();
         line_cl_dr.clear();
+        line_avg_edep.clear();
 
         cosmic_seed_col_idx.clear();
         cosmic_seed_chi2.clear();
@@ -405,6 +409,7 @@ namespace Run1BAnaStructs {
         cosmic_seed_B1.clear();
         cosmic_seed_cl_dt.clear();
         cosmic_seed_cl_dr.clear();
+        cosmic_seed_avg_edep.clear();
 
         time_cluster_col_idx.clear();
         time_cluster_nhits.clear();
@@ -416,6 +421,7 @@ namespace Run1BAnaStructs {
         time_cluster_phi0.clear();
         time_cluster_cl_dt.clear();
         time_cluster_cl_dr.clear();
+        time_cluster_avg_edep.clear();
 
         crv_cluster_nhits = -1;
         crv_cluster_npe = 0.f;
@@ -715,12 +721,14 @@ namespace Run1BAnaStructs {
       const KalSeed* line;
       const CosmicTrackSeed* cosmic_seed;
       const TimeCluster* time_cluster;
+      float avg_edep; // average tracker hit energy deposition (keV)
 
       LinePar_t() { init(); }
       void init(const KalSeed* l = nullptr) {
         line = l;
         cosmic_seed = nullptr;
         time_cluster = nullptr;
+        avg_edep = 0.f;
         if(!l) return;
       }
     };
@@ -728,10 +736,12 @@ namespace Run1BAnaStructs {
     //--------------------------------------------------------------------------------------
     struct CosmicSeedPar_t {
       const CosmicTrackSeed* seed;
+      float avg_edep; // average tracker hit energy deposition (keV)
 
       CosmicSeedPar_t() { init(); }
       void init(const CosmicTrackSeed* s = nullptr) {
         seed = s;
+        avg_edep = 0.f;
         if(!s) return;
       }
     };
@@ -745,6 +755,7 @@ namespace Run1BAnaStructs {
       int n_total_primary_hits;
       int n_hits_high_z;
       int n_primary_hits_high_z;
+      float avg_edep; // average tracker hit energy deposition (keV)
 
       TimeClusterPar_t() { init(); }
       void init(const TimeCluster* t = nullptr) {
@@ -754,6 +765,7 @@ namespace Run1BAnaStructs {
         n_total_primary_hits = 0;
         n_hits_high_z = 0;
         n_primary_hits_high_z = 0;
+        avg_edep = 0.f;
         if(!t) return;
       }
 
