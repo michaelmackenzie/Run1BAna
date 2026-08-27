@@ -56,7 +56,7 @@ vector<Component_t> buildModel(const vector<Process_t>& processes, const char* n
       }
     } else if(comp.is_signal) {
       // For signal, no need to smooth (stats are high)
-    } else if(model != "rpc") {
+    } else if(false && model != "rpc") {
       // For all other backgrounds, assume an exponential falloff and smooth the histogram
       // Find the tail
       int bins_found = 0; int start_bin = 1;

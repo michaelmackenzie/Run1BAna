@@ -64,13 +64,15 @@ map<TString, Dataset_t> getDatasets(TString version = "v40") {
   const bool use_filtered_pu   = true; // use pileup produced with calo dts cluster filter
 
   if(version == "v40") {
+    const double csm_time = 2.29e4; // 18428.5; // livetime equivalent of the simulated sample
     const double muons_per_pot = 5.066e-04;
     const double poly_muons_per_pot = 1.967e-03;
     const double pibeam_rate = 11978542. / 1000000000.; // PiBeam efficiency
     const double pi_target_rate = 8145497. / 250000000.; // Pi target stop efficiency
+    const double pi_select_eff = 0.999968; // Efficiency of stop selection in pi target
     const double sum_wt_frac = 21996.79/5.003e6; // average lifetime weight for considered pion stops in physical pion stop production (taken from 1 file as sum wt sampled / N(gen)
-    const double rpc_stops_per_pot = pibeam_rate * pi_target_rate * rpc_br_ * rpc_frac_50_;
-    const double physical_rpc_stops_per_pot = rpc_stops_per_pot * sum_wt_frac;
+    const double rpc_stops_per_pot = pibeam_rate * pi_target_rate * pi_select_eff * rpc_br_ * rpc_frac_50_;
+    const double physical_rpc_stops_per_pot = rpc_stops_per_pot * (sum_wt_frac/pi_select_eff); // pion selection efficiency in sum of weights fraction
     cout << "RPC rate per POT = " << rpc_stops_per_pot << endl;
     nmuons_per_pot_ = muons_per_pot;
     if(use_filtered_pu)
@@ -79,7 +81,7 @@ map<TString, Dataset_t> getDatasets(TString version = "v40") {
       datasets.emplace("mnbs", Dataset_t("mnbs0b1s51r0003",   99995000,  99995000, 1.0                          ,            "dig.mu2e.NoPrimaryMix1BB.Run1Ban_best_v1_4-000.art"));
     datasets.emplace  ("cele", Dataset_t("cele0b1s51r0003", 1999000000,   1326786, rate_ce *muons_per_pot       ,            "dig.mu2e.CeEndpointMix1BB.Run1Ban_best_v1_4-000.art"));
     datasets.emplace  ("fgam", Dataset_t("fgam0b1s51r0003", 1999000000,   1039674, rate_rmc*muons_per_pot       , 50., 110., "dig.mu2e.FlatGammaMix1BB.Run1Ban_best_v1_4-000.art"));
-    datasets.emplace  ("csms", Dataset_t("csms0b1s51r0003",    18428.5,   2351533, 1.0                          ,            "dig.mu2e.CosmicCRYAllMix1BB.Run1Ban_best_v1_4-000.art"));
+    datasets.emplace  ("csms", Dataset_t("csms0b1s51r0003",   csm_time,   2351533, 1.0                          ,            "dig.mu2e.CosmicCRYAllMix1BB.Run1Ban_best_v1_4-000.art"));
     datasets.emplace  ("dio0", Dataset_t("dio00b1s51r0003",         1.,        1., 1.0                          ,            "dig.mu2e.DIOMix1BB.Run1Ban_best_v1_4-000.art"));
     datasets.emplace  ("fele", Dataset_t("fele0b1s51r0003", 1998000000,    704053, rate_dio*muons_per_pot       , 50., 110., "dig.mu2e.FlateMinusMix1BB.Run1Ban_best_v1_4-000.art"));
     datasets.emplace  ("pgam", Dataset_t("pgamcb1s51r0003",  100000000,   5249814, rate_pgamc*poly_muons_per_pot, 50., 110., "dig.mu2e.PolyFlatGammaCaloMix1BB.Run1Baq_best_v1_5.art"));

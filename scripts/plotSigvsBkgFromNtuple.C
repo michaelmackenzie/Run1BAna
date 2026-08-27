@@ -594,7 +594,7 @@ void plot(const char* name, const int set, const bool normalize,
   const double max_bkg = h_bkg->GetMaximum();
   const double max_val = std::max(max_sig, max_bkg);
   const double min_max = (max_sig <= 0.) ? max_bkg : (max_bkg <= 0.) ? max_sig : std::min(max_sig, max_bkg);
-  h_sig->GetYaxis()->SetRangeUser(0., (1. + 0.1*nrows)*max_val);
+  h_sig->GetYaxis()->SetRangeUser(0., (1. + 0.11*nrows)*max_val);
 
   if(min_max < 0.) {
     cout << "!!! " << name << "/" << set << ": Max(sig) = " << max_sig
@@ -669,7 +669,6 @@ void plot(const char* name, const int set, const bool normalize,
   h_sig->GetYaxis()->SetLabelFont(132);
   h_sig->GetYaxis()->SetTitleFont(132);
 
-  // re-draw axes
   c.SaveAs((fig_name + ".png").Data());
 
   double ymin = std::max(((normalize) ? 1.e-5 : min_max*1.e-3), 1.e-6);
