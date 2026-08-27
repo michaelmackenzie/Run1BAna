@@ -50,9 +50,9 @@ physics : {
       strawDigiMCCollection   : "compressRecoMCs"
       CaloHitCollection       : "CaloHitMaker"
       ComboHitCollection      : "makePH"
-      LineCollection          : "ProtonKKLine"
-      cosmicSeedCollection    : "ProtonLineFinder"
-      timeClusterCollection   : "ProtonCalTimeClusterFinder"
+      LineCollections         : ["KKLine", "ProtonKKLine", "CosmicKKLine"]
+      cosmicSeedCollections   : ["LineFinder", "ProtonLineFinder", "CosmicLineFinder"]
+      timeClusterCollections  : ["CalTimeClusterFinder", "ProtonCalTimeClusterFinder", "TZClusterFinder"]
       caloClusterCollection   : "CaloClusterMaker"
       caloClusterMCCollection : "compressRecoMCs"
       caloShowerSimCollection : "compressRecoMCs"

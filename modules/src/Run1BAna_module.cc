@@ -4,6 +4,7 @@
 //
 // framework
 #include "fhiclcpp/types/Atom.h"
+#include "fhiclcpp/types/Sequence.h"
 #include "art/Framework/Core/EDAnalyzer.h"
 #include "art/Framework/Principal/Event.h"
 #include "art/Framework/Principal/Handle.h"
@@ -80,6 +81,10 @@ using SimHist_t = Run1BAnaStructs::SimHist_t;
 using Tree_t = Run1BAnaStructs::Tree_t;
 // using ChargedTrackHist_t = Run1BAnaStructs::ChargedTrackHist_t;
 
+using MatchedLine_t = Run1BAnaStructs::MatchedLine_t;
+using MatchedCosmicSeed_t = Run1BAnaStructs::MatchedCosmicSeed_t;
+using MatchedTimeCluster_t = Run1BAnaStructs::MatchedTimeCluster_t;
+
 using EventPar_t = Run1BAnaStructs::EventPar_t;
 using ClusterPar_t = Run1BAnaStructs::ClusterPar_t;
 using LinePar_t = Run1BAnaStructs::LinePar_t;
@@ -111,9 +116,9 @@ namespace mu2e
       fhicl::Atom<art::InputTag>      caloClusterCol   { Name("caloClusterCollection")  , Comment("caloClusterCollection")               };
       fhicl::Atom<art::InputTag>      caloClusterMCCol { Name("caloClusterMCCollection"), Comment("caloClusterMCCollection")             };
       fhicl::Atom<art::InputTag>      caloShowerSimCol { Name("caloShowerSimCollection"), Comment("CaloShowerSimCollection")             };
-      fhicl::Atom<art::InputTag>      lineCol          { Name("LineCollection")         , Comment("Kinematic line collection")           };
-      fhicl::Atom<art::InputTag>      cosmicSeedCol    { Name("cosmicSeedCollection")   , Comment("Cosmic seed collection")              };
-      fhicl::Atom<art::InputTag>      timeClusterCol   { Name("timeClusterCollection")  , Comment("Time cluster collection")             };
+      fhicl::Sequence<art::InputTag>   lineCols         { Name("LineCollections")         , Comment("Kinematic line collections")          };
+      fhicl::Sequence<art::InputTag>   cosmicSeedCols   { Name("cosmicSeedCollections")  , Comment("Cosmic seed collections")             };
+      fhicl::Sequence<art::InputTag>   timeClusterCols  { Name("timeClusterCollections") , Comment("Time cluster collections")            };
       fhicl::Atom<art::InputTag>      crvClusterCol    { Name("crvClusterCollection")   , Comment("CRV cluster collection")              };
       fhicl::Atom<std::string>        trigProcess      { Name("triggerProcess")         , Comment("Process name for the trigger results")};
       fhicl::Atom<art::InputTag>      pbi              { Name("PBI")                    , Comment("ProtonBunchIntensity tag")            };
@@ -188,9 +193,9 @@ namespace mu2e
     void initCosmicSeedPar(CosmicSeedPar_t& par, const CosmicTrackSeed* seed);
     void initTimeClusterPar(TimeClusterPar_t& par, const TimeCluster* tc);
     void initCRVClusterPar(CRVClusterPar_t& par, const CrvCoincidenceCluster* crv_cluster);
-    void matchLineToCluster(ClusterPar_t& par, const KalSeedCollection* lines);
-    void matchSeedToCluster(ClusterPar_t& par, const CosmicTrackSeedCollection* seeds);
-    void matchTimeClusterToCluster(ClusterPar_t& par, const TimeClusterCollection* time_clusters);
+    void matchLinesToCluster(ClusterPar_t& par);
+    void matchSeedsToCluster(ClusterPar_t& par);
+    void matchTimeClustersToCluster(ClusterPar_t& par);
     void matchCRVClusterToCluster(ClusterPar_t& par, const CrvCoincidenceClusterCollection* crv_clusters);
     float getTotalEnergyDepositedBySim(const CaloClusterMC* mc, const SimParticle* sim);
     float getAverageTimeDepositedBySim(const CaloClusterMC* mc, const SimParticle* sim);
@@ -234,9 +239,9 @@ namespace mu2e
     art::InputTag  calo_cluster_mc_tag_;
     art::InputTag  calo_shower_sim_tag_;
     art::InputTag  clusters_tag_;
-    art::InputTag  line_tag_;
-    art::InputTag  cosmic_seed_tag_;
-    art::InputTag  time_cluster_tag_;
+    std::vector<art::InputTag>  line_tags_;
+    std::vector<art::InputTag>  cosmic_seed_tags_;
+    std::vector<art::InputTag>  time_cluster_tags_;
     art::InputTag  crv_cluster_tag_;
     art::InputTag  trig_tag_;
     art::InputTag  pbi_tag_;
@@ -263,10 +268,10 @@ namespace mu2e
     const CaloClusterMCCollection*         calo_cluster_mc_col_ = nullptr;
     const CaloClusterMCTruthAssn*          calo_cluster_mc_assn_ = nullptr;
     const CaloShowerSimCollection*         calo_shower_sim_col_ = nullptr;
-    const KalSeedCollection*               line_col_ = nullptr;
-    const CosmicTrackSeedCollection*       cosmic_seed_col_ = nullptr;
-    const KalLineAssns*                    line_seed_assn_ = nullptr;
-    const TimeClusterCollection*           time_cluster_col_ = nullptr;
+    std::vector<const KalSeedCollection*>          line_cols_;
+    std::vector<const CosmicTrackSeedCollection*>  cosmic_seed_cols_;
+    std::vector<const KalLineAssns*>               line_seed_assns_;
+    std::vector<const TimeClusterCollection*>      time_cluster_cols_;
     const CrvCoincidenceClusterCollection* crv_cluster_col_ = nullptr;
     const TriggerResultsNavigator*         trig_nav_ = nullptr;
     const art::Event*                      event_ = nullptr;
@@ -297,9 +302,9 @@ namespace mu2e
     , calo_cluster_mc_tag_(config().caloClusterMCCol())
     , calo_shower_sim_tag_(config().caloShowerSimCol())
     , clusters_tag_       (config().caloClusterCol())
-    , line_tag_           (config().lineCol())
-    , cosmic_seed_tag_    (config().cosmicSeedCol())
-    , time_cluster_tag_   (config().timeClusterCol())
+    , line_tags_           (config().lineCols())
+    , cosmic_seed_tags_   (config().cosmicSeedCols())
+    , time_cluster_tags_  (config().timeClusterCols())
     , crv_cluster_tag_    (config().crvClusterCol())
     , trig_tag_           ("TriggerResults::" + config().trigProcess())
     , pbi_tag_            (config().pbi())
@@ -677,20 +682,24 @@ namespace mu2e
     hist_[index]->tree->Branch("ntcl_hits"               , &tree_.ntcl_hits);
     hist_[index]->tree->Branch("photon_id"               , &tree_.photon_id);
 
-    // Line info
+    // Line info (vectors: one entry per matched line)
+    hist_[index]->tree->Branch("line_col_idx"           , &tree_.line_col_idx);
     hist_[index]->tree->Branch("line_chi2"              , &tree_.line_chi2);
     hist_[index]->tree->Branch("line_nhits"             , &tree_.line_nhits);
     hist_[index]->tree->Branch("line_nplanes"           , &tree_.line_nplanes);
     hist_[index]->tree->Branch("line_nstereo"           , &tree_.line_nstereo);
     hist_[index]->tree->Branch("line_d0"                , &tree_.line_d0);
     hist_[index]->tree->Branch("line_tdip"              , &tree_.line_tdip);
-    hist_[index]->tree->Branch("line_cos"              , &tree_.line_cos);
-    hist_[index]->tree->Branch("line_z0"               , &tree_.line_z0);
-    hist_[index]->tree->Branch("line_t0"               , &tree_.line_t0);
-    hist_[index]->tree->Branch("line_phi0"             , &tree_.line_phi0);
+    hist_[index]->tree->Branch("line_cos"               , &tree_.line_cos);
+    hist_[index]->tree->Branch("line_z0"                , &tree_.line_z0);
+    hist_[index]->tree->Branch("line_t0"                , &tree_.line_t0);
+    hist_[index]->tree->Branch("line_phi0"              , &tree_.line_phi0);
+    hist_[index]->tree->Branch("line_cl_dt"             , &tree_.line_cl_dt);
+    hist_[index]->tree->Branch("line_cl_dr"             , &tree_.line_cl_dr);
 
-    // Cosmic seed info
-    hist_[index]->tree->Branch("cosmic_seed_chi2"      , &tree_.cosmic_seed_chi2);
+    // Cosmic seed info (vectors: one entry per matched cosmic seed)
+    hist_[index]->tree->Branch("cosmic_seed_col_idx"     , &tree_.cosmic_seed_col_idx);
+    hist_[index]->tree->Branch("cosmic_seed_chi2"        , &tree_.cosmic_seed_chi2);
     hist_[index]->tree->Branch("cosmic_seed_nhits"       , &tree_.cosmic_seed_nhits);
     hist_[index]->tree->Branch("cosmic_seed_d0"          , &tree_.cosmic_seed_d0);
     hist_[index]->tree->Branch("cosmic_seed_tdip"        , &tree_.cosmic_seed_tdip);
@@ -702,8 +711,11 @@ namespace mu2e
     hist_[index]->tree->Branch("cosmic_seed_B0"          , &tree_.cosmic_seed_B0);
     hist_[index]->tree->Branch("cosmic_seed_A1"          , &tree_.cosmic_seed_A1);
     hist_[index]->tree->Branch("cosmic_seed_B1"          , &tree_.cosmic_seed_B1);
+    hist_[index]->tree->Branch("cosmic_seed_cl_dt"       , &tree_.cosmic_seed_cl_dt);
+    hist_[index]->tree->Branch("cosmic_seed_cl_dr"       , &tree_.cosmic_seed_cl_dr);
 
-    // Time cluster info
+    // Time cluster info (vectors: one entry per matched time cluster)
+    hist_[index]->tree->Branch("time_cluster_col_idx"      , &tree_.time_cluster_col_idx);
     hist_[index]->tree->Branch("time_cluster_nhits"        , &tree_.time_cluster_nhits);
     hist_[index]->tree->Branch("time_cluster_nstraw_hits"  , &tree_.time_cluster_nstraw_hits);
     hist_[index]->tree->Branch("time_cluster_nhigh_z_hits" , &tree_.time_cluster_nhigh_z_hits);
@@ -711,6 +723,8 @@ namespace mu2e
     hist_[index]->tree->Branch("time_cluster_t0err"        , &tree_.time_cluster_t0err);
     hist_[index]->tree->Branch("time_cluster_z0"           , &tree_.time_cluster_z0);
     hist_[index]->tree->Branch("time_cluster_phi0"         , &tree_.time_cluster_phi0);
+    hist_[index]->tree->Branch("time_cluster_cl_dt"        , &tree_.time_cluster_cl_dt);
+    hist_[index]->tree->Branch("time_cluster_cl_dr"        , &tree_.time_cluster_cl_dr);
 
     // CRV cluster info
     hist_[index]->tree->Branch("crv_cluster_nhits"        , &tree_.crv_cluster_nhits);
@@ -1067,11 +1081,23 @@ namespace mu2e
     Hist->ncalo_hits     ->Fill((calo_hit_col_) ? calo_hit_col_->size() : 0, Weight);
     Hist->nclusters      ->Fill((cluster_col_) ? cluster_col_->size() : 0, Weight);
     Hist->ngood_clusters ->Fill(evt_par_.n_good_clusters, Weight);
-    Hist->nlines         ->Fill((line_col_) ? line_col_->size() : 0, Weight);
+    { // Count total lines across all collections
+      size_t nlines = 0;
+      for(const auto* col : line_cols_) { if(col) nlines += col->size(); }
+      Hist->nlines->Fill(nlines, Weight);
+    }
     Hist->ngood_lines    ->Fill(evt_par_.n_good_lines, Weight);
-    Hist->ncosmic_seeds  ->Fill((cosmic_seed_col_) ? cosmic_seed_col_->size() : 0, Weight);
+    { // Count total cosmic seeds across all collections
+      size_t ncosmic = 0;
+      for(const auto* col : cosmic_seed_cols_) { if(col) ncosmic += col->size(); }
+      Hist->ncosmic_seeds->Fill(ncosmic, Weight);
+    }
     Hist->ngood_cosmic_seeds->Fill(evt_par_.n_good_cosmic_seeds, Weight);
-    Hist->ntime_clusters ->Fill((time_cluster_col_) ? time_cluster_col_->size() : 0, Weight);
+    { // Count total time clusters across all collections
+      size_t ntc = 0;
+      for(const auto* col : time_cluster_cols_) { if(col) ntc += col->size(); }
+      Hist->ntime_clusters->Fill(ntc, Weight);
+    }
     Hist->ngood_time_clusters ->Fill(evt_par_.n_good_time_clusters, Weight);
     Hist->ncrv_clusters    ->Fill((crv_cluster_col_) ? crv_cluster_col_->size() : 0, Weight);
     Hist->ngood_crv_clusters ->Fill(evt_par_.n_good_crv_clusters, Weight);
@@ -1157,89 +1183,147 @@ namespace mu2e
       tree_.cluster_e25 = cluster_par_.e25;
       tree_.cluster_t_var = cluster_par_.t_var;
       tree_.photon_id = cluster_par_.photon_id;
+
+      // Best-match line dt/dr (scalar, for backward compat)
+      if(cluster_par_.line) {
+        const auto best_line_pos = lineAtCluster(Cluster, cluster_par_.line);
+        const auto best_cl_pos = Cluster->cog3Vector();
+        const double bdx = best_line_pos.x() - best_cl_pos.x();
+        const double bdy = best_line_pos.y() - best_cl_pos.y();
+        tree_.line_dt = best_line_pos.t() - Cluster->time();
+        tree_.line_dr = std::sqrt(bdx*bdx + bdy*bdy);
+      }
+
+      // Best-match time cluster dt/dr (scalar, for backward compat)
+      if(cluster_par_.time_cluster) {
+        const auto btc_pos = cluster_par_.time_cluster->position();
+        const auto btc_cl_pos = Cluster->cog3Vector();
+        const double btdx = btc_pos.x() - btc_cl_pos.x();
+        const double btdy = btc_pos.y() - btc_cl_pos.y();
+        tree_.time_cluster_dt = cluster_par_.time_cluster->t0().t0() - Cluster->time();
+        tree_.time_cluster_dr = std::sqrt(btdx*btdx + btdy*btdy);
+      }
     }
 
-    // Line info
-    auto Line = cluster_par_.line;
-    if(Line && Cluster) {
-      const auto line_pos = lineAtCluster(Cluster, Line);
-      const auto cl_pos = Cluster->cog3Vector();
-      const double dx = line_pos.x() - cl_pos.x();
-      const double dy = line_pos.y() - cl_pos.y();
-      tree_.line_dt = line_pos.t() - Cluster->time();
-      tree_.line_dr = std::sqrt(dx*dx + dy*dy);
-      // Also fill line parameters
-      double t0 = -1000.;
-      try {
-        const auto t0seg = Line->t0Segment(t0);
-        if(t0seg != Line->segments().end()) {
-          auto momvec = t0seg->momentum3();
-          auto posvec = t0seg->position3();
-          double theta = momvec.Theta();
-          double phi = momvec.Phi();
-          double td = 1.0 / tan(theta);
+    // Line info: fill vector branches from all matched lines
+    if(Cluster) {
+      for(const auto& ml : cluster_par_.matched_lines) {
+        const KalSeed* Line = ml.line;
+        if(!Line) continue;
 
-          tree_.line_chi2 = Line->chisquared() / Line->nDOF();
-          tree_.line_nhits = Line->nHits(true);
-          // Count planes and stereo panels
-          std::set<unsigned> stcount;
-          std::set<unsigned> pcount;
-          for(const auto& hit : Line->hits()) {
-            if(hit._flag.hasAllProperties(StrawHitFlag::active)) {
-              stcount.insert(hit._sid.stereoPanel());
-              pcount.insert(hit._sid.plane());
+        // Compute line-cluster dt/dr
+        const auto line_pos = lineAtCluster(Cluster, Line);
+        const auto cl_pos = Cluster->cog3Vector();
+        const double dx = line_pos.x() - cl_pos.x();
+        const double dy = line_pos.y() - cl_pos.y();
+        float cl_dt = line_pos.t() - Cluster->time();
+        float cl_dr = std::sqrt(dx*dx + dy*dy);
+
+        // Extract line parameters
+        float chi2 = 0.f, nhits = 0.f, nplanes = 0.f, nstereo = 0.f;
+        float d0 = 0.f, tdip = 0.f, cos_val = 0.f, z0 = 0.f, t0 = -1000.f, phi0 = 0.f;
+        try {
+          double t0_d = -1000.;
+          const auto t0seg = Line->t0Segment(t0_d);
+          if(t0seg != Line->segments().end()) {
+            auto momvec = t0seg->momentum3();
+            auto posvec = t0seg->position3();
+            double theta = momvec.Theta();
+            chi2 = Line->chisquared() / Line->nDOF();
+            nhits = Line->nHits(true);
+            std::set<unsigned> stcount, pcount;
+            for(const auto& hit : Line->hits()) {
+              if(hit._flag.hasAllProperties(StrawHitFlag::active)) {
+                stcount.insert(hit._sid.stereoPanel());
+                pcount.insert(hit._sid.plane());
+              }
+            }
+            nplanes = pcount.size();
+            nstereo = stcount.size();
+            auto kltraj = t0seg->kinematicLine();
+            d0 = kltraj.d0();
+            tdip = 1.0 / tan(theta);
+            cos_val = std::cos(theta);
+            z0 = posvec.Z();
+            t0 = t0_d;
+            phi0 = momvec.Phi();
+          }
+        } catch(...) {}
+
+        tree_.line_col_idx.push_back(ml.col_idx);
+        tree_.line_chi2.push_back(chi2);
+        tree_.line_nhits.push_back(nhits);
+        tree_.line_nplanes.push_back(nplanes);
+        tree_.line_nstereo.push_back(nstereo);
+        tree_.line_d0.push_back(d0);
+        tree_.line_tdip.push_back(tdip);
+        tree_.line_cos.push_back(cos_val);
+        tree_.line_z0.push_back(z0);
+        tree_.line_t0.push_back(t0);
+        tree_.line_phi0.push_back(phi0);
+        tree_.line_cl_dt.push_back(cl_dt);
+        tree_.line_cl_dr.push_back(cl_dr);
+      }
+    }
+
+    // Cosmic seed info: fill vector branches from all matched cosmic seeds
+    for(const auto& mcs : cluster_par_.matched_cosmic_seeds) {
+      const CosmicTrackSeed* seed = mcs.seed;
+      if(!seed) continue;
+      const auto& Track = seed->track();
+      tree_.cosmic_seed_col_idx.push_back(mcs.col_idx);
+      tree_.cosmic_seed_chi2.push_back(0.f); // Track.chisq() not available
+      tree_.cosmic_seed_nhits.push_back(seed->hits().size());
+      tree_.cosmic_seed_d0.push_back(Track.d0());
+      tree_.cosmic_seed_tdip.push_back(0.f); // not directly available
+      tree_.cosmic_seed_cos.push_back(Track.cost());
+      tree_.cosmic_seed_z0.push_back(Track.z0());
+      tree_.cosmic_seed_t0.push_back(seed->t0().t0());
+      tree_.cosmic_seed_phi0.push_back(Track.phi0());
+      tree_.cosmic_seed_A0.push_back(Track.FitParams.A0);
+      tree_.cosmic_seed_B0.push_back(Track.FitParams.B0);
+      tree_.cosmic_seed_A1.push_back(Track.FitParams.A1);
+      tree_.cosmic_seed_B1.push_back(Track.FitParams.B1);
+      tree_.cosmic_seed_cl_dt.push_back(mcs.dt);
+      tree_.cosmic_seed_cl_dr.push_back(mcs.dr);
+    }
+
+    // Time cluster info: fill vector branches from all matched time clusters
+    if(Cluster) {
+      for(const auto& mtc : cluster_par_.matched_time_clusters) {
+        const TimeCluster* TC = mtc.tc;
+        if(!TC) continue;
+        const auto tc_pos = TC->position();
+        const auto cl_pos = Cluster->cog3Vector();
+        const double dx = tc_pos.x() - cl_pos.x();
+        const double dy = tc_pos.y() - cl_pos.y();
+        float cl_dt = TC->t0().t0() - Cluster->time();
+        float cl_dr = std::sqrt(dx*dx + dy*dy);
+
+        // Count high-z hits for this time cluster
+        int n_hits_high_z = 0;
+        if(!from_reco_ && combo_hit_col_) {
+          for(const auto& hit_index : TC->hits()) {
+            if(hit_index < combo_hit_col_->size()) {
+              if(combo_hit_col_->at(hit_index).pos().z() > 1300.) ++n_hits_high_z;
             }
           }
-          tree_.line_nplanes = pcount.size();
-          tree_.line_nstereo = stcount.size();
-          auto kltraj = t0seg->kinematicLine();
-          tree_.line_d0 = kltraj.d0();
-          tree_.line_tdip = td;
-          tree_.line_cos = std::cos(theta);
-          tree_.line_z0 = posvec.Z();
-          tree_.line_t0 = t0;
-          tree_.line_phi0 = phi;
         }
-      } catch(...) {}
-    }
 
-    // Cosmic seed info
-    if(cosmic_seed_par_.seed) {
-      const auto& Track = cosmic_seed_par_.seed->track();
-      // tree_.cosmic_seed_chi2 = Track.chisq();
-      tree_.cosmic_seed_nhits = cosmic_seed_par_.seed->hits().size();
-      tree_.cosmic_seed_d0 = Track.d0();
-      // tree_.cosmic_seed_tdip = 1.0 / tan(Track.theta());
-      tree_.cosmic_seed_cos = Track.cost();
-      tree_.cosmic_seed_z0 = Track.z0();
-      tree_.cosmic_seed_t0 = cosmic_seed_par_.seed->t0().t0();
-      tree_.cosmic_seed_phi0 = Track.phi0();
-      tree_.cosmic_seed_A0 = Track.FitParams.A0;
-      tree_.cosmic_seed_B0 = Track.FitParams.B0;
-      tree_.cosmic_seed_A1 = Track.FitParams.A1;
-      tree_.cosmic_seed_B1 = Track.FitParams.B1;
+        tree_.time_cluster_col_idx.push_back(mtc.col_idx);
+        tree_.time_cluster_nhits.push_back(TC->nhits());
+        tree_.time_cluster_nstraw_hits.push_back(TC->nStrawHits());
+        tree_.time_cluster_nhigh_z_hits.push_back(n_hits_high_z);
+        tree_.time_cluster_t0.push_back(TC->t0().t0());
+        tree_.time_cluster_t0err.push_back(TC->t0().t0Err());
+        tree_.time_cluster_z0.push_back(TC->position().z());
+        tree_.time_cluster_phi0.push_back(TC->position().phi());
+        tree_.time_cluster_cl_dt.push_back(cl_dt);
+        tree_.time_cluster_cl_dr.push_back(cl_dr);
+      }
     }
-
-    // Time cluster info
-    auto TimeCluster = cluster_par_.time_cluster;
-    if(TimeCluster && Cluster) {
-      const auto tc_pos = TimeCluster->position();
-      const auto cl_pos = Cluster->cog3Vector();
-      const double dx = tc_pos.x() - cl_pos.x();
-      const double dy = tc_pos.y() - cl_pos.y();
-      tree_.time_cluster_dt = TimeCluster->t0().t0() - Cluster->time();
-      tree_.time_cluster_dr = std::sqrt(dx*dx + dy*dy);
-
-      // also fill time cluster parameters
-      tree_.time_cluster_t0 = TimeCluster->t0().t0();
-      tree_.time_cluster_t0err = TimeCluster->t0().t0Err();
-      tree_.time_cluster_z0 = TimeCluster->position().z();
-      tree_.time_cluster_phi0 = TimeCluster->position().phi();
-      tree_.time_cluster_nhits = TimeCluster->nhits();
-      tree_.time_cluster_nstraw_hits = TimeCluster->nStrawHits();
-      tree_.time_cluster_nhigh_z_hits = time_cluster_par_.n_hits_high_z;
-    }
-    tree_.ntcl_hits = (TimeCluster) ? TimeCluster->hits().size() : 0;
+    tree_.ntcl_hits = (!cluster_par_.matched_time_clusters.empty() && cluster_par_.time_cluster)
+                      ? cluster_par_.time_cluster->hits().size() : 0;
 
     // CRV cluster info
     auto CRVCluster = cluster_par_.crv_cluster;
@@ -1409,9 +1493,9 @@ namespace mu2e
     if(!cluster) return;
 
     watch_->SetTime("initClusterPar-matching");
-    matchLineToCluster(par, line_col_);
-    matchSeedToCluster(par, cosmic_seed_col_);
-    matchTimeClusterToCluster(par, time_cluster_col_);
+    matchLinesToCluster(par);
+    matchSeedsToCluster(par);
+    matchTimeClustersToCluster(par);
     matchCRVClusterToCluster(par, crv_cluster_col_);
     watch_->StopTime("initClusterPar-matching");
 
@@ -1583,14 +1667,15 @@ namespace mu2e
     par.init(line);
     if(!line) return;
 
-    if(line_seed_assn_) {
-      for(const auto& ent : *line_seed_assn_) {
+    for(const auto* assn : line_seed_assns_) {
+      if(!assn) continue;
+      for(const auto& ent : *assn) {
         const art::Ptr<KalSeed>& linePtr = ent.first;
         const art::Ptr<CosmicTrackSeed>& seedPtr = ent.second;
         if(linePtr.isNonnull() && seedPtr.isNonnull()) {
           if(&(*line) == &(*linePtr)) {
             par.cosmic_seed = &(*seedPtr);
-            break;
+            return; // found match, done
           }
         }
       }
@@ -1673,140 +1758,150 @@ namespace mu2e
   }
 
   //--------------------------------------------------------------------------------------
-  void Run1BAna::matchLineToCluster(ClusterPar_t& par, const KalSeedCollection* lines) {
+  void Run1BAna::matchLinesToCluster(ClusterPar_t& par) {
     if(!par.cluster) return;
     par.line = nullptr;
-    if(!lines) return;
+    par.matched_lines.clear();
     const auto cluster = par.cluster;
 
     constexpr double max_dt = 100.; // ns
     constexpr double max_dr = 100.; // mm
-    float dt_curr(1.e10), dr_curr(1.e10);
-    for(const auto& line : *lines) {
-      if(line.hasCaloCluster() && &(*line.caloCluster()) == &(*cluster)) ++par.nfit_matched_lines; // the fit connected the cluster and line
-      if(!isGoodLine(&line)) continue;
+    float dt_best(1.e10);
 
-      // check for its agreement with the cluster
-      // evaluate the line distance at the calorimeter
-      const auto line_pos_t = lineAtCluster(cluster, &line);
-      const auto line_pos = line_pos_t.vect();
-      const auto line_t = line_pos_t.t();
-      const auto cl_pos = cluster->cog3Vector();
-      const double dx = line_pos.x() - cl_pos.x();
-      const double dy = line_pos.y() - cl_pos.y();
-      const double dr = std::sqrt(dx*dx + dy*dy);
-      const float dt = std::abs(cluster->time() - line_t);
+    for(int col_idx = 0; col_idx < static_cast<int>(line_cols_.size()); ++col_idx) {
+      const auto* lines = line_cols_[col_idx];
+      if(!lines) continue;
 
-      if(dr > max_dr || dt > max_dt) {
-        if(debug_level_ > 0 &&
-           (dr < max_dr || dt < max_dt) &&
-           cluster->energyDep() > 70.) {
-          std::cout << "[Run1BAna::" << __func__ << "] " << event_->id()
-                    << ": Line matched in one of space / time:" << std::endl
-                    << "  dt = " << dt << " dr = " << dr << std::endl;
+      for(const auto& line : *lines) {
+        if(line.hasCaloCluster() && &(*line.caloCluster()) == &(*cluster)) ++par.nfit_matched_lines;
+        if(!isGoodLine(&line)) continue;
+
+        const auto line_pos_t = lineAtCluster(cluster, &line);
+        const auto line_pos = line_pos_t.vect();
+        const auto line_t = line_pos_t.t();
+        const auto cl_pos = cluster->cog3Vector();
+        const double dx = line_pos.x() - cl_pos.x();
+        const double dy = line_pos.y() - cl_pos.y();
+        const double dr = std::sqrt(dx*dx + dy*dy);
+        const float dt = std::abs(cluster->time() - line_t);
+
+        if(dr > max_dr || dt > max_dt) {
+          if(debug_level_ > 0 &&
+             (dr < max_dr || dt < max_dt) &&
+             cluster->energyDep() > 70.) {
+            std::cout << "[Run1BAna::" << __func__ << "] " << event_->id()
+                      << ": Line [" << col_idx << "] matched in one of space / time:" << std::endl
+                      << "  dt = " << dt << " dr = " << dr << std::endl;
+          }
+          continue;
         }
-        continue;
-      }
-      ++par.nmatched_lines; // a line was matched to the cluster
-      if(dt < dt_curr) {
-        par.line = &line;
-        dt_curr = dt;
-        dr_curr = dr;
+        ++par.nmatched_lines;
+        par.matched_lines.push_back({&line, col_idx, dt, static_cast<float>(dr)});
+        if(dt < dt_best) {
+          par.line = &line;
+          dt_best = dt;
+        }
       }
     }
     if(par.line && debug_level_ > 2) std::cout << "[Run1BAna::" << __func__ << "] "
-                                               << " Matched line with dr = " << dr_curr << " and dt = " << dt_curr
+                                               << " Best matched line with dt = " << dt_best
+                                               << ", total matched = " << par.matched_lines.size()
                                                << std::endl;
-    if(par.line && par.nmatched_lines <= 0) std::cout << "[Run1BAna::" << __func__ << "] "
-                                                      << " Matched line but N(matched lines) <= 0 = " << par.nmatched_lines
-                                                      << std::endl;
   }
 
   //--------------------------------------------------------------------------------------
-  void Run1BAna::matchSeedToCluster(ClusterPar_t& par, const CosmicTrackSeedCollection* seeds) {
+  void Run1BAna::matchSeedsToCluster(ClusterPar_t& par) {
     if(!par.cluster) return;
     par.cosmic_seed = nullptr;
-    if(!seeds) return;
+    par.matched_cosmic_seeds.clear();
     const auto cluster = par.cluster;
 
     CLHEP::Hep3Vector cl_pos(cluster->cog3Vector());
 
     constexpr double max_dt = 100.; // ns
     constexpr double max_dr = 500.; // mm
-    float dt_curr(1.e10), dr_curr(1.e10);
-    for(const auto& seed : *seeds) {
-      if(seed.hasCaloCluster() && &(*seed.caloCluster()) == &(*cluster)) ++par.nfit_matched_cosmic_seeds; // the fit connected the cluster and seed
-      if(!isGoodCosmicSeed(&seed)) continue;
+    float dt_best(1.e10);
 
-      const auto seed_pos_t = lineSeedAtCluster(cluster, &seed);
-      const auto seed_pos = seed_pos_t.vect();
-      const auto seed_t = seed_pos_t.t();
-      const double dx = seed_pos.x() - cl_pos.x();
-      const double dy = seed_pos.y() - cl_pos.y();
-      const double dr = std::sqrt(dx*dx + dy*dy);
-      if(dr > max_dr) {
-        continue;
-      }
+    for(int col_idx = 0; col_idx < static_cast<int>(cosmic_seed_cols_.size()); ++col_idx) {
+      const auto* seeds = cosmic_seed_cols_[col_idx];
+      if(!seeds) continue;
 
-      // check for its agreement with the cluster
-      const double dt = std::abs(cluster->time() - seed_t);
-      if(dt > max_dt) {
-        continue;
-      }
-      ++par.nmatched_cosmic_seeds; // a cosmic seed was matched to the cluster
-      if(dt < dt_curr) {
-        par.cosmic_seed = &seed;
-        dt_curr = dt;
-        dr_curr = dr;
+      for(const auto& seed : *seeds) {
+        if(seed.hasCaloCluster() && &(*seed.caloCluster()) == &(*cluster)) ++par.nfit_matched_cosmic_seeds;
+        if(!isGoodCosmicSeed(&seed)) continue;
+
+        const auto seed_pos_t = lineSeedAtCluster(cluster, &seed);
+        const auto seed_pos = seed_pos_t.vect();
+        const auto seed_t = seed_pos_t.t();
+        const double dx = seed_pos.x() - cl_pos.x();
+        const double dy = seed_pos.y() - cl_pos.y();
+        const double dr = std::sqrt(dx*dx + dy*dy);
+        if(dr > max_dr) continue;
+
+        const double dt = std::abs(cluster->time() - seed_t);
+        if(dt > max_dt) continue;
+
+        ++par.nmatched_cosmic_seeds;
+        par.matched_cosmic_seeds.push_back({&seed, col_idx, static_cast<float>(dt), static_cast<float>(dr)});
+        if(dt < dt_best) {
+          par.cosmic_seed = &seed;
+          dt_best = dt;
+        }
       }
     }
     if(par.cosmic_seed && debug_level_ > 2) std::cout << "[Run1BAna::" << __func__ << "] "
-                                                      << " Matched cosmic seed with dt = " << dt_curr
-                                                      << " and dr = " << dr_curr
+                                                      << " Best matched cosmic seed with dt = " << dt_best
+                                                      << ", total matched = " << par.matched_cosmic_seeds.size()
                                                       << std::endl;
   }
   //--------------------------------------------------------------------------------------
-  void Run1BAna::matchTimeClusterToCluster(ClusterPar_t& par, const TimeClusterCollection* time_clusters) {
+  void Run1BAna::matchTimeClustersToCluster(ClusterPar_t& par) {
     if(!par.cluster) return;
     par.time_cluster = nullptr;
-    if(!time_clusters) return;
+    par.matched_time_clusters.clear();
     const auto cluster = par.cluster;
 
     constexpr double max_dt = 100.; // ns
     constexpr double max_dr = 1000.; // mm
-    float dt_curr(1.e10), dr_curr(1.e10);
-    for(const auto& time_cluster : *time_clusters) {
-      if(time_cluster.hasCaloCluster() && &(*time_cluster.caloCluster()) == &(*cluster)) ++par.nfit_matched_time_clusters; // the fit connected the cluster and time_cluster
-      if(debug_level_ > 2) std::cout << "[Run1BAna::" << __func__ << "] "
-                                     << " Checking time cluster with t0 = " << time_cluster.t0().t0() << " ns and position = " << time_cluster.position()
-                                     << " N(fit matched clusters) = " << par.nfit_matched_time_clusters
-                                     << std::endl;
-      if(!isGoodTimeCluster(&time_cluster)) continue;
+    float dt_best(1.e10);
 
-      // check for its agreement with the cluster
-      const auto tc_pos = time_cluster.position();
-      const auto tc_t = time_cluster.t0().t0();
-      const auto cl_pos = cluster->cog3Vector();
-      const double dx = tc_pos.x() - cl_pos.x();
-      const double dy = tc_pos.y() - cl_pos.y();
-      const double dr = std::sqrt(dx*dx + dy*dy);
-      const float dt = std::abs(cluster->time() - tc_t);
+    for(int col_idx = 0; col_idx < static_cast<int>(time_cluster_cols_.size()); ++col_idx) {
+      const auto* time_clusters = time_cluster_cols_[col_idx];
+      if(!time_clusters) continue;
 
-      if(dr > max_dr || dt > max_dt) {
-        continue;
-      }
-      ++par.nmatched_time_clusters; // a time cluster was matched to the cluster
-      if(dt < dt_curr) {
+      for(const auto& time_cluster : *time_clusters) {
+        if(time_cluster.hasCaloCluster() && &(*time_cluster.caloCluster()) == &(*cluster)) ++par.nfit_matched_time_clusters;
         if(debug_level_ > 2) std::cout << "[Run1BAna::" << __func__ << "] "
-                                       << " Found better time cluster match with dr = " << dr << " and dt = " << dt
+                                       << " Checking time cluster [" << col_idx << "] with t0 = " << time_cluster.t0().t0()
+                                       << " ns and position = " << time_cluster.position()
+                                       << " N(fit matched clusters) = " << par.nfit_matched_time_clusters
                                        << std::endl;
-        par.time_cluster = &time_cluster;
-        dt_curr = dt;
-        dr_curr = dr;
+        if(!isGoodTimeCluster(&time_cluster)) continue;
+
+        const auto tc_pos = time_cluster.position();
+        const auto tc_t = time_cluster.t0().t0();
+        const auto cl_pos = cluster->cog3Vector();
+        const double dx = tc_pos.x() - cl_pos.x();
+        const double dy = tc_pos.y() - cl_pos.y();
+        const double dr = std::sqrt(dx*dx + dy*dy);
+        const float dt = std::abs(cluster->time() - tc_t);
+
+        if(dr > max_dr || dt > max_dt) continue;
+
+        ++par.nmatched_time_clusters;
+        par.matched_time_clusters.push_back({&time_cluster, col_idx, dt, static_cast<float>(dr)});
+        if(dt < dt_best) {
+          if(debug_level_ > 2) std::cout << "[Run1BAna::" << __func__ << "] "
+                                         << " Found better time cluster match [" << col_idx << "] with dr = " << dr << " and dt = " << dt
+                                         << std::endl;
+          par.time_cluster = &time_cluster;
+          dt_best = dt;
+        }
       }
     }
     if(par.time_cluster && debug_level_ > 2) std::cout << "[Run1BAna::" << __func__ << "] "
-                                                       << " Matched time cluster with dr = " << dr_curr << " and dt = " << dt_curr
+                                                       << " Best matched time cluster with dt = " << dt_best
+                                                       << ", total matched = " << par.matched_time_clusters.size()
                                                        << std::endl;
   }
 
@@ -1996,10 +2091,6 @@ namespace mu2e
     art::Handle<CaloClusterMCCollection> calo_cluster_mcH    ; event.getByLabel(calo_cluster_mc_tag_, calo_cluster_mcH);
     art::Handle<CaloClusterMCTruthAssn> calo_cluster_mcassnH ; event.getByLabel(calo_cluster_mc_tag_, calo_cluster_mcassnH);
     art::Handle<CaloShowerSimCollection> calo_shower_simH    ; event.getByLabel(calo_shower_sim_tag_, calo_shower_simH);
-    art::Handle<KalSeedCollection>     lineH                 ; event.getByLabel(line_tag_           , lineH);
-    art::Handle<CosmicTrackSeedCollection> cosmic_seedH      ; event.getByLabel(cosmic_seed_tag_    , cosmic_seedH);
-    art::Handle<KalLineAssns>              line_seed_assnH   ; event.getByLabel(line_tag_           , line_seed_assnH);
-    art::Handle<TimeClusterCollection> time_clusterH         ; event.getByLabel(time_cluster_tag_   , time_clusterH);
     art::Handle<CrvCoincidenceClusterCollection> crv_clusterH; event.getByLabel(crv_cluster_tag_    , crv_clusterH);
     art::Handle<ProtonBunchIntensity>  pbiH                  ; event.getByLabel(pbi_tag_            , pbiH);
 
@@ -2011,36 +2102,74 @@ namespace mu2e
     calo_cluster_mc_col_  = (calo_cluster_mcH    .isValid()) ? calo_cluster_mcH.product()     : nullptr;
     calo_cluster_mc_assn_ = (calo_cluster_mcassnH.isValid()) ? calo_cluster_mcassnH.product() : nullptr;
     calo_shower_sim_col_  = (calo_shower_simH    .isValid()) ? calo_shower_simH.product()     : nullptr;
-    line_col_             = (lineH               .isValid()) ? lineH.product()                : nullptr;
-    cosmic_seed_col_      = (cosmic_seedH        .isValid()) ? cosmic_seedH.product()         : nullptr;
-    line_seed_assn_       = (line_seed_assnH     .isValid()) ? line_seed_assnH.product()      : nullptr;
-    time_cluster_col_     = (time_clusterH       .isValid()) ? time_clusterH.product()        : nullptr;
     crv_cluster_col_      = (crv_clusterH        .isValid()) ? crv_clusterH.product()         : nullptr;
     cluster_col_          = clusterH.product();
     trig_nav_             = &trigNav;
+
+    // Retrieve all line collections
+    line_cols_.clear();
+    line_seed_assns_.clear();
+    for(const auto& tag : line_tags_) {
+      art::Handle<KalSeedCollection> h;
+      event.getByLabel(tag, h);
+      line_cols_.push_back(h.isValid() ? h.product() : nullptr);
+      art::Handle<KalLineAssns> ah;
+      event.getByLabel(tag, ah);
+      line_seed_assns_.push_back(ah.isValid() ? ah.product() : nullptr);
+    }
+
+    // Retrieve all cosmic seed collections
+    cosmic_seed_cols_.clear();
+    for(const auto& tag : cosmic_seed_tags_) {
+      art::Handle<CosmicTrackSeedCollection> h;
+      event.getByLabel(tag, h);
+      cosmic_seed_cols_.push_back(h.isValid() ? h.product() : nullptr);
+    }
+
+    // Retrieve all time cluster collections
+    time_cluster_cols_.clear();
+    for(const auto& tag : time_cluster_tags_) {
+      art::Handle<TimeClusterCollection> h;
+      event.getByLabel(tag, h);
+      time_cluster_cols_.push_back(h.isValid() ? h.product() : nullptr);
+    }
     watch_->StopTime("DataRetrieval");
 
-    if(debug_level_ > 1) std::cout << "[Run1BAna::" << __func__ << "::" << moduleDescription().moduleLabel() << "]"
-                                   << " Input from:"
-                                   << "\n  " << clusters_tag_.encode().c_str()   << ": N(clusters) = "   << cluster_col_->size()
-                                   << "\n  " << calo_hits_tag_.encode().c_str()  << ": N(calo hits) = "  << int((calo_hit_col_)   ? calo_hit_col_->size()  : -1) << " is valid = " << calo_hitsH.isValid()
-                                   << "\n  " << combo_hits_tag_.encode().c_str() << ": N(combo hits) = " << int((combo_hit_col_)  ? combo_hit_col_->size() : -1) << " is valid = " << combo_hitsH.isValid()
-                                   << "\n  " << mc_digi_tag_.encode().c_str()    << ": N(MC digis) = "   << int((mc_digi_col_)    ? mc_digi_col_->size()    : -1) << " is valid = " << mc_digiH.isValid()
-                                   << "\n  " << calo_cluster_mc_tag_.encode().c_str() << ": N(calo cluster MC) = " << int((calo_cluster_mc_col_) ? calo_cluster_mc_col_->size() : -1) << " is valid = " << calo_cluster_mcH.isValid()
-                                   << "\n  " << calo_shower_sim_tag_.encode().c_str() << ": N(calo shower sim) = " << int((calo_shower_sim_col_) ? calo_shower_sim_col_->size() : -1) << " is valid = " << calo_shower_simH.isValid()
-                                   << "\n  " << time_cluster_tag_.encode().c_str() << ": N(time clusters) = " << int((time_cluster_col_) ? time_cluster_col_->size() : -1) << " is valid = " << time_clusterH.isValid()
-                                   << "\n  " << line_tag_.encode().c_str()       << ": N(lines) = "      << int((line_col_)       ? line_col_->size()       : -1) << " is valid = " << lineH.isValid()
-                                   << "\n  " << cosmic_seed_tag_.encode().c_str() << ": N(cosmic seeds) = " << int((cosmic_seed_col_) ? cosmic_seed_col_->size() : -1) << " is valid = " << cosmic_seedH.isValid()
-                                   << "\n  " << crv_cluster_tag_.encode().c_str() << ": N(CRV clusters) = " << int((crv_cluster_col_) ? crv_cluster_col_->size() : -1) << " is valid = " << crv_clusterH.isValid()
-                                   << std::endl;
-
-    if(debug_level_ > 2 && time_cluster_col_) {
+    if(debug_level_ > 1) {
       std::cout << "[Run1BAna::" << __func__ << "::" << moduleDescription().moduleLabel() << "]"
-                << " Time clusters:" << std::endl;
-      for(const auto& tc : *time_cluster_col_) {
-        std::cout << "  t0 = " << tc.t0().t0() << " ns, position = " << tc.position() << ", N(hits) = " << tc.nhits() << std::endl;
-        for(const auto& hit_index : tc.hits()) {
-          std::cout << "    hit index = " << hit_index << std::endl;
+                << " Input from:"
+                << "\n  " << clusters_tag_.encode().c_str()   << ": N(clusters) = "   << cluster_col_->size()
+                << "\n  " << calo_hits_tag_.encode().c_str()  << ": N(calo hits) = "  << int((calo_hit_col_)   ? calo_hit_col_->size()  : -1)
+                << "\n  " << combo_hits_tag_.encode().c_str() << ": N(combo hits) = " << int((combo_hit_col_)  ? combo_hit_col_->size() : -1)
+                << "\n  " << mc_digi_tag_.encode().c_str()    << ": N(MC digis) = "   << int((mc_digi_col_)    ? mc_digi_col_->size()    : -1)
+                << "\n  " << calo_cluster_mc_tag_.encode().c_str() << ": N(calo cluster MC) = " << int((calo_cluster_mc_col_) ? calo_cluster_mc_col_->size() : -1)
+                << "\n  " << calo_shower_sim_tag_.encode().c_str() << ": N(calo shower sim) = " << int((calo_shower_sim_col_) ? calo_shower_sim_col_->size() : -1)
+                << "\n  " << crv_cluster_tag_.encode().c_str() << ": N(CRV clusters) = " << int((crv_cluster_col_) ? crv_cluster_col_->size() : -1);
+      for(size_t i = 0; i < line_tags_.size(); ++i) {
+        std::cout << "\n  " << line_tags_[i].encode().c_str() << " [" << i << "]: N(lines) = "
+                  << int((line_cols_[i]) ? line_cols_[i]->size() : -1);
+      }
+      for(size_t i = 0; i < cosmic_seed_tags_.size(); ++i) {
+        std::cout << "\n  " << cosmic_seed_tags_[i].encode().c_str() << " [" << i << "]: N(cosmic seeds) = "
+                  << int((cosmic_seed_cols_[i]) ? cosmic_seed_cols_[i]->size() : -1);
+      }
+      for(size_t i = 0; i < time_cluster_tags_.size(); ++i) {
+        std::cout << "\n  " << time_cluster_tags_[i].encode().c_str() << " [" << i << "]: N(time clusters) = "
+                  << int((time_cluster_cols_[i]) ? time_cluster_cols_[i]->size() : -1);
+      }
+      std::cout << std::endl;
+    }
+
+    if(debug_level_ > 2) {
+      for(size_t i = 0; i < time_cluster_cols_.size(); ++i) {
+        if(!time_cluster_cols_[i]) continue;
+        std::cout << "[Run1BAna::" << __func__ << "::" << moduleDescription().moduleLabel() << "]"
+                  << " Time clusters [" << i << "]:" << std::endl;
+        for(const auto& tc : *time_cluster_cols_[i]) {
+          std::cout << "  t0 = " << tc.t0().t0() << " ns, position = " << tc.position() << ", N(hits) = " << tc.nhits() << std::endl;
+          for(const auto& hit_index : tc.hits()) {
+            std::cout << "    hit index = " << hit_index << std::endl;
+          }
         }
       }
     }
@@ -2139,38 +2268,28 @@ namespace mu2e
 
     }
 
-    // Lines
-    if(line_col_) {
-      for(const auto& line : *(line_col_)) {
-        // line_par_.init(&line);
-        // // initialize the associated cluster if defined
-        // const CaloCluster* cluster = (line.hasCaloCluster()) ? &(*line.caloCluster()) : nullptr;
-        // initClusterPar(cluster_par_, cluster);
-        // cluster_par_.line = &line;
-
-        bool line_id = isGoodLine(&line);
-        if(line_id) ++evt_par_.n_good_lines;
+    // Lines (across all collections)
+    for(const auto* line_col : line_cols_) {
+      if(!line_col) continue;
+      for(const auto& line : *line_col) {
+        if(isGoodLine(&line)) ++evt_par_.n_good_lines;
       }
     }
 
-    // Cosmic track seeds
-    if(cosmic_seed_col_) {
-      for(const auto& seed : *cosmic_seed_col_) {
-        // cosmic_seed_par_.init(&seed);
-        if(isGoodCosmicSeed(&seed)) {
-          ++evt_par_.n_good_cosmic_seeds;
-        }
+    // Cosmic track seeds (across all collections)
+    for(const auto* cosmic_seed_col : cosmic_seed_cols_) {
+      if(!cosmic_seed_col) continue;
+      for(const auto& seed : *cosmic_seed_col) {
+        if(isGoodCosmicSeed(&seed)) ++evt_par_.n_good_cosmic_seeds;
       }
     }
 
-    // Time clusters
-    if(time_cluster_col_) {
-      for(const auto& time_cluster : *time_cluster_col_) {
-        // initTimeClusterPar(time_cluster_par_,&time_cluster);
+    // Time clusters (across all collections)
+    for(const auto* time_cluster_col : time_cluster_cols_) {
+      if(!time_cluster_col) continue;
+      for(const auto& time_cluster : *time_cluster_col) {
         time_cluster_par_.init(&time_cluster);
-        if(isGoodTimeCluster(&time_cluster)) {
-          ++evt_par_.n_good_time_clusters;
-        }
+        if(isGoodTimeCluster(&time_cluster)) ++evt_par_.n_good_time_clusters;
       }
     }
 
@@ -2296,19 +2415,18 @@ namespace mu2e
     }
     watch_->StopTime("Analysis-Clusters");
 
-    // Per-line (KalSeed) histograms
+    // Per-line (KalSeed) histograms (across all collections)
     watch_->SetTime("Analysis-Lines");
-    if(line_col_) {
-      for(const auto& line : *(line_col_)) {
+    for(const auto* line_col : line_cols_) {
+      if(!line_col) continue;
+      for(const auto& line : *line_col) {
         initLinePar(line_par_, &line);
         initCosmicSeedPar(cosmic_seed_par_, line_par_.cosmic_seed);
         initTimeClusterPar(time_cluster_par_, line_par_.time_cluster);
-        // initialize the associated cluster if defined
         const CaloCluster* cluster = (line.hasCaloCluster()) ? &(*line.caloCluster()) : nullptr;
         initClusterPar(cluster_par_, cluster);
         cluster_par_.line = &line;
 
-        // fill all histograms
         fillHistograms(hist_[80]);
         if(cluster) {
           fillHistograms(hist_[81]);
@@ -2319,13 +2437,14 @@ namespace mu2e
     }
     watch_->StopTime("Analysis-Lines");
 
-    // Per cosmic seed histograms
+    // Per cosmic seed histograms (across all collections)
     watch_->SetTime("Analysis-CosmicSeeds");
-    if(cosmic_seed_col_) {
-      for(const auto& seed : *cosmic_seed_col_) {
+    for(const auto* cosmic_seed_col : cosmic_seed_cols_) {
+      if(!cosmic_seed_col) continue;
+      for(const auto& seed : *cosmic_seed_col) {
         initCosmicSeedPar(cosmic_seed_par_, &seed);
-        line_par_.init(nullptr); // for now, no line association to cosmic seeds
-        time_cluster_par_.init(nullptr); // for now, no time cluster association to cosmic seeds
+        line_par_.init(nullptr);
+        time_cluster_par_.init(nullptr);
         if(seed.hasCaloCluster()) initClusterPar(cluster_par_, &(*seed.caloCluster()));
         else                      initClusterPar(cluster_par_, nullptr);
         fillHistograms(hist_[90]);
@@ -2342,27 +2461,30 @@ namespace mu2e
     }
     watch_->StopTime("Analysis-CosmicSeeds");
 
-    // Per time cluster histograms
+    // Per time cluster histograms (across all collections)
     watch_->SetTime("Analysis-TimeClusters");
-    if(time_cluster_col_) {
+    {
       const TimeCluster* max_sim_hits_tc = nullptr;
       int max_sim_hits = -1;
-      for(const auto& time_cluster : *time_cluster_col_) {
-        initTimeClusterPar(time_cluster_par_, &time_cluster);
-        line_par_.init(nullptr); // for now, no line association to time clusters
-        cosmic_seed_par_.init(nullptr); // for now, no cosmic seed association to time clusters
-        if(time_cluster.hasCaloCluster()) initClusterPar(cluster_par_, &(*time_cluster.caloCluster()));
-        else                              initClusterPar(cluster_par_, nullptr);
-        fillHistograms(hist_[95]);
-        if(time_cluster_par_.n_primary_hits > max_sim_hits) {
-          max_sim_hits = time_cluster_par_.n_primary_hits;
-          max_sim_hits_tc = &time_cluster;
+      for(const auto* time_cluster_col : time_cluster_cols_) {
+        if(!time_cluster_col) continue;
+        for(const auto& time_cluster : *time_cluster_col) {
+          initTimeClusterPar(time_cluster_par_, &time_cluster);
+          line_par_.init(nullptr);
+          cosmic_seed_par_.init(nullptr);
+          if(time_cluster.hasCaloCluster()) initClusterPar(cluster_par_, &(*time_cluster.caloCluster()));
+          else                              initClusterPar(cluster_par_, nullptr);
+          fillHistograms(hist_[95]);
+          if(time_cluster_par_.n_primary_hits > max_sim_hits) {
+            max_sim_hits = time_cluster_par_.n_primary_hits;
+            max_sim_hits_tc = &time_cluster;
+          }
         }
       }
-      if(max_sim_hits_tc && max_sim_hits > 0) { // must at least be 1 hit
+      if(max_sim_hits_tc && max_sim_hits > 0) {
         initTimeClusterPar(time_cluster_par_, max_sim_hits_tc);
-        line_par_.init(nullptr); // for now, no line association to time clusters
-        cosmic_seed_par_.init(nullptr); // for now, no cosmic seed association to time clusters
+        line_par_.init(nullptr);
+        cosmic_seed_par_.init(nullptr);
         if(max_sim_hits_tc->hasCaloCluster()) initClusterPar(cluster_par_, &(*max_sim_hits_tc->caloCluster()));
         else                                  initClusterPar(cluster_par_, nullptr);
         fillHistograms(hist_[96]);

@@ -1,0 +1,1196 @@
+#include "TFile.h"
+#include "TTree.h"
+#include "TChain.h"
+#include "TH1F.h"
+#include "TH1I.h"
+#include "TString.h"
+#include "TCanvas.h"
+#include "TDirectory.h"
+
+#include <string>
+#include <vector>
+#include <iostream>
+
+#include "Run1BAna/scripts/utilities.C" // for beam weights
+
+const bool use_plestid_rmc_      =  true; // Use phase-space approx instead of closure approx for RMC
+const bool veto_neutrons_pileup_ =  true; // Veto neutron clusters with KE > 60 MeV
+const bool veto_protons_pileup_  =  true; // Veto protons clusters with KE > 60 MeV
+const bool veto_rmc_pileup_      =  true; // Veto RMC clusters from pileup
+const bool veto_dio_pileup_      =  true; // Veto DIO tail clusters from pileup
+
+// For beam re-weighting
+double beam_mu_nominal_  = 5.92e6; // For Run1Ban sims
+double beam_sdf_nominal_ = 0.8   ; // For Run1Ban sims
+double beam_mu_goal_     = 6.14e6; // Goal beam intensity (1.5 kW)
+// double beam_mu_goal_     = 1.6e7 ; // Goal beam intensity (1BB)
+// double beam_mu_goal_     = 6.14e5; // Goal beam intensity (150 W) for early time samples
+double beam_sdf_goal_    = 0.8   ; //
+double beam_max_         = 35.5e6; // Cut-off for sims
+
+int debug_ = 0;
+
+// Integral from k_1 to k_2 of the Plestid phase-space approximation spectrum shape
+double plestid_integral(double K_1, double K_2, double KMax, int knockout) {
+  if(KMax <= 0.) return 0.;
+  if(knockout < 0) return 0.;
+  K_1 = std::max(0., std::min(KMax, K_1));
+  K_2 = std::max(0., std::min(KMax, K_2));
+  if(K_1 >= K_2) return 0.;
+  const double power = 2. + 1.5*knockout;
+  const double x_1 = K_1 / KMax;
+  const double x_2 = K_2 / KMax;
+  const double val_1 = (x_1 - 1.)*std::pow(1-x_1, power)*(power*x_1+x_1+1.);
+  const double val_2 = (x_2 - 1.)*std::pow(1-x_2, power)*(power*x_2+x_2+1.);
+  const double integral = val_2 - val_1;
+  return integral;
+}
+
+// Plestid spectra
+double plestid_spectrum(const double energy, const double kmax, const int knockout) {
+  if(energy <= 0. || energy >= kmax) return 0.;
+
+  const double power = 2. + 1.5*knockout;
+  const double norm = (power + 1.) * (power + 2.) / kmax;
+  const double x = energy / kmax;
+  const double p = norm * x * pow(1.-x, power);
+  return p;
+}
+
+// Closure approximation integral from k_1 to k_2 given kmax
+double closure_integral(double K_1, double K_2, double KMax) {
+  if(KMax <= 0.) return 0.;
+  const double x_1 = std::max(0., std::min(KMax, K_1))/KMax;
+  const double x_2 = std::max(0., std::min(KMax, K_2))/KMax;
+  if(x_1 >= x_2) return 0.;
+  const double val_1 = -1./3.*x_1*x_1*(-20.*pow(x_1,4)+72.*pow(x_1,3) -105.*x_1*x_1 + 80.*x_1 - 30.);
+  const double val_2 = -1./3.*x_2*x_2*(-20.*pow(x_2,4)+72.*pow(x_2,3) -105.*x_2*x_2 + 80.*x_2 - 30.);
+  const double integral = (val_2 - val_1);
+  return integral;
+}
+
+//--------------------------------------------------------------------------------------
+// Histogram struct - one set per selection
+//--------------------------------------------------------------------------------------
+struct Hist_t {
+  // Cluster
+  TH1F* cluster_energy;
+  TH1F* cluster_time;
+  TH1F* cluster_radius;
+  TH1F* cluster_ncr;
+  TH1F* cluster_disk;
+  TH1F* cluster_e_per_crystal;
+  TH1F* cluster_frac_1;
+  TH1F* cluster_frac_2;
+  TH1F* cluster_second_moment;
+  TH1F* cluster_e1;
+  TH1F* cluster_e2;
+  TH1F* cluster_e9;
+  TH1F* cluster_e25;
+  TH1F* cluster_t_var;
+  TH1*  cluster_e1_over_e;
+  TH1*  cluster_e2_over_e;
+  TH1*  cluster_e2p_over_e;
+  TH1*  cluster_e9_over_e;
+  TH1*  cluster_e25_over_e;
+  TH1*  cluster_e8_over_e;
+  TH1*  cluster_e24_over_e;
+
+  // Line-cluster matching
+  TH1F* line_dt;
+  TH1F* line_dr;
+  TH1F* time_cluster_dt;
+  TH1F* time_cluster_dr;
+  TH1F* ntcl_hits;
+  TH1F* photon_id;
+
+  // Line parameters
+  TH1F* line_chi2;
+  TH1F* line_nhits;
+  TH1F* line_nplanes;
+  TH1F* line_nstereo;
+  TH1F* line_d0;
+  TH1F* line_tdip;
+  TH1F* line_cos;
+  TH1F* line_z0;
+  TH1F* line_t0;
+  TH1F* line_phi0;
+
+  // Cosmic seed parameters
+  TH1F* cosmic_seed_chi2;
+  TH1F* cosmic_seed_nhits;
+  TH1F* cosmic_seed_d0;
+  TH1F* cosmic_seed_tdip;
+  TH1F* cosmic_seed_cos;
+  TH1F* cosmic_seed_z0;
+  TH1F* cosmic_seed_t0;
+  TH1F* cosmic_seed_phi0;
+  TH1F* cosmic_seed_A0;
+  TH1F* cosmic_seed_A1;
+  TH1F* cosmic_seed_B0;
+  TH1F* cosmic_seed_B1;
+
+  // Time cluster parameters
+  TH1F* time_cluster_nhits;
+  TH1F* time_cluster_nstraw_hits;
+  TH1F* time_cluster_nhigh_z_hits;
+  TH1F* time_cluster_t0;
+  TH1F* time_cluster_t0err;
+  TH1F* time_cluster_z0;
+  TH1F* time_cluster_phi0;
+
+  // CRV info
+  TH1F* crv_dt;
+  TH1F* crv_dt_corrected;
+  TH1F* crv_cluster_nhits;
+  TH1F* crv_cluster_npe;
+  TH1F* crv_cluster_t0;
+  TH1F* crv_cluster_x;
+  TH1F* crv_cluster_y;
+  TH1F* crv_cluster_z;
+
+  // MC truth
+  TH1F* mc_cluster_energy;
+  TH1F* mc_cluster_time;
+  TH1F* sim_1_edep;
+  TH1F* sim_1_edep_frac;
+  TH1F* sim_1_time;
+  TH1I* sim_1_nhits;
+  TH1I* sim_1_type;
+  TH1I* sim_1_pdg;
+  TH1I* sim_1_main_crystal;
+  TH1F* sim_1_main_crystal_energy;
+  TH1F* sim_2_edep;
+  TH1F* sim_2_edep_frac;
+  TH1F* sim_2_time;
+  TH1I* sim_2_nhits;
+  TH1I* sim_2_type;
+  TH1I* sim_2_pdg;
+  TH1I* sim_2_main_crystal;
+  TH1F* sim_2_main_crystal_energy;
+  TH1I* sim_1_2_nhits;
+  TH1F* event_weight;
+  TH1F* gen_energy;
+  TH1F* gen_energy_nowt;
+  TH1F* npot;
+  TH1F* npot_nowt;
+
+  // Directory for this histogram set
+  TDirectory* dir = nullptr;
+};
+
+//--------------------------------------------------------------------------------------
+// Collection index constants
+//--------------------------------------------------------------------------------------
+enum CollectionIdx {
+  kElectron = 0,
+  kProton   = 1,
+  kCosmic   = 2
+};
+
+//--------------------------------------------------------------------------------------
+// Branch variables (mirrors Tree_t in Structs.hh, v2: vector branches)
+//--------------------------------------------------------------------------------------
+struct TreeBranches {
+  int   event;
+  int   subrun;
+  int   run;
+  float cluster_energy;
+  float cluster_time;
+  float cluster_radius;
+  float cluster_ncr;
+  float cluster_disk;
+  float cluster_e_per_crystal;
+  float cluster_frac_1;
+  float cluster_frac_2;
+  float cluster_second_moment;
+  float cluster_e1;
+  float cluster_e2;
+  float cluster_e9;
+  float cluster_e25;
+  float cluster_t_var;
+  float line_dt;      // best-match scalar (backward compat)
+  float line_dr;      // best-match scalar (backward compat)
+  float time_cluster_dt; // best-match scalar
+  float time_cluster_dr; // best-match scalar
+  float crv_dt;
+  float crv_dt_corrected;
+  float ntcl_hits;
+  float photon_id;
+
+  // Line info (vectors: one entry per matched line across all collections)
+  std::vector<int>   *line_col_idx   = nullptr;
+  std::vector<float> *line_chi2      = nullptr;
+  std::vector<float> *line_nhits     = nullptr;
+  std::vector<float> *line_nplanes   = nullptr;
+  std::vector<float> *line_nstereo   = nullptr;
+  std::vector<float> *line_d0        = nullptr;
+  std::vector<float> *line_tdip      = nullptr;
+  std::vector<float> *line_cos       = nullptr;
+  std::vector<float> *line_z0        = nullptr;
+  std::vector<float> *line_t0        = nullptr;
+  std::vector<float> *line_phi0      = nullptr;
+  std::vector<float> *line_cl_dt     = nullptr;
+  std::vector<float> *line_cl_dr     = nullptr;
+
+  // Cosmic seed info (vectors: one entry per matched cosmic seed)
+  std::vector<int>   *cosmic_seed_col_idx = nullptr;
+  std::vector<float> *cosmic_seed_chi2    = nullptr;
+  std::vector<float> *cosmic_seed_nhits   = nullptr;
+  std::vector<float> *cosmic_seed_d0      = nullptr;
+  std::vector<float> *cosmic_seed_tdip    = nullptr;
+  std::vector<float> *cosmic_seed_cos     = nullptr;
+  std::vector<float> *cosmic_seed_z0      = nullptr;
+  std::vector<float> *cosmic_seed_t0      = nullptr;
+  std::vector<float> *cosmic_seed_phi0    = nullptr;
+  std::vector<float> *cosmic_seed_A0      = nullptr;
+  std::vector<float> *cosmic_seed_A1      = nullptr;
+  std::vector<float> *cosmic_seed_B0      = nullptr;
+  std::vector<float> *cosmic_seed_B1      = nullptr;
+  std::vector<float> *cosmic_seed_cl_dt   = nullptr;
+  std::vector<float> *cosmic_seed_cl_dr   = nullptr;
+
+  // Time cluster info (vectors: one entry per matched time cluster)
+  std::vector<int>   *time_cluster_col_idx      = nullptr;
+  std::vector<float> *time_cluster_nhits        = nullptr;
+  std::vector<float> *time_cluster_nstraw_hits  = nullptr;
+  std::vector<float> *time_cluster_nhigh_z_hits = nullptr;
+  std::vector<float> *time_cluster_t0           = nullptr;
+  std::vector<float> *time_cluster_t0err        = nullptr;
+  std::vector<float> *time_cluster_z0           = nullptr;
+  std::vector<float> *time_cluster_phi0         = nullptr;
+  std::vector<float> *time_cluster_cl_dt        = nullptr;
+  std::vector<float> *time_cluster_cl_dr        = nullptr;
+
+  // CRV (scalars, unchanged)
+  int   crv_cluster_nhits = 0;
+  float crv_cluster_npe;
+  float crv_cluster_t0;
+  float crv_cluster_x;
+  float crv_cluster_y;
+  float crv_cluster_z;
+
+  // MC truth (scalars, unchanged)
+  float mc_cluster_energy;
+  float mc_cluster_time;
+  float sim_1_edep;
+  float sim_1_time;
+  int   sim_1_nhits;
+  int   sim_1_type;
+  int   sim_1_pdg;
+  int   sim_1_proc;
+  int   sim_1_main_crystal;
+  float sim_1_main_crystal_energy;
+  float sim_2_edep;
+  float sim_2_time;
+  int   sim_2_nhits;
+  int   sim_2_type;
+  int   sim_2_pdg;
+  int   sim_2_proc;
+  int   sim_2_main_crystal;
+  float sim_2_main_crystal_energy;
+  float event_weight;
+  float gen_energy;
+  float npot;
+};
+
+//--------------------------------------------------------------------------------------
+// Helper: find the index in the vectors for a given collection index, or -1 if not found
+//--------------------------------------------------------------------------------------
+int findColEntry(const std::vector<int>* col_idx_vec, int target_col) {
+  if(!col_idx_vec) return -1;
+  for(size_t i = 0; i < col_idx_vec->size(); ++i) {
+    if((*col_idx_vec)[i] == target_col) return static_cast<int>(i);
+  }
+  return -1;
+}
+
+// Check if any entry from a given collection exists
+bool hasCol(const std::vector<int>* col_idx_vec, int target_col) {
+  return findColEntry(col_idx_vec, target_col) >= 0;
+}
+
+// Get a float value from a vector branch for a specific collection index, with default
+float getColFloat(const std::vector<float>* vec, const std::vector<int>* col_idx_vec, int target_col, float def = 0.f) {
+  int idx = findColEntry(col_idx_vec, target_col);
+  if(idx < 0 || !vec || idx >= static_cast<int>(vec->size())) return def;
+  return (*vec)[idx];
+}
+
+// Get an int value from a vector branch for a specific collection index, with default
+int getColInt(const std::vector<int>* vec, const std::vector<int>* col_idx_vec, int target_col, int def = 0) {
+  int idx = findColEntry(col_idx_vec, target_col);
+  if(idx < 0 || !vec || idx >= static_cast<int>(vec->size())) return def;
+  return (*vec)[idx];
+}
+
+// Count entries from a given collection
+int countCol(const std::vector<int>* col_idx_vec, int target_col) {
+  if(!col_idx_vec) return 0;
+  int n = 0;
+  for(size_t i = 0; i < col_idx_vec->size(); ++i) {
+    if((*col_idx_vec)[i] == target_col) ++n;
+  }
+  return n;
+}
+
+// Count total entries across all collections
+int countAll(const std::vector<int>* col_idx_vec) {
+  return col_idx_vec ? static_cast<int>(col_idx_vec->size()) : 0;
+}
+
+//--------------------------------------------------------------------------------------
+// Global histogram array
+//--------------------------------------------------------------------------------------
+constexpr int kMaxHists = 1000;
+Hist_t* hist_[kMaxHists] = {nullptr};
+
+//--------------------------------------------------------------------------------------
+double getNSampled(TChain* chain) {
+  double total = 0.;
+  const TObjArray* files = chain->GetListOfFiles();
+  for(int i = 0; i < files->GetEntries(); ++i) {
+    const char* fname = files->At(i)->GetTitle();
+    TFile* f = TFile::Open(fname, "READ");
+    if(!f || f->IsZombie()) {
+      std::cerr << "Warning: could not open file " << fname << " for normalization." << std::endl;
+      if(f) delete f;
+      continue;
+    }
+    TH1* h = dynamic_cast<TH1*>(f->Get("Run1BAna/data/norm"));
+    if(h) total += h->GetEntries();
+    else   std::cerr << "Warning: could not retrieve norm histogram from " << fname << std::endl;
+    f->Close();
+    delete f;
+  }
+  return total;
+}
+
+//--------------------------------------------------------------------------------------
+void bookHistograms(const int index, const char* title, TDirectory* outDir) {
+  if(index < 0 || index >= kMaxHists) {
+    std::cerr << "bookHistograms: index " << index << " out of range!" << std::endl;
+    return;
+  }
+  if(!outDir) {
+    std::cerr << "bookHistograms: null output directory" << std::endl;
+    return;
+  }
+
+  hist_[index] = new Hist_t();
+  auto* H = hist_[index];
+
+  const TString setDirName = TString::Format("hist_%d", index);
+  H->dir = outDir->mkdir(setDirName, title);
+  if(!H->dir) {
+    std::cerr << "bookHistograms: failed to create directory " << setDirName << std::endl;
+    return;
+  }
+  H->dir->cd();
+  H->dir->SetTitle(title);
+
+  // Cluster
+  H->cluster_energy        = new TH1F("cluster_energy"       , "Cluster energy;Cluster energy (MeV);"          , 300,   0.,  300.);
+  H->cluster_time          = new TH1F("cluster_time"         , "Cluster time;Cluster time (ns);"               , 200,   0., 2000.);
+  H->cluster_radius        = new TH1F("cluster_radius"       , "Cluster radius;Cluster radius (mm);"                , 100,   0.,  700.);
+  H->cluster_ncr           = new TH1F("cluster_ncr"          , "N(crystals);N(crystals);"                        ,  20,   0.,   20.);
+  H->cluster_disk          = new TH1F("cluster_disk"         , "Disk ID;Disk ID;"                      ,   4,  -1.,    3.);
+  H->cluster_e_per_crystal = new TH1F("cluster_e_per_crystal", "Energy/crystal;Energy/N(crystals) (MeV);"        , 300,   0.,  300.);
+  H->cluster_frac_1        = new TH1F("cluster_frac_1"       , ";E_{1}/E_{total};"                 , 101,   0.,  1.01);
+  H->cluster_frac_2        = new TH1F("cluster_frac_2"       , ";E_{1+2}/E_{total};"               , 101,   0.,  1.01);
+  H->cluster_second_moment = new TH1F("cluster_second_moment", "Second moment;Second moment;"          , 200,   0., 2.e3);
+  H->cluster_e1            = new TH1F("cluster_e1"           , "E1;E_{1} (MeV);"                          , 300,   0.,  300.);
+  H->cluster_e2            = new TH1F("cluster_e2"           , "E2;E_{1+2} (MeV);"                          , 300,   0.,  300.);
+  H->cluster_e9            = new TH1F("cluster_e9"           , "E9;E_{3x3} (MeV);"                          , 300,   0.,  300.);
+  H->cluster_e25           = new TH1F("cluster_e25"          , "E25;E_{5x5} (MeV);"                        , 300,   0.,  300.);
+  H->cluster_t_var         = new TH1F("cluster_t_var"        , "Time variance;Cluster #sigma_{t}^{2} (ns^{2});", 200,   0.,   10.);
+  H->cluster_e1_over_e     = new TH1F("cluster_e1_over_e"    , "E1/E;E_{1}/E_{cluster};"                            , 110,   0.,  1.1);
+  H->cluster_e2_over_e     = new TH1F("cluster_e2_over_e"    , "E2/E;E_{1+2}/E_{cluster};"                          , 110,   0.,  1.1);
+  H->cluster_e2p_over_e    = new TH1F("cluster_e2p_over_e"   , "E2/E;E_{2}/E_{cluster};"                            , 110,   0.,  1.1);
+  H->cluster_e9_over_e     = new TH1F("cluster_e9_over_e"    , "E9/E;E_{3x3}/E_{cluster};"                            , 110,   0.,  1.1);
+  H->cluster_e25_over_e    = new TH1F("cluster_e25_over_e"   , "E25/E;E_{5x5}/E_{cluster};"                          , 110,   0.,  1.1);
+  H->cluster_e8_over_e     = new TH1F("cluster_e8_over_e"    , "(E9 - E1)/E;(E_{3x3}-E_{1})/E_{cluster};"                , 110,   0.,  1.1);
+  H->cluster_e24_over_e    = new TH1F("cluster_e24_over_e"   , "(E25 - E1)/E;(E_{5x5}-E_{1})/E_{cluster};"              , 110,   0.,  1.1);
+
+  // Line-cluster matching
+  H->line_dt               = new TH1F("line_dt"              , ";Line-cluster #Delta t (ns);"  , 200,-200.,  200.);
+  H->line_dr               = new TH1F("line_dr"              , ";Line-cluster #Delta r (mm);"  , 150,   0.,  500.);
+  H->time_cluster_dt       = new TH1F("time_cluster_dt"      , ";Time cluster-cluster #Delta t (ns);"   , 200,-200.,  200.);
+  H->time_cluster_dr       = new TH1F("time_cluster_dr"      , ";Time cluster-cluster #Delta r (mm);"   , 150,   0.,  500.);
+  H->ntcl_hits             = new TH1F("ntcl_hits"            , ";N(time cluster hits);"                        , 200,   0.,  200.);
+  H->photon_id             = new TH1F("photon_id"            , ";Photon ID MVA score;"                  , 100,  -1.,    1.);
+
+  // Line parameters
+  H->line_chi2             = new TH1F("line_chi2"            , "Line #chi^{2}/DOF;#chi^{2}/DOF;"       , 100,   0.,   10.);
+  H->line_nhits            = new TH1F("line_nhits"           , ";Line N(hits);"                       , 100,   0.,  100.);
+  H->line_nplanes          = new TH1F("line_nplanes"         , "Line N(planes);N;"                     ,  50,   0.,   50.);
+  H->line_nstereo          = new TH1F("line_nstereo"         , "Line N(stereo);N;"                     ,  15,   0.,   15.);
+  H->line_d0               = new TH1F("line_d0"              , "Line d_{0};d_{0} (mm);"                , 200,-400.,  400.);
+  H->line_tdip             = new TH1F("line_tdip"            , "Line tan(dip);tan(dip);"               , 100, -10.,   10.);
+  H->line_cos              = new TH1F("line_cos"             , "Line cos(#theta);cos(#theta);"         , 100,   0.,    1.);
+  H->line_z0               = new TH1F("line_z0"              , "Line z_{0};z_{0} (mm);"                , 100,-5000.,5000.);
+  H->line_t0               = new TH1F("line_t0"              , "Line t_{0};t_{0} (ns);"                , 200,   0., 2000.);
+  H->line_phi0             = new TH1F("line_phi0"            , "Line #phi_{0};#phi_{0} (rad);"         , 100,-3.15,  3.15);
+
+  // Cosmic seed parameters
+  H->cosmic_seed_chi2      = new TH1F("cosmic_seed_chi2"     , "Cosmic seed #chi^{2};#chi^{2};"        , 100,   0.,   10.);
+  H->cosmic_seed_nhits     = new TH1F("cosmic_seed_nhits"    , "Cosmic seed N(hits);N;"                , 100,   0.,  100.);
+  H->cosmic_seed_d0        = new TH1F("cosmic_seed_d0"       , "Cosmic seed d_{0};d_{0} (mm);"         , 200,-400.,  400.);
+  H->cosmic_seed_tdip      = new TH1F("cosmic_seed_tdip"     , "Cosmic seed tan(dip);tan(dip);"        , 100, -10.,   10.);
+  H->cosmic_seed_cos       = new TH1F("cosmic_seed_cos"      , "Cosmic seed cos(#theta);cos(#theta);"  , 100,   0.,    1.);
+  H->cosmic_seed_z0        = new TH1F("cosmic_seed_z0"       , "Cosmic seed z_{0};z_{0} (mm);"         , 100,-5000.,5000.);
+  H->cosmic_seed_t0        = new TH1F("cosmic_seed_t0"       , "Cosmic seed t_{0};t_{0} (ns);"         , 200,   0., 2000.);
+  H->cosmic_seed_phi0      = new TH1F("cosmic_seed_phi0"     , "Cosmic seed #phi_{0};#phi_{0} (rad);"  , 100,-3.15,  3.15);
+  H->cosmic_seed_A0        = new TH1F("cosmic_seed_A0"       , "Cosmic seed A0;A0 (mm);"               , 200,-4000.,4000.);
+  H->cosmic_seed_A1        = new TH1F("cosmic_seed_A1"       , "Cosmic seed A1;A1 (mm);"               , 200,-4000.,4000.);
+  H->cosmic_seed_B0        = new TH1F("cosmic_seed_B0"       , "Cosmic seed B0;B0 (mm);"               , 200,-4000.,4000.);
+  H->cosmic_seed_B1        = new TH1F("cosmic_seed_B1"       , "Cosmic seed B1;B1 (mm);"               , 200,-4000.,4000.);
+
+  // Time cluster parameters
+  H->time_cluster_nhits         = new TH1F("time_cluster_nhits"        , ";N(time cluster hits);"              , 200,   0.,  200.);
+  H->time_cluster_nstraw_hits   = new TH1F("time_cluster_nstraw_hits"  , ";N(time cluster straw hits);"        , 200,   0.,  200.);
+  H->time_cluster_nhigh_z_hits  = new TH1F("time_cluster_nhigh_z_hits" , ";N(high-z time cluster hits);"       ,  50,   0.,   50.);
+  H->time_cluster_t0            = new TH1F("time_cluster_t0"           , ";Time cluster t_{0} (ns);"       , 200,   0., 2000.);
+  H->time_cluster_t0err         = new TH1F("time_cluster_t0err"        , ";Time cluster t_{0} #sigma (ns);", 100,   0.,   10.);
+  H->time_cluster_z0            = new TH1F("time_cluster_z0"           , ";Time cluster z_{0} (mm);"       , 100,-5000.,5000.);
+  H->time_cluster_phi0          = new TH1F("time_cluster_phi0"         , ";Time cluster #phi_{0};"       , 100,-3.15,  3.15);
+
+  // CRV info
+  H->crv_dt                    = new TH1F("crv_dt"                   , ";CRV-cluster #Delta t (ns);"  , 200,-200.,  200.);
+  H->crv_dt_corrected          = new TH1F("crv_dt_corrected"         , ";CRV-cluster #Delta t (ns), corrected for time-of-flight;"  , 200,-200.,  200.);
+  H->crv_cluster_nhits         = new TH1F("crv_cluster_nhits"        , ";CRV cluster N(hits);"                        , 50,   0.,   50.);
+  H->crv_cluster_npe          = new TH1F("crv_cluster_npe"         , ";CRV cluster N(PE);"                          , 50,   0.,   50.);
+  H->crv_cluster_t0           = new TH1F("crv_cluster_t0"          , ";CRV cluster t_{0} (ns);"         , 200,   0., 2000.);
+  H->crv_cluster_x            = new TH1F("crv_cluster_x"           , ";CRV cluster x (mm);"              , 100,-5000.,5000.);
+  H->crv_cluster_y            = new TH1F("crv_cluster_y"           , ";CRV cluster y (mm);"              , 100,-5000.,5000.);
+  H->crv_cluster_z            = new TH1F("crv_cluster_z"           , ";CRV cluster z (mm);"              , 100,-5000.,5000.);
+
+  // MC truth
+  H->mc_cluster_energy     = new TH1F("mc_cluster_energy"    , "MC cluster energy;E (MeV);"            , 300,   0.,  300.);
+  H->mc_cluster_time       = new TH1F("mc_cluster_time"      , "MC cluster time;t (ns);"               , 200,   0., 2000.);
+  H->sim_1_edep            = new TH1F("sim_1_edep"           , "Sim 1 E dep;E (MeV);"                  , 300,   0.,  300.);
+  H->sim_1_edep_frac       = new TH1F("sim_1_edep_frac"      , "Sim 1 E dep / total E dep;Sim E_{dep}/total E_{dep};", 110,   0.,  1.1);
+  H->sim_1_time            = new TH1F("sim_1_time"           , "Sim 1 time;t (ns);"                    , 200,   0., 2000.);
+  H->sim_1_nhits           = new TH1I("sim_1_nhits"          , "Sim 1 N(tracker hits);N;"              , 100,   0,   100);
+  H->sim_1_type            = new TH1I("sim_1_type"           , "Sim 1 type;Type;"                      ,  10,  -1,     9);
+  H->sim_1_pdg             = new TH1I("sim_1_pdg"            , "Sim 1 PDG;PDG ID;"                    ,   30,  -15,   15);
+  H->sim_1_main_crystal_energy = new TH1F("sim_1_main_crystal_energy", "Sim 1 main crystal energy;E (MeV);", 300,   0.,  300.);
+  H->sim_2_edep            = new TH1F("sim_2_edep"           , "Sim 2 E dep;E (MeV);"                  , 300,   0.,  300.);
+  H->sim_2_edep_frac       = new TH1F("sim_2_edep_frac"      , "Sim 2 E dep / total E dep;Sim E_{dep}/total E_{dep};", 110,   0.,  1.1);
+  H->sim_2_time            = new TH1F("sim_2_time"           , "Sim 2 time;t (ns);"                    , 200,   0., 2000.);
+  H->sim_2_nhits           = new TH1I("sim_2_nhits"          , "Sim 2 N(tracker hits);N;"              , 100,   0,   100);
+  H->sim_2_type            = new TH1I("sim_2_type"           , "Sim 2 type;Type;"                      ,  10,  -1,     9);
+  H->sim_2_pdg             = new TH1I("sim_2_pdg"            , "Sim 2 PDG;PDG ID;"                    ,   30,  -15,   15);
+  H->sim_2_main_crystal_energy = new TH1F("sim_2_main_crystal_energy", "Sim 2 main crystal energy;E (MeV);", 300,   0.,  300.);
+  H->sim_1_2_nhits         = new TH1I("sim_1_2_nhits"        , "Sim 1-2 N(tracker hits);N;"            , 200,   0,   200);
+  H->event_weight          = new TH1F("event_weight"         , "Event weight;Weight;"                  , 100,   0.,    5.);
+  H->gen_energy            = new TH1F("gen_energy"           , ";Generated energy (MeV);"             ,  90,  50.,  140.);
+  H->gen_energy_nowt       = new TH1F("gen_energy_nowt"      , ";Generated energy (MeV);"             ,  90,  50.,  140.);
+  H->npot                  = new TH1F("npot"                 , ";N(POT);"                             , 100,   0.,  4.e7);
+  H->npot_nowt             = new TH1F("npot_nowt"            , ";N(POT);"                             , 100,   0.,  4.e7);
+}
+
+//--------------------------------------------------------------------------------------
+void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) {
+  if(index < 0 || index >= kMaxHists || !hist_[index]) return;
+  auto* H = hist_[index];
+
+  const double w = weight;
+
+  // Cluster
+  H->cluster_energy       ->Fill(b.cluster_energy,        w);
+  H->cluster_time         ->Fill(b.cluster_time,          w);
+  H->cluster_radius       ->Fill(b.cluster_radius,        w);
+  H->cluster_ncr          ->Fill(b.cluster_ncr,           w);
+  H->cluster_disk         ->Fill(b.cluster_disk,          w);
+  H->cluster_e_per_crystal->Fill(b.cluster_e_per_crystal, w);
+  H->cluster_frac_1       ->Fill(b.cluster_frac_1,        w);
+  H->cluster_frac_2       ->Fill(b.cluster_frac_2,        w);
+  H->cluster_second_moment->Fill(b.cluster_second_moment, w);
+  H->cluster_e1           ->Fill(b.cluster_e1,            w);
+  H->cluster_e2           ->Fill(b.cluster_e2,            w);
+  H->cluster_e9           ->Fill(b.cluster_e9,            w);
+  H->cluster_e25          ->Fill(b.cluster_e25,           w);
+  H->cluster_t_var        ->Fill(b.cluster_t_var,         w);
+  H->cluster_e1_over_e    ->Fill(b.cluster_e1 / b.cluster_energy, w);
+  H->cluster_e2_over_e    ->Fill(b.cluster_e2 / b.cluster_energy, w);
+  H->cluster_e2p_over_e   ->Fill((b.cluster_e2-b.cluster_e1) / b.cluster_energy, w);
+  H->cluster_e9_over_e    ->Fill(b.cluster_e9 / b.cluster_energy, w);
+  H->cluster_e25_over_e   ->Fill(b.cluster_e25 / b.cluster_energy, w);
+  H->cluster_e8_over_e    ->Fill((b.cluster_e9 - b.cluster_e1) / b.cluster_energy, w);
+  H->cluster_e24_over_e   ->Fill((b.cluster_e25 - b.cluster_e1) / b.cluster_energy, w);
+
+  // Line-cluster matching (best-match scalars)
+  H->line_dt              ->Fill(b.line_dt,               w);
+  H->line_dr              ->Fill(b.line_dr,               w);
+  H->time_cluster_dt      ->Fill(b.time_cluster_dt,       w);
+  H->time_cluster_dr      ->Fill(b.time_cluster_dr,       w);
+  H->ntcl_hits            ->Fill(b.ntcl_hits,             w);
+  H->photon_id            ->Fill(b.photon_id,             w);
+
+  // Line parameters: fill from collection index 0 (electron) if present
+  // FIXME: Consider filling all matched lines or a specific collection
+  {
+    const int col = kElectron;
+    H->line_chi2            ->Fill(getColFloat(b.line_chi2,    b.line_col_idx, col), w);
+    H->line_nhits           ->Fill(getColFloat(b.line_nhits,   b.line_col_idx, col), w);
+    H->line_nplanes         ->Fill(getColFloat(b.line_nplanes, b.line_col_idx, col), w);
+    H->line_nstereo         ->Fill(getColFloat(b.line_nstereo, b.line_col_idx, col), w);
+    H->line_d0              ->Fill(getColFloat(b.line_d0,      b.line_col_idx, col), w);
+    H->line_tdip            ->Fill(getColFloat(b.line_tdip,    b.line_col_idx, col), w);
+    H->line_cos             ->Fill(getColFloat(b.line_cos,     b.line_col_idx, col), w);
+    H->line_z0              ->Fill(getColFloat(b.line_z0,      b.line_col_idx, col), w);
+    H->line_t0              ->Fill(getColFloat(b.line_t0,      b.line_col_idx, col), w);
+    H->line_phi0            ->Fill(getColFloat(b.line_phi0,    b.line_col_idx, col), w);
+  }
+
+  // Cosmic seed parameters: fill from collection index 0 (electron) if present
+  // FIXME: Consider filling all matched seeds or a specific collection
+  {
+    const int col = kElectron;
+    H->cosmic_seed_chi2     ->Fill(getColFloat(b.cosmic_seed_chi2,  b.cosmic_seed_col_idx, col), w);
+    H->cosmic_seed_nhits    ->Fill(getColFloat(b.cosmic_seed_nhits, b.cosmic_seed_col_idx, col), w);
+    H->cosmic_seed_d0       ->Fill(getColFloat(b.cosmic_seed_d0,    b.cosmic_seed_col_idx, col), w);
+    H->cosmic_seed_tdip     ->Fill(getColFloat(b.cosmic_seed_tdip,  b.cosmic_seed_col_idx, col), w);
+    H->cosmic_seed_cos      ->Fill(getColFloat(b.cosmic_seed_cos,   b.cosmic_seed_col_idx, col), w);
+    H->cosmic_seed_z0       ->Fill(getColFloat(b.cosmic_seed_z0,    b.cosmic_seed_col_idx, col), w);
+    H->cosmic_seed_t0       ->Fill(getColFloat(b.cosmic_seed_t0,    b.cosmic_seed_col_idx, col), w);
+    H->cosmic_seed_phi0     ->Fill(getColFloat(b.cosmic_seed_phi0,  b.cosmic_seed_col_idx, col), w);
+    H->cosmic_seed_A0       ->Fill(getColFloat(b.cosmic_seed_A0,    b.cosmic_seed_col_idx, col), w);
+    H->cosmic_seed_A1       ->Fill(getColFloat(b.cosmic_seed_A1,    b.cosmic_seed_col_idx, col), w);
+    H->cosmic_seed_B0       ->Fill(getColFloat(b.cosmic_seed_B0,    b.cosmic_seed_col_idx, col), w);
+    H->cosmic_seed_B1       ->Fill(getColFloat(b.cosmic_seed_B1,    b.cosmic_seed_col_idx, col), w);
+  }
+
+  // Time cluster parameters: fill from collection index 0 (electron) if present
+  // FIXME: Consider filling all matched time clusters or a specific collection
+  {
+    const int col = kElectron;
+    H->time_cluster_nhits       ->Fill(getColFloat(b.time_cluster_nhits,        b.time_cluster_col_idx, col), w);
+    H->time_cluster_nstraw_hits ->Fill(getColFloat(b.time_cluster_nstraw_hits,  b.time_cluster_col_idx, col), w);
+    H->time_cluster_nhigh_z_hits->Fill(getColFloat(b.time_cluster_nhigh_z_hits, b.time_cluster_col_idx, col), w);
+    H->time_cluster_t0          ->Fill(getColFloat(b.time_cluster_t0,           b.time_cluster_col_idx, col), w);
+    H->time_cluster_t0err       ->Fill(getColFloat(b.time_cluster_t0err,        b.time_cluster_col_idx, col), w);
+    H->time_cluster_z0          ->Fill(getColFloat(b.time_cluster_z0,           b.time_cluster_col_idx, col), w);
+    H->time_cluster_phi0        ->Fill(getColFloat(b.time_cluster_phi0,         b.time_cluster_col_idx, col), w);
+  }
+
+  // CRV info
+  H->crv_dt                   ->Fill(b.crv_dt,                   w);
+  H->crv_dt_corrected         ->Fill(b.crv_dt_corrected,         w);
+  H->crv_cluster_nhits        ->Fill(b.crv_cluster_nhits,        w);
+  H->crv_cluster_npe         ->Fill(b.crv_cluster_npe,         w);
+  H->crv_cluster_t0          ->Fill(b.crv_cluster_t0,          w);
+  H->crv_cluster_x           ->Fill(b.crv_cluster_x,           w);
+  H->crv_cluster_y           ->Fill(b.crv_cluster_y,           w);
+  H->crv_cluster_z           ->Fill(b.crv_cluster_z,           w);
+
+  // MC truth
+  H->mc_cluster_energy    ->Fill(b.mc_cluster_energy,     w);
+  H->mc_cluster_time      ->Fill(b.mc_cluster_time,       w);
+  H->sim_1_edep           ->Fill(b.sim_1_edep,            w);
+  H->sim_1_edep_frac      ->Fill(b.sim_1_edep / b.mc_cluster_energy, w);
+  H->sim_1_time           ->Fill(b.sim_1_time,            w);
+  H->sim_1_nhits          ->Fill(b.sim_1_nhits,           w);
+  H->sim_1_type           ->Fill(b.sim_1_type,            w);
+  H->sim_1_pdg            ->Fill(b.sim_1_pdg,             w);
+  H->sim_1_main_crystal_energy->Fill(b.sim_1_main_crystal_energy, w);
+  H->sim_2_edep           ->Fill(b.sim_2_edep,            w);
+  H->sim_2_edep_frac      ->Fill(b.sim_1_edep / b.mc_cluster_energy, w);
+  H->sim_2_time           ->Fill(b.sim_2_time,            w);
+  H->sim_2_nhits          ->Fill(b.sim_2_nhits,           w);
+  H->sim_2_type           ->Fill(b.sim_2_type,            w);
+  H->sim_2_pdg            ->Fill(b.sim_2_pdg,             w);
+  H->sim_2_main_crystal_energy->Fill(b.sim_2_main_crystal_energy, w);
+  H->sim_1_2_nhits        ->Fill(b.sim_1_nhits + b.sim_2_nhits, w);
+  H->event_weight         ->Fill(b.event_weight,          w);
+  H->gen_energy           ->Fill(b.gen_energy,            w);
+  H->gen_energy_nowt      ->Fill(b.gen_energy);
+  H->npot                 ->Fill(b.npot,                  w);
+  H->npot_nowt            ->Fill(b.npot);
+}
+
+//--------------------------------------------------------------------------------------
+void setBranchAddresses(TTree* tree, TreeBranches& b) {
+  tree->SetBranchAddress("event"                   , &b.event);
+  tree->SetBranchAddress("subrun"                  , &b.subrun);
+  tree->SetBranchAddress("run"                     , &b.run);
+  tree->SetBranchAddress("cluster_energy"          , &b.cluster_energy);
+  tree->SetBranchAddress("cluster_time"            , &b.cluster_time);
+  tree->SetBranchAddress("cluster_radius"          , &b.cluster_radius);
+  tree->SetBranchAddress("cluster_ncr"             , &b.cluster_ncr);
+  tree->SetBranchAddress("cluster_disk"            , &b.cluster_disk);
+  tree->SetBranchAddress("cluster_e_per_crystal"   , &b.cluster_e_per_crystal);
+  tree->SetBranchAddress("cluster_frac_1"          , &b.cluster_frac_1);
+  tree->SetBranchAddress("cluster_frac_2"          , &b.cluster_frac_2);
+  tree->SetBranchAddress("cluster_second_moment"   , &b.cluster_second_moment);
+  tree->SetBranchAddress("cluster_e1"              , &b.cluster_e1);
+  tree->SetBranchAddress("cluster_e2"              , &b.cluster_e2);
+  tree->SetBranchAddress("cluster_e9"              , &b.cluster_e9);
+  tree->SetBranchAddress("cluster_e25"             , &b.cluster_e25);
+  tree->SetBranchAddress("cluster_t_var"           , &b.cluster_t_var);
+  tree->SetBranchAddress("line_dt"                 , &b.line_dt);
+  tree->SetBranchAddress("line_dr"                 , &b.line_dr);
+  tree->SetBranchAddress("time_cluster_dt"         , &b.time_cluster_dt);
+  tree->SetBranchAddress("time_cluster_dr"         , &b.time_cluster_dr);
+  tree->SetBranchAddress("crv_dt"                  , &b.crv_dt);
+  tree->SetBranchAddress("crv_dt_corrected"        , &b.crv_dt_corrected);
+  tree->SetBranchAddress("ntcl_hits"               , &b.ntcl_hits);
+  tree->SetBranchAddress("photon_id"               , &b.photon_id);
+  // Line info (vector branches)
+  tree->SetBranchAddress("line_col_idx"            , &b.line_col_idx);
+  tree->SetBranchAddress("line_chi2"               , &b.line_chi2);
+  tree->SetBranchAddress("line_nhits"              , &b.line_nhits);
+  tree->SetBranchAddress("line_nplanes"            , &b.line_nplanes);
+  tree->SetBranchAddress("line_nstereo"            , &b.line_nstereo);
+  tree->SetBranchAddress("line_d0"                 , &b.line_d0);
+  tree->SetBranchAddress("line_tdip"               , &b.line_tdip);
+  tree->SetBranchAddress("line_cos"                , &b.line_cos);
+  tree->SetBranchAddress("line_z0"                 , &b.line_z0);
+  tree->SetBranchAddress("line_t0"                 , &b.line_t0);
+  tree->SetBranchAddress("line_phi0"               , &b.line_phi0);
+  tree->SetBranchAddress("line_cl_dt"              , &b.line_cl_dt);
+  tree->SetBranchAddress("line_cl_dr"              , &b.line_cl_dr);
+
+  // Cosmic seed info (vector branches)
+  tree->SetBranchAddress("cosmic_seed_col_idx"     , &b.cosmic_seed_col_idx);
+  tree->SetBranchAddress("cosmic_seed_chi2"        , &b.cosmic_seed_chi2);
+  tree->SetBranchAddress("cosmic_seed_nhits"       , &b.cosmic_seed_nhits);
+  tree->SetBranchAddress("cosmic_seed_d0"          , &b.cosmic_seed_d0);
+  tree->SetBranchAddress("cosmic_seed_tdip"        , &b.cosmic_seed_tdip);
+  tree->SetBranchAddress("cosmic_seed_cos"         , &b.cosmic_seed_cos);
+  tree->SetBranchAddress("cosmic_seed_z0"          , &b.cosmic_seed_z0);
+  tree->SetBranchAddress("cosmic_seed_t0"          , &b.cosmic_seed_t0);
+  tree->SetBranchAddress("cosmic_seed_phi0"        , &b.cosmic_seed_phi0);
+  tree->SetBranchAddress("cosmic_seed_A0"          , &b.cosmic_seed_A0);
+  tree->SetBranchAddress("cosmic_seed_A1"          , &b.cosmic_seed_A1);
+  tree->SetBranchAddress("cosmic_seed_B0"          , &b.cosmic_seed_B0);
+  tree->SetBranchAddress("cosmic_seed_B1"          , &b.cosmic_seed_B1);
+  tree->SetBranchAddress("cosmic_seed_cl_dt"       , &b.cosmic_seed_cl_dt);
+  tree->SetBranchAddress("cosmic_seed_cl_dr"       , &b.cosmic_seed_cl_dr);
+
+  // Time cluster info (vector branches)
+  tree->SetBranchAddress("time_cluster_col_idx"      , &b.time_cluster_col_idx);
+  tree->SetBranchAddress("time_cluster_nhits"        , &b.time_cluster_nhits);
+  tree->SetBranchAddress("time_cluster_nstraw_hits"  , &b.time_cluster_nstraw_hits);
+  tree->SetBranchAddress("time_cluster_nhigh_z_hits" , &b.time_cluster_nhigh_z_hits);
+  tree->SetBranchAddress("time_cluster_t0"           , &b.time_cluster_t0);
+  tree->SetBranchAddress("time_cluster_t0err"        , &b.time_cluster_t0err);
+  tree->SetBranchAddress("time_cluster_z0"           , &b.time_cluster_z0);
+  tree->SetBranchAddress("time_cluster_phi0"         , &b.time_cluster_phi0);
+  tree->SetBranchAddress("time_cluster_cl_dt"        , &b.time_cluster_cl_dt);
+  tree->SetBranchAddress("time_cluster_cl_dr"        , &b.time_cluster_cl_dr);
+  tree->SetBranchAddress("crv_cluster_nhits"       , &b.crv_cluster_nhits);
+  tree->SetBranchAddress("crv_cluster_npe"         , &b.crv_cluster_npe);
+  tree->SetBranchAddress("crv_cluster_t0"          , &b.crv_cluster_t0);
+  tree->SetBranchAddress("crv_cluster_x"           , &b.crv_cluster_x);
+  tree->SetBranchAddress("crv_cluster_y"           , &b.crv_cluster_y);
+  tree->SetBranchAddress("crv_cluster_z"           , &b.crv_cluster_z);
+  tree->SetBranchAddress("mc_cluster_energy"       , &b.mc_cluster_energy);
+  tree->SetBranchAddress("mc_cluster_time"         , &b.mc_cluster_time);
+  tree->SetBranchAddress("sim_1_edep"              , &b.sim_1_edep);
+  tree->SetBranchAddress("sim_1_time"              , &b.sim_1_time);
+  tree->SetBranchAddress("sim_1_nhits"             , &b.sim_1_nhits);
+  tree->SetBranchAddress("sim_1_type"              , &b.sim_1_type);
+  tree->SetBranchAddress("sim_1_pdg"               , &b.sim_1_pdg);
+  tree->SetBranchAddress("sim_1_proc"              , &b.sim_1_proc);
+  tree->SetBranchAddress("sim_1_main_crystal"      , &b.sim_1_main_crystal);
+  tree->SetBranchAddress("sim_1_main_crystal_energy", &b.sim_1_main_crystal_energy);
+  tree->SetBranchAddress("sim_2_edep"              , &b.sim_2_edep);
+  tree->SetBranchAddress("sim_2_time"              , &b.sim_2_time);
+  tree->SetBranchAddress("sim_2_nhits"             , &b.sim_2_nhits);
+  tree->SetBranchAddress("sim_2_type"              , &b.sim_2_type);
+  tree->SetBranchAddress("sim_2_pdg"               , &b.sim_2_pdg);
+  tree->SetBranchAddress("sim_2_proc"              , &b.sim_2_proc);
+  tree->SetBranchAddress("sim_2_main_crystal"      , &b.sim_2_main_crystal);
+  tree->SetBranchAddress("sim_2_main_crystal_energy", &b.sim_2_main_crystal_energy);
+  tree->SetBranchAddress("event_weight"            , &b.event_weight);
+  tree->SetBranchAddress("gen_energy"              , &b.gen_energy);
+  tree->SetBranchAddress("npot"                    , &b.npot);
+}
+
+//--------------------------------------------------------------------------------------
+// Print functions
+//--------------------------------------------------------------------------------------
+void print_cluster_event(TreeBranches& b, int offset, const char* tag) {
+  printf(">>> [%12s] Accepted (%3i): %4i/%5i/%6i E = %5.1f, T = %6.1f, sim_1: type = %2i code = %3i pdg = %4i edep = %5.1f sim_2: type = %2i code = %3i pdg = %4i edep = %5.1f\n",
+         tag, offset, b.run, b.subrun, b.event, b.cluster_energy, b.cluster_time,
+         b.sim_1_type, b.sim_1_proc, b.sim_1_pdg, b.sim_1_edep,
+         b.sim_2_type, b.sim_2_proc, b.sim_2_pdg, b.sim_2_edep);
+
+}
+
+//--------------------------------------------------------------------------------------
+// Selection functions
+//--------------------------------------------------------------------------------------
+
+bool sel_energy(const TreeBranches& b) {
+  return b.cluster_energy > 60. && b.cluster_energy < 150.;
+}
+
+bool sel_energy_time(const TreeBranches& b) {
+  return sel_energy(b) && b.cluster_time > 500. && b.cluster_time < 1650.;
+}
+
+bool sel_photon_id(const TreeBranches& b) {
+  return sel_energy_time(b) && b.photon_id > 0.8;
+}
+
+bool sel_signal_id(const TreeBranches& b) {
+  return sel_energy_time(b)
+    && b.cluster_ncr  > 1
+    && b.cluster_ncr  < 6
+    && b.cluster_frac_1       > 0.60f
+    && b.cluster_frac_2       > 0.80f
+    && b.cluster_t_var        < 1.0f
+    && b.cluster_second_moment< 1.e3f
+    && b.cluster_disk == 0;
+  // && b.photon_id            > 0.8f;
+}
+
+//--------------------------------------------------------------------------------------
+// Main entry point
+//--------------------------------------------------------------------------------------
+void hist_run1bana_tree_v2(const char* inputFiles    = "input.root",  // comma- or space-separated, or a glob
+                        const char* outputFile    = "output.root",
+                        const Long64_t max_events = 2e6,
+                        const char* treePath      = "Run1BAna/tree_60/tree") {
+
+  if(beam_mu_nominal_ != beam_mu_goal_) {
+    cout << "==================================================\n";
+    cout << "Applying beam weights for mu = " << beam_mu_goal_ << endl;
+    cout << "==================================================\n";
+  }
+
+  // Build TChain
+  TChain* chain = new TChain(treePath);
+
+  // Allow comma-separated list of files or wildcards
+  TString fileList(inputFiles);
+  TObjArray* tokens = fileList.Tokenize(",");
+  for(int i = 0; i < tokens->GetEntries(); ++i) {
+    TString fname = dynamic_cast<TObjString*>(tokens->At(i))->GetString().Strip(TString::kBoth);
+    if(!fname.Contains("*")) {
+      TFile* f = TFile::Open(fname, "READ");
+      if(!f || f->IsZombie()) {
+        cout << "Skipping file " << fname << endl;
+        continue;
+      }
+      if(!f->Get(treePath)) {
+        cout << "Skipping file " << fname << endl;
+        continue;
+      }
+    }
+    const int added = chain->Add(fname);
+    std::cout << "Added " << added << " file(s) matching: " << fname << std::endl;
+  }
+  delete tokens;
+
+  if(chain->GetNtrees() == 0) {
+    std::cerr << "No files added to chain, exiting." << std::endl;
+    delete chain;
+    return;
+  }
+
+  // Get normalization by scanning input files before the event loop
+  const double nsampled = getNSampled(chain);
+  if(nsampled > 0.) {
+    std::cout << "Total number of sampled events: " << nsampled << std::endl;
+  } else {
+    std::cerr << "Warning: could not retrieve number of sampled events from input files." << std::endl;
+    delete chain;
+    return;
+  }
+
+  // Initialise branch addresses
+  TreeBranches b{};
+  setBranchAddresses(chain, b);
+
+  // Create output file
+  TFile* fout = TFile::Open(outputFile, "RECREATE");
+  if(!fout || fout->IsZombie()) {
+    std::cerr << "Cannot create output file: " << outputFile << std::endl;
+    delete chain;
+    return;
+  }
+
+  Long64_t nEntries = chain->GetEntries();
+  double norm_scale = 1.;
+  if(max_events < 0 || nEntries < max_events)
+    std::cout << "Processing " << nEntries << " entries across "
+              << chain->GetNtrees() << " file(s)..." << std::endl;
+  else {
+    std::cout << "Processing " << max_events << " / " << nEntries << " entries across "
+              << chain->GetNtrees() << " file(s)..." << std::endl;
+    norm_scale = max_events * 1. / nEntries;
+    nEntries = max_events;
+  }
+
+  // Add normalization to the output
+  fout->cd();
+  TH1* hnorm = new TH1D("norm", "Normalization;N;", 1, 0., 1.);
+  hnorm->SetBinContent(1, nsampled*norm_scale);
+  hnorm->Write();
+  TH1* hnpot = new TH1D("npot", "N(POT)", 1, 0., 1.);
+  hnpot->SetBinContent(1, beam_mu_goal_);
+  hnpot->Write();
+  TH1* hsdf = new TH1D("sdf", "SDF", 1, 0., 1.);
+  hsdf->SetBinContent(1, beam_sdf_goal_);
+  hsdf->Write();
+
+  // Book histogram sets
+  bookHistograms(  0, "all"                                   , fout);
+  bookHistograms(  1, "no_weights"                            , fout);
+  bookHistograms(  2, "photon_id"                             , fout);
+  bookHistograms(  3, "signal_id"                             , fout);
+  bookHistograms(  4, "id_high_z_hits"                        , fout);
+  bookHistograms(  5, "energy_time"                           , fout);
+  bookHistograms(  6, "50MeV"                                 , fout);
+  bookHistograms(  7, "50MeV_line"                            , fout);
+  bookHistograms(  8, "id_line"                               , fout);
+  bookHistograms( 10, "r_500"                                 , fout);
+  bookHistograms( 11, "r_550"                                 , fout);
+  bookHistograms( 15, "id_r_500"                              , fout);
+  bookHistograms( 16, "id_r_550"                              , fout);
+  bookHistograms( 17, "id_no_hits"                            , fout);
+  bookHistograms( 18, "id_r_500_high_z_hits"                  , fout);
+  bookHistograms( 20, "no_calo_mu"                            , fout);
+  bookHistograms( 22, "no_calo_mu_photon_id"                  , fout);
+  bookHistograms( 23, "no_calo_mu_id"                         , fout);
+  bookHistograms( 24, "no_calo_mu_id_high_z_hits"             , fout);
+  bookHistograms( 30, "no_calo_mu_r_500"                      , fout);
+  bookHistograms( 31, "no_calo_mu_r_550"                      , fout);
+  bookHistograms( 32, "n_calo_mu_no_hits"                     , fout);
+  bookHistograms( 35, "no_calo_mu_id_r_500"                   , fout);
+  bookHistograms( 36, "no_calo_mu_id_r_550"                   , fout);
+  bookHistograms( 37, "no_calo_mu_id_no_hits"                 , fout);
+  bookHistograms( 38, "no_calo_mu_id_r_500_high_z_hits"       , fout);
+
+  // Sets with offsets
+  for(int offset = 0; offset < 3; ++offset) {
+
+    // RMC sets
+    bookHistograms( 70 + offset*100, "base"             , fout);
+    bookHistograms( 71 + offset*100, "id"               , fout);
+    bookHistograms( 72 + offset*100, "id_r_500"         , fout);
+    bookHistograms( 73 + offset*100, "id_tcl_hits"      , fout);
+    bookHistograms( 74 + offset*100, "id_r_500_tcl_hits", fout);
+    bookHistograms( 75 + offset*100, "id_neutron_veto"  , fout);
+
+    // CE sets
+    bookHistograms( 80 + offset*100, "id_line"          , fout);
+
+    // RPC sets
+    bookHistograms( 90 + offset*100, "base"             , fout);
+    bookHistograms( 91 + offset*100, "id"               , fout);
+    bookHistograms( 92 + offset*100, "id_r_500"         , fout);
+    bookHistograms( 93 + offset*100, "id_tcl_hits"      , fout);
+    bookHistograms( 94 + offset*100, "id_r_500_tcl_hits", fout);
+
+    bookHistograms( 95 + offset*100, "t_500"            , fout);
+    bookHistograms( 96 + offset*100, "id_t_500"         , fout);
+    bookHistograms( 97 + offset*100, "sim_t_500"        , fout);
+    bookHistograms( 98 + offset*100, "id_time"          , fout);
+    bookHistograms( 99 + offset*100, "id_energy"        , fout);
+
+  }
+
+
+  //--------------------------------------------------------------------------------------
+  // Event loop
+  //--------------------------------------------------------------------------------------
+
+  const bool is_pu  = TString(inputFiles).Contains("mnbs");
+  const bool is_csm = TString(inputFiles).Contains("csms");
+  const bool is_fgm = TString(inputFiles).Contains("fgam");
+  const bool is_pgm = TString(inputFiles).Contains("pgam");
+  const bool is_neu = TString(inputFiles).Contains("neut");
+  const bool is_fel = TString(inputFiles).Contains("fele");
+  const bool is_rpc = TString(inputFiles).Contains("rpc");
+  const bool is_v07 = TString(outputFile).Contains("7b");
+  const bool is_v08 = TString(outputFile).Contains("fgam8b"); // Plestid fit
+  const bool is_v09 = TString(outputFile).Contains("fgam9b");
+  const bool is_v40 = TString(inputFiles).Contains("0b");
+
+  TTree* current_tree = nullptr;
+  for(Long64_t i = 0; i < nEntries; ++i) {
+    chain->GetEntry(i);
+    if(current_tree != chain->GetTree()) {
+      current_tree = chain->GetTree();
+      current_tree->LoadBaskets(200000000U);
+    }
+
+    if(i % 10000 == 0)
+      std::cout << "  Entry " << i << " / " << nEntries << std::endl;
+
+    // // Remove event weight from physical RPC sample
+    // if(is_v40 && is_rpc) b.event_weight = 1.;
+
+    // Modeling these in pileup or not
+    if(is_pu && veto_neutrons_pileup_ && b.sim_1_pdg == 2112 &&
+       b.cluster_energy > 50. && b.sim_1_edep / b.mc_cluster_energy > 0.80) continue;
+    if(is_pu && veto_protons_pileup_ && b.sim_1_pdg == 2212 &&
+       b.cluster_energy > 50. && b.sim_1_edep / b.mc_cluster_energy > 0.80) continue;
+    if(is_pu && veto_rmc_pileup_ && b.sim_1_pdg == 22 && b.sim_1_type == 0 &&
+       b.cluster_energy > 50. && b.sim_1_edep / b.mc_cluster_energy > 0.80) continue;
+    if(is_pu && veto_dio_pileup_ && b.sim_1_pdg == 11 && b.sim_1_proc == 166 &&
+       b.cluster_energy > 60. && b.sim_1_edep / b.mc_cluster_energy > 0.80) continue;
+    // if(is_fel && (b.gen_energy < 70. || b.sim_1_pdg != 11 || b.sim_1_edep / b.mc_cluster_energy < 0.8)) continue;
+
+    // Ignore non-primary clusters in primary samples
+    if((is_fgm || is_pgm || is_fel) && b.sim_1_type != 0) continue;
+
+    int offset = 0;
+    if(!is_csm) { // for now, don't offset cosmics due to gen matching issues
+      if(b.sim_1_type == 2 || b.sim_2_type == 2) offset = 200; // calo muon stop
+      else if(b.sim_1_edep / b.mc_cluster_energy < 0.90  // pileup or misreconstructed
+              || b.sim_1_type < 0 || b.sim_1_type > 2) { // main sim is not a normal process
+        offset = 100;
+      }
+    }
+
+    // FIXME: Hack to move cosmics to low time in v07 = early time dataset
+    if(is_csm && is_v07) {
+      const double toff = 400.;
+      b.cluster_time    = std::fmod(b.cluster_time    - toff, 1695.);
+      b.mc_cluster_time = std::fmod(b.mc_cluster_time - toff, 1695.);
+      if(b.line_t0) {
+        for(auto& v : *b.line_t0) v = std::fmod(v - toff, 1695.);
+      }
+      if(b.cosmic_seed_t0) {
+        for(auto& v : *b.cosmic_seed_t0) v = std::fmod(v - toff, 1695.);
+      }
+      if(b.time_cluster_t0) {
+        for(auto& v : *b.time_cluster_t0) v = std::fmod(v - toff, 1695.);
+      }
+      b.crv_cluster_t0  = std::fmod(b.crv_cluster_t0  - toff, 1695.);
+      b.sim_1_time      = std::fmod(b.sim_1_time      - toff, 1695.);
+      b.sim_2_time      = std::fmod(b.sim_2_time      - toff, 1695.);
+    }
+
+    // Apply Plestid spectrum shape weights
+    if(debug_ > 0) printf("  E(gen) = %6.2f MeV, w = %.5f\n",
+                          b.gen_energy, b.event_weight);
+    if(is_fgm) {
+      if(use_plestid_rmc_) {
+        const float energy = b.gen_energy;
+        float weight = 0.;
+        constexpr double k_0 = 101.866;
+        constexpr double k_1 = 95.449;
+        constexpr double k_2 = 84.395;
+        constexpr double br_0n      = 0.099; // defined for E_photon > 57 MeV
+        constexpr double br_1n      = 0.901;
+        constexpr double ref_energy = 57.;
+        const     double frac_ref_0 = plestid_integral(ref_energy, k_0, k_0, 0); // fraction above 57 MeV
+        const     double frac_ref_1 = plestid_integral(ref_energy, k_1, k_1, 1);
+        // Normalize the spectra from 57 - kmax, then use branching fraction weights
+        const     double w_0 = plestid_spectrum(energy, k_0, 0) / frac_ref_0;
+        const     double w_1 = plestid_spectrum(energy, k_1, 1) / frac_ref_1;
+        weight += br_0n * w_0;
+        weight += br_1n * w_1;
+        b.event_weight = weight;
+        if(debug_ > 0) printf("  E(gen) = %6.2f MeV, frac_0 = %.3f, w_0 = %.5f, frac_1 = %.3f, w_1 = %.5f, w = %.5f\n",
+                              energy, frac_ref_0, w_0, frac_ref_1, w_1, weight);
+      } else b.event_weight /= (90.1*closure_integral(57., 90.1, 90.1)); // FIXME: Was missing this in previous versions
+    }
+
+    if(is_pgm) {
+      if(use_plestid_rmc_) {
+        const float energy = b.gen_energy;
+        float weight = 0.;
+        // fit_plestid: 1992_C Kinematic endpoints: 0n =  91.30 1n =  87.96 2n =  76.59, p1 =  77.31, p2 =  -1.00, np =  76.82
+        constexpr double k_0 = 91.30;
+        constexpr double k_1 = 87.96;
+        constexpr double k_2 = 76.59;
+        constexpr double br_0n      = 0.20; // defined for E_photon > 57 MeV
+        constexpr double br_1n      = 0.80; // using approximate values based on typical results
+        constexpr double ref_energy = 57.;
+        const     double frac_ref_0 = plestid_integral(ref_energy, k_0, k_0, 0); // fraction above 57 MeV
+        const     double frac_ref_1 = plestid_integral(ref_energy, k_1, k_1, 1);
+        // Normalize the spectra from 57 - kmax, then use branching fraction weights
+        const     double w_0 = plestid_spectrum(energy, k_0, 0) / frac_ref_0;
+        const     double w_1 = plestid_spectrum(energy, k_1, 1) / frac_ref_1;
+        weight += br_0n * w_0;
+        weight += br_1n * w_1;
+        b.event_weight = weight;
+        if(debug_ > 0) printf("  E(gen) = %6.2f MeV, frac_0 = %.3f, w_0 = %.5f, frac_1 = %.3f, w_1 = %.5f, w = %.5f\n",
+                              energy, frac_ref_0, w_0, frac_ref_1, w_1, weight);
+      }
+    }
+
+    // Beam re-weighting
+    if(b.npot > 1. && (beam_mu_nominal_ != beam_mu_goal_ ||
+                       beam_sdf_nominal_ != beam_sdf_nominal_)) {
+      const double x = b.npot;
+      if(is_pu || is_csm) { // follow log-normal
+        const double p_1 =  lognormal_pdf(x        , beam_mu_nominal_, beam_sdf_nominal_);
+        const double p_2 =  lognormal_pdf(x        , beam_mu_goal_   , beam_sdf_goal_   );
+        const double c_1 =  lognormal_cdf(beam_max_, beam_mu_nominal_, beam_sdf_nominal_);
+        const double c_2 =  lognormal_cdf(beam_max_, beam_mu_goal_   , beam_sdf_goal_   );
+        const double w = (p_2/c_2) / (p_1/c_1); // normalize each PDF over the range simulated
+        b.event_weight *= w;
+      } else {              // follow x*log-normal
+        const double p_1 = xlognormal_pdf(x        , beam_mu_nominal_, beam_sdf_nominal_);
+        const double p_2 = xlognormal_pdf(x        , beam_mu_goal_   , beam_sdf_goal_   );
+        const double c_1 = xlognormal_cdf(beam_max_, beam_mu_nominal_, beam_sdf_nominal_);
+        const double c_2 = xlognormal_cdf(beam_max_, beam_mu_goal_   , beam_sdf_goal_   );
+        const double w = (p_2/c_2) / (p_1/c_1); // normalize each PDF over the range simulated
+        b.event_weight *= w;
+      }
+    }
+
+    // Extract electron-collection (index 0) values for selections
+    const float ele_line_nhits             = getColFloat(b.line_nhits,                b.line_col_idx,         kElectron);
+    const float ele_line_cos               = getColFloat(b.line_cos,                  b.line_col_idx,         kElectron);
+    const float ele_time_cluster_nhits     = getColFloat(b.time_cluster_nhits,        b.time_cluster_col_idx, kElectron);
+    const float ele_time_cluster_nhigh_z   = getColFloat(b.time_cluster_nhigh_z_hits, b.time_cluster_col_idx, kElectron);
+
+    // TODO: Add vetos using proton (kProton) and cosmic (kCosmic) collections
+    // e.g.: const bool has_proton_line  = hasCol(b.line_col_idx, kProton);
+    //       const bool has_cosmic_line  = hasCol(b.line_col_idx, kCosmic);
+    //       const bool has_cosmic_seed  = hasCol(b.cosmic_seed_col_idx, kCosmic);
+    //       const bool has_cosmic_tc    = hasCol(b.time_cluster_col_idx, kCosmic);
+
+    // Fill each selection set
+    fillHistograms(0, b, b.event_weight);
+    fillHistograms(1, b);
+    if(sel_photon_id    (b)) fillHistograms(2, b, b.event_weight);
+    if(sel_signal_id    (b)) {
+      fillHistograms(3, b, b.event_weight);
+      if(ele_time_cluster_nhigh_z < 3) fillHistograms(4, b, b.event_weight);
+    }
+    if(sel_energy_time(b)) {
+      fillHistograms(5, b, b.event_weight);
+      if(b.cluster_energy > 60.) {
+        fillHistograms(6, b, b.event_weight);
+        if(ele_line_nhits > 0) {
+          fillHistograms(7, b, b.event_weight);
+        }
+      }
+      if(b.cluster_radius > 500.)  fillHistograms(10, b, b.event_weight);
+      if(b.cluster_radius > 550.)  fillHistograms(11, b, b.event_weight);
+      if(sel_signal_id(b)) {
+        if(b.cluster_radius > 500.) {
+          fillHistograms(15, b, b.event_weight);
+          if(ele_time_cluster_nhigh_z < 3) fillHistograms(18, b, b.event_weight);
+        }
+        if(b.cluster_radius > 550.)  fillHistograms(16, b, b.event_weight);
+        if(b.sim_1_nhits + b.sim_2_nhits <= 0) fillHistograms(17, b, b.event_weight);
+        if(ele_line_nhits > 0) {
+          fillHistograms(8, b, b.event_weight);
+        }
+      }
+    }
+
+    // No calorimeter muon stops
+    if(b.sim_1_type != 2 && b.sim_2_type != 2) {
+      fillHistograms(20, b, b.event_weight);
+      if(sel_photon_id    (b)) fillHistograms(22, b, b.event_weight);
+      if(sel_signal_id    (b)) {
+        fillHistograms(23, b, b.event_weight);
+        if(ele_time_cluster_nhigh_z < 3) fillHistograms(24, b, b.event_weight);
+      }
+      if(sel_energy_time(b)) {
+        if(b.cluster_radius > 500.)  fillHistograms(30, b, b.event_weight);
+        if(b.cluster_radius > 550.)  fillHistograms(31, b, b.event_weight);
+        if(b.sim_1_nhits + b.sim_2_nhits <= 0) fillHistograms(32, b, b.event_weight);
+        if(sel_signal_id(b)) {
+          if(b.cluster_radius > 500.)  {
+            fillHistograms(35, b, b.event_weight);
+            if(ele_time_cluster_nhigh_z < 3) fillHistograms(38, b, b.event_weight);
+          }
+          if(b.cluster_radius > 550.)  fillHistograms(36, b, b.event_weight);
+          if(b.sim_1_nhits + b.sim_2_nhits <= 0) fillHistograms(37, b, b.event_weight);
+        }
+      }
+    }
+
+    // Offset selections
+
+    // RMC (photon selections 71-75: use electron collection index 0)
+    // TODO: Add vetos using proton/cosmic collections for additional background rejection
+    if(b.cluster_time > 500. && b.cluster_energy > 60. && b.cluster_energy < 150.) {
+      fillHistograms(70 + offset, b, b.event_weight);
+      if(sel_signal_id(b)) {
+        fillHistograms(71 + offset, b, b.event_weight);
+        if(b.cluster_radius > 500.) fillHistograms(72 + offset, b, b.event_weight);
+        if(ele_time_cluster_nhigh_z < 3) fillHistograms(73 + offset, b, b.event_weight);
+        const bool radius_cut = b.cluster_radius > 500. && b.cluster_radius < 580.;
+        const bool crv_cut = true; // b.crv_cluster_nhits <= 0 || std::fabs(b.crv_dt_corrected - 40.) > 30.;
+        if(radius_cut && crv_cut && ele_time_cluster_nhigh_z < 3) {
+          fillHistograms(74 + offset, b, b.event_weight);
+          if(is_pu && b.cluster_energy > 65.)
+            print_cluster_event(b, offset, "RMC: PU");
+          if(is_csm && b.cluster_energy > 80. && b.cluster_energy < 100.)
+            print_cluster_event(b, offset, "RMC: Cosmic");
+
+          // Reject neutrons
+          const float e24_over_e = (b.cluster_e25 - b.cluster_e1) / b.cluster_energy;
+          const float e2p_over_e = (b.cluster_e2 - b.cluster_e1) / b.cluster_energy;
+          if(e24_over_e > 0.075 && e2p_over_e < 0.3) {
+            fillHistograms(75 + offset, b, b.event_weight);
+          }
+        }
+      }
+    }
+
+    // CE (selection 80: use electron collection index 0)
+    if(sel_signal_id(b) && sel_energy_time(b)) {
+      const bool tc_hits = ele_time_cluster_nhits > 10 && ele_time_cluster_nhits < 40;
+      const bool line_hits = ele_line_nhits > 0;
+      const bool line_slope = ele_line_cos > 0.985; // not cosmic-like
+      if(tc_hits && line_hits && line_slope) {
+        fillHistograms(80 + offset, b, b.event_weight);
+        if(is_pu && b.cluster_energy > 65.)
+          print_cluster_event(b, offset, "CE: PU");
+        if(is_csm && b.cluster_energy > 80. && b.cluster_energy < 100.) {
+          print_cluster_event(b, offset, "CE: Cosmic");
+        }
+      }
+    }
+
+    // Low time selection (RPC selections 91-95: use electron collection index 0)
+    // TODO: Add vetos using proton/cosmic collections for additional background rejection
+    if(b.cluster_time > 300. && b.cluster_time < 550. && b.cluster_energy > 60. && b.cluster_energy < 150.) {
+      fillHistograms(90 + offset, b, b.event_weight);
+      const bool signal_id = (b.cluster_ncr  > 1
+                              && b.cluster_ncr  < 6
+                              && b.cluster_frac_1       > 0.60f
+                              && b.cluster_frac_2       > 0.80f
+                              && b.cluster_t_var        < 1.0f
+                              && b.cluster_second_moment< 1.e3f
+                              && b.cluster_disk == 0
+                              );
+      if(signal_id) {
+        fillHistograms(91 + offset, b, b.event_weight);
+        if(b.cluster_radius > 500.) fillHistograms(92 + offset, b, b.event_weight);
+        if(ele_time_cluster_nhigh_z < 3) fillHistograms(93 + offset, b, b.event_weight);
+        const bool radius_cut = b.cluster_radius > 500. && b.cluster_radius < 580.;
+        const bool crv_cut = true; // b.crv_cluster_nhits <= 0 || std::fabs(b.crv_dt_corrected - 40.) > 30.;
+        if(radius_cut && crv_cut && ele_time_cluster_nhigh_z < 3) fillHistograms(94 + offset, b, b.event_weight);
+
+        // Energy/time selections
+        if(b.cluster_time < 400.) fillHistograms(98 + offset, b, b.event_weight);
+        if(b.cluster_energy > 90. && b.cluster_energy < 130.) fillHistograms(99 + offset, b, b.event_weight);
+      }
+      if(b.cluster_time > 500.) {
+        fillHistograms(95 + offset, b, b.event_weight);
+        if(signal_id) fillHistograms(96 + offset, b, b.event_weight);
+      }
+      if(b.sim_1_time > 500.) fillHistograms(97 + offset, b, b.event_weight);
+    }
+
+    // if(offset == 0 && is_pu) { // report relevant event IDs
+    //   std::cout << "PU DIO: " << b.run << " " << b.subrun << " " << b.event << std::endl;
+    // }
+  }
+
+  //--------------------------------------------------------------------------------------
+  // Save output
+  //--------------------------------------------------------------------------------------
+  fout->Write();
+  fout->Close();
+  delete chain;
+
+  std::cout << "Done. Output written to " << outputFile << std::endl;
+}

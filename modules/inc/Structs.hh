@@ -16,9 +16,36 @@
 #include "TH1.h"
 #include "TH2.h"
 
+#include <vector>
+
 using namespace mu2e;
 
 namespace Run1BAnaStructs {
+
+  //--------------------------------------------------------------------------------------
+  // Match info structs for tracking which collection each matched object came from
+  //--------------------------------------------------------------------------------------
+
+  struct MatchedLine_t {
+    const KalSeed* line = nullptr;
+    int col_idx = -1; // index into the fhicl::Sequence of line collections
+    float dt = 0.f;
+    float dr = 0.f;
+  };
+
+  struct MatchedCosmicSeed_t {
+    const CosmicTrackSeed* seed = nullptr;
+    int col_idx = -1;
+    float dt = 0.f;
+    float dr = 0.f;
+  };
+
+  struct MatchedTimeCluster_t {
+    const TimeCluster* tc = nullptr;
+    int col_idx = -1;
+    float dt = 0.f;
+    float dr = 0.f;
+  };
 
   //--------------------------------------------------------------------------------------
   // Histograms
@@ -226,40 +253,49 @@ namespace Run1BAnaStructs {
       float ntcl_hits;
       float photon_id;
 
-      // Line info
-      float line_chi2;
-      float line_nhits;
-      float line_nplanes;
-      float line_nstereo;
-      float line_d0;
-      float line_tdip;
-      float line_cos;
-      float line_z0;
-      float line_t0;
-      float line_phi0;
+      // Line info (vectors: one entry per matched line across all collections)
+      std::vector<int>   line_col_idx;
+      std::vector<float> line_chi2;
+      std::vector<float> line_nhits;
+      std::vector<float> line_nplanes;
+      std::vector<float> line_nstereo;
+      std::vector<float> line_d0;
+      std::vector<float> line_tdip;
+      std::vector<float> line_cos;
+      std::vector<float> line_z0;
+      std::vector<float> line_t0;
+      std::vector<float> line_phi0;
+      std::vector<float> line_cl_dt;
+      std::vector<float> line_cl_dr;
 
-      // Cosmic seed info
-      float cosmic_seed_chi2;
-      float cosmic_seed_nhits;
-      float cosmic_seed_d0;
-      float cosmic_seed_tdip;
-      float cosmic_seed_cos;
-      float cosmic_seed_z0;
-      float cosmic_seed_t0;
-      float cosmic_seed_phi0;
-      float cosmic_seed_A0;
-      float cosmic_seed_A1;
-      float cosmic_seed_B0;
-      float cosmic_seed_B1;
+      // Cosmic seed info (vectors: one entry per matched cosmic seed)
+      std::vector<int>   cosmic_seed_col_idx;
+      std::vector<float> cosmic_seed_chi2;
+      std::vector<float> cosmic_seed_nhits;
+      std::vector<float> cosmic_seed_d0;
+      std::vector<float> cosmic_seed_tdip;
+      std::vector<float> cosmic_seed_cos;
+      std::vector<float> cosmic_seed_z0;
+      std::vector<float> cosmic_seed_t0;
+      std::vector<float> cosmic_seed_phi0;
+      std::vector<float> cosmic_seed_A0;
+      std::vector<float> cosmic_seed_A1;
+      std::vector<float> cosmic_seed_B0;
+      std::vector<float> cosmic_seed_B1;
+      std::vector<float> cosmic_seed_cl_dt;
+      std::vector<float> cosmic_seed_cl_dr;
 
-      // Time cluster info
-      float time_cluster_nhits;
-      float time_cluster_nstraw_hits;
-      float time_cluster_nhigh_z_hits;
-      float time_cluster_t0;
-      float time_cluster_t0err;
-      float time_cluster_z0;
-      float time_cluster_phi0;
+      // Time cluster info (vectors: one entry per matched time cluster)
+      std::vector<int>   time_cluster_col_idx;
+      std::vector<float> time_cluster_nhits;
+      std::vector<float> time_cluster_nstraw_hits;
+      std::vector<float> time_cluster_nhigh_z_hits;
+      std::vector<float> time_cluster_t0;
+      std::vector<float> time_cluster_t0err;
+      std::vector<float> time_cluster_z0;
+      std::vector<float> time_cluster_phi0;
+      std::vector<float> time_cluster_cl_dt;
+      std::vector<float> time_cluster_cl_dr;
 
       // CRV cluster info
       int   crv_cluster_nhits;
@@ -340,37 +376,46 @@ namespace Run1BAnaStructs {
         ntcl_hits = 0.f;
         photon_id = 0.f;
 
-        line_chi2 = 0.f;
-        line_nhits = 0.f;
-        line_nplanes = 0.f;
-        line_nstereo = 0.f;
-        line_d0 = 0.f;
-        line_tdip = 0.f;
-        line_cos = 0.f;
-        line_z0 = 0.f;
-        line_t0 = 0.f;
-        line_phi0 = 0.f;
+        line_col_idx.clear();
+        line_chi2.clear();
+        line_nhits.clear();
+        line_nplanes.clear();
+        line_nstereo.clear();
+        line_d0.clear();
+        line_tdip.clear();
+        line_cos.clear();
+        line_z0.clear();
+        line_t0.clear();
+        line_phi0.clear();
+        line_cl_dt.clear();
+        line_cl_dr.clear();
 
-        cosmic_seed_chi2 = 0.f;
-        cosmic_seed_nhits = 0.f;
-        cosmic_seed_d0 = 0.f;
-        cosmic_seed_tdip = 0.f;
-        cosmic_seed_cos = 0.f;
-        cosmic_seed_z0 = 0.f;
-        cosmic_seed_t0 = 0.f;
-        cosmic_seed_phi0 = 0.f;
-        cosmic_seed_A0 = 0.f;
-        cosmic_seed_A1 = 0.f;
-        cosmic_seed_B0 = 0.f;
-        cosmic_seed_B1 = 0.f;
+        cosmic_seed_col_idx.clear();
+        cosmic_seed_chi2.clear();
+        cosmic_seed_nhits.clear();
+        cosmic_seed_d0.clear();
+        cosmic_seed_tdip.clear();
+        cosmic_seed_cos.clear();
+        cosmic_seed_z0.clear();
+        cosmic_seed_t0.clear();
+        cosmic_seed_phi0.clear();
+        cosmic_seed_A0.clear();
+        cosmic_seed_A1.clear();
+        cosmic_seed_B0.clear();
+        cosmic_seed_B1.clear();
+        cosmic_seed_cl_dt.clear();
+        cosmic_seed_cl_dr.clear();
 
-        time_cluster_nhits = 0.f;
-        time_cluster_nstraw_hits = 0.f;
-        time_cluster_nhigh_z_hits = 0.f;
-        time_cluster_t0 = 0.f;
-        time_cluster_t0err = 0.f;
-        time_cluster_z0 = 0.f;
-        time_cluster_phi0 = 0.f;
+        time_cluster_col_idx.clear();
+        time_cluster_nhits.clear();
+        time_cluster_nstraw_hits.clear();
+        time_cluster_nhigh_z_hits.clear();
+        time_cluster_t0.clear();
+        time_cluster_t0err.clear();
+        time_cluster_z0.clear();
+        time_cluster_phi0.clear();
+        time_cluster_cl_dt.clear();
+        time_cluster_cl_dr.clear();
 
         crv_cluster_nhits = -1;
         crv_cluster_npe = 0.f;
@@ -470,14 +515,19 @@ namespace Run1BAnaStructs {
     //--------------------------------------------------------------------------------------
     struct ClusterPar_t {
       const CaloCluster*     cluster;
-      const KalSeed*         line;
-      const CosmicTrackSeed* cosmic_seed;
-      const TimeCluster*     time_cluster;
+      const KalSeed*         line;          // best-match line (backward compat)
+      const CosmicTrackSeed* cosmic_seed;   // best-match cosmic seed (backward compat)
+      const TimeCluster*     time_cluster;  // best-match time cluster (backward compat)
       const CrvCoincidenceCluster* crv_cluster;
       const CaloClusterMC*   mc;
       const SimParticle*     primary_sim;
       const SimParticle*     secondary_sim;
       const Calorimeter*     calorimeter;
+
+      // Lists of all matched objects across all collections
+      std::vector<MatchedLine_t>         matched_lines;
+      std::vector<MatchedCosmicSeed_t>   matched_cosmic_seeds;
+      std::vector<MatchedTimeCluster_t>  matched_time_clusters;
 
       float r;
       double second_moment;
@@ -548,6 +598,9 @@ namespace Run1BAnaStructs {
         mc = nullptr;
         primary_sim = nullptr;
         secondary_sim = nullptr;
+        matched_lines.clear();
+        matched_cosmic_seeds.clear();
+        matched_time_clusters.clear();
         r = 0.f;
         second_moment = 0.;
         e1 = 0.;
