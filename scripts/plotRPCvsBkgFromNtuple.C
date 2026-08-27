@@ -81,7 +81,7 @@ void plotRPCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "",
   gSystem->Exec(Form("mkdir -p %s", dir_.Data()));
   gStyle->SetOptStat(0);
 
-  signal_color_ = kBlack;
+  // signal_color_ = kBlack;
 
   // Plot by process
   // Plot the histograms
