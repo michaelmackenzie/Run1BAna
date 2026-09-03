@@ -604,7 +604,14 @@ void plot(const char* name, const int set, const bool normalize,
     if(!stack_bkgs_) h->Draw("hist same");
   }
   if(!stack_bkgs_) h_bkg->Draw("hist same");
-  else if(!stack_sig_) h_sig->Draw("hist same");
+  if(!stack_sig_) h_sig->Draw("hist same");
+  else {
+    TH1* sig_draw = (TH1*) h_sig->Clone();
+    sig_draw->SetLineColor(kBlue);
+    sig_draw->SetLineWidth(3);
+    sig_draw->SetFillColor(0);
+    sig_draw->Draw("hist same");
+  }
 
 
   const double max_sig = h_sig->GetMaximum();

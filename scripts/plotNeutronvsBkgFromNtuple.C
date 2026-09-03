@@ -93,7 +93,7 @@ void plotNeutronvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "",
   signal_color_ = kViolet+6;
 
   // Plot by process
-  vector<int> proc_sets = {70,50,51};
+  vector<int> proc_sets = {50,51,52};
   for(const int set : proc_sets) {
     for(const bool normalize : {false}) {
       plot("cluster_energy"                 , set, normalize, 2, emin,  emax, "MeV", true);
