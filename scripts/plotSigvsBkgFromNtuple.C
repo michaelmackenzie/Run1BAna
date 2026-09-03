@@ -31,6 +31,7 @@ double rmue_          = -1.;
 bool rough_sys_        = true;
 bool show_pot_         = false;
 bool stack_bkgs_       = true;
+bool stack_sig_        = false;
 bool draw_no_calo_mu_  = false;
 int  signal_color_     = kBlue;
 int  background_color_ = kRed;
@@ -103,7 +104,11 @@ vector<ProcessSpec_t> nominalProcessSpecs(bool is_rmc = true) {
     {"rpc_pu"    , "RPC_pu"                 , "rpce", 100, true  , kBlue    , false},
     {"rpc_cpu"   , "RPC_cpu"                , "rpce", 200, true  , kBlue    , false},
     {"protons"   , "Protons"                , "prot",   0, false , kAtlantic, false},
+    {"protons_pu" , "Protons_pu"            , "prot", 100, false , kAtlantic, false},
+    {"protons_cpu", "Protons_cpu"           , "prot", 200, false , kAtlantic, false},
     {"neutrons"  , "Neutrons"               , "neut",   0, false , kViolet+6, false},
+    {"neutrons_pu", "Neutrons_pu"           , "neut", 100, false , kViolet+6, false},
+    {"neutrons_cpu", "Neutrons_cpu"         , "neut", 200, false , kViolet+6, false},
     {"cosmics"   , "Cosmics"                , "csms",   0, false , kGreen-6 , false},
     {"pileup_lo" , "Low pileup clusters"    , "mnbs",   0, false , kPink    , true },
     {"pileup_ot" , "Other pileup"           , "mnbs", 100, false , kViolet  , true },
@@ -375,6 +380,7 @@ TH1* significance_hist(TH1* h_sig, TH1* h_bkg, double x_min = 1., double x_max =
     h->SetBinContent(bin, sig);
     h->SetBinError  (bin, 0.);
   }
+  h->SetLineWidth(3);
   return h;
 }
 
@@ -529,7 +535,20 @@ void plot(const char* name, const int set, const bool normalize,
     h_bkg_no_calo_mu->Rebin(rebin);
     for(auto h : h_bkgs) h->Rebin(rebin);
   }
+  TH1* haxis = (TH1*) h_sig->Clone("haxis");
+  haxis->Reset();
+  if(stack_sig_) {
+    h_stack.Add(h_sig);
+    h_sig->SetFillStyle(kSolid);
+    h_sig->SetLineColor(kBlack);
+    h_sig->SetLineWidth(1);
+  } else {
+    h_sig->SetFillStyle(3004);
+    h_sig->SetLineColor(signal_color_);
+    h_sig->SetLineWidth(3);
+  }
   if(x_min < x_max) {
+    haxis->GetXaxis()->SetRangeUser(x_min, x_max);
     h_sig->GetXaxis()->SetRangeUser(x_min, x_max);
     h_bkg->GetXaxis()->SetRangeUser(x_min, x_max);
     for(auto h : h_bkgs) h->GetXaxis()->SetRangeUser(x_min, x_max);
@@ -569,32 +588,30 @@ void plot(const char* name, const int set, const bool normalize,
   legend.SetTextFont(132);
   legend.SetTextSize((sig_plot) ? 0.05 : 0.035);
 
-  h_sig->SetLineColor(signal_color_);
   h_bkg->SetLineColor(background_color_);
-  h_sig->SetLineWidth(3);
   h_bkg->SetLineWidth(3);
-  h_sig->SetFillStyle(3004);
   h_bkg->SetFillStyle(3005);
   h_bkg->SetLineStyle(kDashed);
   h_sig->SetFillColor(signal_color_);
   // h_bkg->SetFillColor(kRed);
-  h_sig->SetTitle("");
-  h_sig->SetYTitle(Form("N(events) / %.3g %s", h_sig->GetBinWidth(1), unit.Data()));
-  h_sig ->Draw("hist");
+  haxis->SetTitle("");
+  haxis->SetXTitle("");
+  haxis->SetYTitle(Form("N(events) / %.3g %s", h_sig->GetBinWidth(1), unit.Data()));
+  haxis->Draw("hist");
   if(stack_bkgs_) h_stack.Draw("hist same noclear");
   for(auto h : h_bkgs) {
     legend.AddEntry(h, h->GetTitle(), "F");
     if(!stack_bkgs_) h->Draw("hist same");
   }
   if(!stack_bkgs_) h_bkg->Draw("hist same");
-  else             h_sig->Draw("hist same");
+  else if(!stack_sig_) h_sig->Draw("hist same");
 
 
   const double max_sig = h_sig->GetMaximum();
   const double max_bkg = h_bkg->GetMaximum();
   const double max_val = std::max(max_sig, max_bkg);
   const double min_max = (max_sig <= 0.) ? max_bkg : (max_bkg <= 0.) ? max_sig : std::min(max_sig, max_bkg);
-  h_sig->GetYaxis()->SetRangeUser(0., (1. + 0.11*nrows)*max_val);
+  haxis->GetYaxis()->SetRangeUser(0., (1. + 0.11*nrows)*max_val);
 
   if(min_max < 0.) {
     cout << "!!! " << name << "/" << set << ": Max(sig) = " << max_sig
@@ -621,15 +638,16 @@ void plot(const char* name, const int set, const bool normalize,
     const double max_val = maxInRange(h_lower_axis, x_min, x_max);
     h_lower_axis->GetYaxis()->SetRangeUser(0., 1.3*max_val);
     if(x_min < x_max) h_lower_axis->GetXaxis()->SetRangeUser(x_min, x_max);
+    h_lower_axis->SetTitle("");
 
     const double text_size = 0.19;
     const double label_size = 0.13;
     const double y_offset = 0.35;
-    h_sig->GetXaxis()->SetTitle("");
-    h_sig->GetXaxis()->SetLabelSize(0.);
-    h_sig->GetYaxis()->SetLabelSize(0.15*0.3/0.7);
-    h_sig->GetYaxis()->SetTitleSize(text_size*0.3/0.7);
-    h_sig->GetYaxis()->SetTitleOffset(y_offset*0.7/0.3);
+    haxis->GetXaxis()->SetTitle("");
+    haxis->GetXaxis()->SetLabelSize(0.);
+    haxis->GetYaxis()->SetLabelSize(0.15*0.3/0.7);
+    haxis->GetYaxis()->SetTitleSize(text_size*0.3/0.7);
+    haxis->GetYaxis()->SetTitleOffset(y_offset*0.7/0.3);
     h_lower_axis->SetYTitle((rough_sys_) ? "S/#sigma_{B}" : "S/#sqrt{B}");
     h_lower_axis->GetXaxis()->SetTitleSize(text_size);
     h_lower_axis->GetYaxis()->SetTitleSize(text_size);
@@ -664,10 +682,10 @@ void plot(const char* name, const int set, const bool normalize,
   draw_info((sig_plot) ? 1.1 : 0.75);
   TString fig_name = Form("%s/%s_%i%s", dir_.Data(), name, set, (normalize) ? "_norm" : "");
 
-  h_sig->GetXaxis()->SetLabelFont(132);
-  h_sig->GetXaxis()->SetTitleFont(132);
-  h_sig->GetYaxis()->SetLabelFont(132);
-  h_sig->GetYaxis()->SetTitleFont(132);
+  haxis->GetXaxis()->SetLabelFont(132);
+  haxis->GetXaxis()->SetTitleFont(132);
+  haxis->GetYaxis()->SetLabelFont(132);
+  haxis->GetYaxis()->SetTitleFont(132);
 
   c.SaveAs((fig_name + ".png").Data());
 
@@ -675,12 +693,13 @@ void plot(const char* name, const int set, const bool normalize,
   double r = max_val/ymin;
   double factor = pow(r, 0.15*nrows); // space needed depends on the legend size
   double ymax = max_val*factor;
-  h_sig->GetYaxis()->SetRangeUser(ymin, ymax);
+  haxis->GetYaxis()->SetRangeUser(ymin, ymax);
   pad1.SetLogy();
   c.SaveAs((fig_name + "_log.png").Data());
 
   delete h_sig;
   delete h_bkg;
+  delete haxis;
 
 }
 

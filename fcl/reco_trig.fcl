@@ -48,6 +48,8 @@ Run1BRecoPath : [
   "ProtonCalTimeClusterFinder",
   "ProtonLineFinder",
   "ProtonKKLine",
+  "CosmicLineFinder",
+  "CosmicKKLine",
   "SelectReco",
   "CaloHitTruthMatch",
   "CaloClusterTruthMatch",
@@ -118,9 +120,9 @@ physics : {
       strawDigiMCCollection   : "compressDigiMCs"
       CaloHitCollection       : "CaloHitMaker"
       ComboHitCollection      : "makePH"
-      LineCollection          : "KKLine"
-      cosmicSeedCollection    : "LineFinder"
-      timeClusterCollection   : "CalTimeClusterFinder"
+      LineCollections         : ["KKLine", "ProtonKKLine", "CosmicKKLine"]
+      cosmicSeedCollections   : ["LineFinder", "ProtonLineFinder", "CosmicLineFinder"]
+      timeClusterCollections  : ["CalTimeClusterFinder", "ProtonCalTimeClusterFinder", "TZClusterFinder"]
       crvClusterCollection    : "CrvCoincidenceClusterFinder"
       caloClusterCollection   : "CaloClusterMaker"
       caloClusterMCCollection : "CaloClusterTruthMatch"
@@ -185,7 +187,6 @@ physics.producers.TZClusterFinder.requireCCs               : true
 # Using time clusters that agree with the target -> cluster hypothesis
 physics.producers.LineFinder.TimeClusterCollection : "CalTimeClusterFinder"
 physics.producers.LineFinder.ComboHitCollection    : "makePH"
-physics.analyzers.Run1BAna.timeClusterCollection   : "CalTimeClusterFinder"
 
 # # Using any TZ cluster that has a calo cluster
 # physics.producers.LineFinder.TimeClusterCollection : "TZClusterFinder"
@@ -223,6 +224,19 @@ physics.producers.ProtonKKLine : {
 physics.producers.ProtonKKLine.ModuleSettings.CosmicTrackSeedCollections : [ "ProtonLineFinder" ]
 physics.producers.ProtonKKLine.ModuleSettings.FitParticle: 2212
 physics.producers.ProtonKKLine.ModuleSettings.SeedMomentum  : 400. # ~80 MeV KE
+
+# Add cosmic muon reco
+physics.producers.CosmicLineFinder : {
+  @table::physics.producers.LineFinder
+  TimeClusterCollection: "TZClusterFinder"
+}
+physics.producers.CosmicKKLine : {
+  @table::physics.producers.KKLine
+}
+physics.producers.CosmicKKLine.ModuleSettings.CosmicTrackSeedCollections : [ "CosmicLineFinder" ]
+physics.producers.CosmicKKLine.ModuleSettings.FitParticle: 13
+physics.producers.CosmicKKLine.ModuleSettings.SeedMomentum  : 200.
+physics.producers.SelectReco.KalSeedCollections : [ @sequence::physics.producers.SelectReco.KalSeedCollections, "CosmicKKLine" ]
 
 
 ###############################################

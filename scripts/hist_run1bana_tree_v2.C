@@ -116,6 +116,7 @@ struct Hist_t {
   TH1F* line_t0;
   TH1F* line_phi0;
   TH1F* line_avg_edep;
+  TH1I* line_fit_matched;
 
   // Cosmic seed parameters
   TH1F* cosmic_seed_chi2;
@@ -141,6 +142,7 @@ struct Hist_t {
   TH1F* time_cluster_z0;
   TH1F* time_cluster_phi0;
   TH1F* time_cluster_avg_edep;
+  TH1F* prot_time_cluster_avg_edep;
 
   // CRV info
   TH1F* crv_dt;
@@ -175,12 +177,23 @@ struct Hist_t {
   TH1F* event_weight;
   TH1F* gen_energy;
   TH1F* gen_energy_nowt;
+  TH1F* mc_edep_diff;
+  TH1F* gen_ediff;
+  TH2F* gen_ke_vs_e;
   TH1F* npot;
   TH1F* npot_nowt;
 
   // Directory for this histogram set
   TDirectory* dir = nullptr;
 };
+
+//--------------------------------------------------------------------------------------
+// Global constants
+//--------------------------------------------------------------------------------------
+
+constexpr double ProtonMass = 938.27;
+constexpr double NeutronMass = 939.57;
+constexpr double MuonMass = 105.66;
 
 //--------------------------------------------------------------------------------------
 // Collection index constants
@@ -236,6 +249,7 @@ struct TreeBranches {
   std::vector<float> *line_cl_dt     = nullptr;
   std::vector<float> *line_cl_dr     = nullptr;
   std::vector<float> *line_avg_edep  = nullptr;
+  std::vector<int>   *line_fit_matched = nullptr;
 
   // Cosmic seed info (vectors: one entry per matched cosmic seed)
   std::vector<int>   *cosmic_seed_col_idx = nullptr;
@@ -438,6 +452,7 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->line_t0               = new TH1F("line_t0"              , "Line t_{0};t_{0} (ns);"                , 200,   0., 2000.);
   H->line_phi0             = new TH1F("line_phi0"            , "Line #phi_{0};#phi_{0} (rad);"         , 100,-3.15,  3.15);
   H->line_avg_edep         = new TH1F("line_avg_edep"        , "Line avg hit E_{dep};E_{dep} (keV);"   , 100,   0.,  0.01);
+  H->line_fit_matched     = new TH1I("line_fit_matched"    , "Line fit matched to cluster;;"         ,   3,  -1,     2);
 
   // Cosmic seed parameters
   H->cosmic_seed_chi2      = new TH1F("cosmic_seed_chi2"     , "Cosmic seed #chi^{2};#chi^{2};"        , 100,   0.,   10.);
@@ -462,7 +477,8 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->time_cluster_t0err         = new TH1F("time_cluster_t0err"        , ";Time cluster t_{0} #sigma (ns);", 100,   0.,   10.);
   H->time_cluster_z0            = new TH1F("time_cluster_z0"           , ";Time cluster z_{0} (mm);"       , 100,-5000.,5000.);
   H->time_cluster_phi0          = new TH1F("time_cluster_phi0"         , ";Time cluster #phi_{0};"       , 100,-3.15,  3.15);
-  H->time_cluster_avg_edep     = new TH1F("time_cluster_avg_edep"    , "Time cluster avg hit E_{dep};E_{dep} (keV);", 100,   0.,  0.01);
+  H->time_cluster_avg_edep      = new TH1F("time_cluster_avg_edep"     , "Time cluster avg hit E_{dep};E_{dep} (keV);", 100,   0.,  0.01);
+  H->prot_time_cluster_avg_edep = new TH1F("prot_time_cluster_avg_edep", "Proton time cluster avg hit E_{dep};E_{dep} (keV);", 100,   0.,  0.01);
 
   // CRV info
   H->crv_dt                    = new TH1F("crv_dt"                   , ";CRV-cluster #Delta t (ns);"  , 200,-200.,  200.);
@@ -495,6 +511,9 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->event_weight          = new TH1F("event_weight"         , "Event weight;Weight;"                  , 100,   0.,    5.);
   H->gen_energy            = new TH1F("gen_energy"           , ";Generated energy (MeV);"             ,  90,  50.,  140.);
   H->gen_energy_nowt       = new TH1F("gen_energy_nowt"      , ";Generated energy (MeV);"             ,  90,  50.,  140.);
+  H->mc_edep_diff          = new TH1F("mc_edep_diff"         , "Cluster energy - MC cluster energy;#DeltaE (MeV);", 100,  -20.,  20.);
+  H->gen_ediff             = new TH1F("gen_ediff"            , "Cluster energy - Generated energy;#DeltaE (MeV);" , 100,  -50.,  20.);
+  H->gen_ke_vs_e           = new TH2F("gen_ke_vs_e"          , "Generated KE vs. Cluster E;Generated KE (MeV);Cluster E (MeV)" , 50,  50., 100., 50, 50., 100.);
   H->npot                  = new TH1F("npot"                 , ";N(POT);"                             , 100,   0.,  4.e7);
   H->npot_nowt             = new TH1F("npot_nowt"            , ";N(POT);"                             , 100,   0.,  4.e7);
 }
@@ -552,6 +571,7 @@ void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) 
     H->line_t0              ->Fill(getColFloat(b.line_t0,      b.line_col_idx, col), w);
     H->line_phi0            ->Fill(getColFloat(b.line_phi0,    b.line_col_idx, col), w);
     H->line_avg_edep        ->Fill(getColFloat(b.line_avg_edep,b.line_col_idx, col), w);
+    H->line_fit_matched     ->Fill(getColInt(b.line_fit_matched, b.line_col_idx, col, -1), w);
   }
 
   // Cosmic seed parameters: fill from collection index 0 (electron) if present
@@ -586,6 +606,9 @@ void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) 
     H->time_cluster_phi0        ->Fill(getColFloat(b.time_cluster_phi0,         b.time_cluster_col_idx, col), w);
     H->time_cluster_avg_edep   ->Fill(getColFloat(b.time_cluster_avg_edep,    b.time_cluster_col_idx, col), w);
   }
+  {
+    H->prot_time_cluster_avg_edep   ->Fill(getColFloat(b.time_cluster_avg_edep,    b.time_cluster_col_idx, kProton), w);
+  }
 
   // CRV info
   H->crv_dt                   ->Fill(b.crv_dt,                   w);
@@ -618,6 +641,14 @@ void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) 
   H->event_weight         ->Fill(b.event_weight,          w);
   H->gen_energy           ->Fill(b.gen_energy,            w);
   H->gen_energy_nowt      ->Fill(b.gen_energy);
+  H->mc_edep_diff        ->Fill(b.cluster_energy - b.mc_cluster_energy, w);
+  float gen_ke =  b.gen_energy;
+  if     (b.sim_1_pdg == 2212    && b.gen_energy > ProtonMass ) gen_ke -= ProtonMass;
+  else if(b.sim_1_pdg == 2112    && b.gen_energy > NeutronMass) gen_ke -= NeutronMass;
+  else if(abs(b.sim_1_pdg) == 13 && b.gen_energy > MuonMass)    gen_ke -= MuonMass;
+  const float gen_ediff = b.cluster_energy - gen_ke;
+  H->gen_ediff            ->Fill(gen_ediff,               w);
+  H->gen_ke_vs_e->Fill(gen_ke, b.cluster_energy, w);
   H->npot                 ->Fill(b.npot,                  w);
   H->npot_nowt            ->Fill(b.npot);
 }
@@ -664,6 +695,7 @@ void setBranchAddresses(TTree* tree, TreeBranches& b) {
   tree->SetBranchAddress("line_cl_dt"              , &b.line_cl_dt);
   tree->SetBranchAddress("line_cl_dr"              , &b.line_cl_dr);
   tree->SetBranchAddress("line_avg_edep"           , &b.line_avg_edep);
+  tree->SetBranchAddress("line_fit_matched"        , &b.line_fit_matched);
 
   // Cosmic seed info (vector branches)
   tree->SetBranchAddress("cosmic_seed_col_idx"     , &b.cosmic_seed_col_idx);
@@ -881,14 +913,20 @@ void hist_run1bana_tree_v2(const char* inputFiles    = "input.root",  // comma- 
   bookHistograms( 37, "no_calo_mu_id_no_hits"                 , fout);
   bookHistograms( 38, "no_calo_mu_id_r_500_high_z_hits"       , fout);
 
-  // Proton selection: requires a proton line (collection index 1) matched to the cluster
-  bookHistograms( 40, "proton_line"                           , fout);
-  bookHistograms( 41, "proton_line_id"                        , fout);
-  bookHistograms( 42, "proton_line_id_r_500"                  , fout);
-  bookHistograms( 43, "proton_line_edep"                      , fout);
-
   // Sets with offsets
   for(int offset = 0; offset < 3; ++offset) {
+
+    // Proton selection: requires a proton line (collection index 1) matched to the cluster
+    bookHistograms( 40 + offset*100, "proton_line"                           , fout);
+    bookHistograms( 41 + offset*100, "proton_line_id"                        , fout);
+    bookHistograms( 42 + offset*100, "proton_line_id_r_500"                  , fout);
+    bookHistograms( 43 + offset*100, "proton_line_edep"                      , fout);
+    bookHistograms( 44 + offset*100, "proton_id"                             , fout);
+
+    // Neutron selections
+    bookHistograms( 50 + offset*100, "neutron"                               , fout);
+    bookHistograms( 51 + offset*100, "neutron_id"                            , fout);
+    bookHistograms( 52 + offset*100, "neutron_1_cr"                          , fout);
 
     // RMC sets
     bookHistograms( 70 + offset*100, "base"             , fout);
@@ -1065,12 +1103,14 @@ void hist_run1bana_tree_v2(const char* inputFiles    = "input.root",  // comma- 
     const float ele_line_cos               = getColFloat(b.line_cos,                  b.line_col_idx,         kElectron);
     const float ele_time_cluster_nhits     = getColFloat(b.time_cluster_nhits,        b.time_cluster_col_idx, kElectron);
     const float ele_time_cluster_nhigh_z   = getColFloat(b.time_cluster_nhigh_z_hits, b.time_cluster_col_idx, kElectron);
+    const float ele_tc_avg_edep            = getColFloat(b.time_cluster_avg_edep,     b.time_cluster_col_idx, kElectron);
 
     // Proton collection (index 1) info
     const bool  has_proton_line            = hasCol(b.line_col_idx, kProton);
-    const float pro_line_nhits             = getColFloat(b.line_nhits,   b.line_col_idx, kProton);
-    const float pro_line_cos               = getColFloat(b.line_cos,     b.line_col_idx, kProton);
-    const float pro_line_avg_edep          = getColFloat(b.line_avg_edep,b.line_col_idx, kProton);
+    const float pro_line_nhits             = getColFloat(b.line_nhits,                b.line_col_idx        , kProton);
+    const float pro_line_cos               = getColFloat(b.line_cos,                  b.line_col_idx        , kProton);
+    const float pro_line_avg_edep          = getColFloat(b.line_avg_edep,             b.line_col_idx        , kProton);
+    const float pro_tc_avg_edep            = getColFloat(b.time_cluster_avg_edep,     b.time_cluster_col_idx, kProton);
 
     // TODO: Add vetos using cosmic (kCosmic) collections
     // const bool has_cosmic_line  = hasCol(b.line_col_idx, kCosmic);
@@ -1133,15 +1173,39 @@ void hist_run1bana_tree_v2(const char* inputFiles    = "input.root",  // comma- 
 
     // Proton selection: require a proton line (collection index 1) matched to the cluster
     if(has_proton_line && sel_energy_time(b)) {
-      fillHistograms(40, b, b.event_weight);
+      fillHistograms(40 + offset, b, b.event_weight);
       if(sel_signal_id(b)) {
-        fillHistograms(41, b, b.event_weight);
+        fillHistograms(41 + offset, b, b.event_weight);
         if(b.cluster_radius > 500.) {
-          fillHistograms(42, b, b.event_weight);
+          fillHistograms(42 + offset, b, b.event_weight);
         }
       }
       if(pro_line_avg_edep > 0.0028) {
-          fillHistograms(43, b, b.event_weight);
+        fillHistograms(43 + offset, b, b.event_weight);
+        if(b.cluster_disk == 0
+           && b.cluster_ncr < 4
+           && getColFloat(b.line_cos, b.line_col_idx, kProton) > 0.985) {
+          fillHistograms(44 + offset, b, b.event_weight);
+        }
+      }
+    }
+
+    // Neutron selections
+    if(b.cluster_time > 500. && b.cluster_energy > 60.f && b.cluster_energy < 110.f) {
+      bool no_line = b.line_nhits->empty();
+      if(b.cluster_ncr < 3 && b.cluster_disk == 0) {
+        fillHistograms(50 + offset, b, b.event_weight);
+        if(no_line
+           && b.cluster_radius > 500.f && b.cluster_radius < 575.f
+           && b.cluster_frac_1 > 0.9f
+           && ele_time_cluster_nhigh_z < 6
+           && ele_tc_avg_edep < 0.0015f
+           && pro_tc_avg_edep < 0.002f) {
+          fillHistograms(51 + offset, b, b.event_weight);
+          if(b.cluster_ncr == 1) {
+            fillHistograms(52 + offset, b, b.event_weight);
+          }
+        }
       }
     }
 

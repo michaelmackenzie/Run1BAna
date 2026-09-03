@@ -697,6 +697,7 @@ namespace mu2e
     hist_[index]->tree->Branch("line_cl_dt"             , &tree_.line_cl_dt);
     hist_[index]->tree->Branch("line_cl_dr"             , &tree_.line_cl_dr);
     hist_[index]->tree->Branch("line_avg_edep"          , &tree_.line_avg_edep);
+    hist_[index]->tree->Branch("line_fit_matched"       , &tree_.line_fit_matched);
 
     // Cosmic seed info (vectors: one entry per matched cosmic seed)
     hist_[index]->tree->Branch("cosmic_seed_col_idx"     , &tree_.cosmic_seed_col_idx);
@@ -1278,6 +1279,7 @@ namespace mu2e
           }
           tree_.line_avg_edep.push_back((nactive > 0) ? edep_sum / nactive : 0.f);
         }
+        tree_.line_fit_matched.push_back(ml.fit_matched ? 1 : 0);
       }
     }
 
@@ -1841,7 +1843,8 @@ namespace mu2e
       if(!lines) continue;
 
       for(const auto& line : *lines) {
-        if(line.hasCaloCluster() && &(*line.caloCluster()) == &(*cluster)) ++par.nfit_matched_lines;
+        const bool is_fit_matched = line.hasCaloCluster() && &(*line.caloCluster()) == &(*cluster);
+        if(is_fit_matched) ++par.nfit_matched_lines;
         if(!isGoodLine(&line)) continue;
 
         const auto line_pos_t = lineAtCluster(cluster, &line);
@@ -1864,7 +1867,7 @@ namespace mu2e
           continue;
         }
         ++par.nmatched_lines;
-        par.matched_lines.push_back({&line, col_idx, dt, static_cast<float>(dr)});
+        par.matched_lines.push_back({&line, col_idx, dt, static_cast<float>(dr), is_fit_matched});
         if(dt < dt_best) {
           par.line = &line;
           dt_best = dt;

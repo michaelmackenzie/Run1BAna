@@ -31,6 +31,7 @@ namespace Run1BAnaStructs {
     int col_idx = -1; // index into the fhicl::Sequence of line collections
     float dt = 0.f;
     float dr = 0.f;
+    bool fit_matched = false; // true if the fit connected this line to the cluster
   };
 
   struct MatchedCosmicSeed_t {
@@ -268,6 +269,7 @@ namespace Run1BAnaStructs {
       std::vector<float> line_cl_dt;
       std::vector<float> line_cl_dr;
       std::vector<float> line_avg_edep;
+      std::vector<int>   line_fit_matched; // 1 if fit connected this line to the cluster, 0 otherwise
 
       // Cosmic seed info (vectors: one entry per matched cosmic seed)
       std::vector<int>   cosmic_seed_col_idx;
@@ -393,6 +395,7 @@ namespace Run1BAnaStructs {
         line_cl_dt.clear();
         line_cl_dr.clear();
         line_avg_edep.clear();
+        line_fit_matched.clear();
 
         cosmic_seed_col_idx.clear();
         cosmic_seed_chi2.clear();
