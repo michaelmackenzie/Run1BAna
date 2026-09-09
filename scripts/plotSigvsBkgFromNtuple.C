@@ -608,15 +608,17 @@ void plot(const char* name, const int set, const bool normalize,
   else {
     TH1* sig_draw = (TH1*) h_sig->Clone();
     sig_draw->SetLineColor(kBlue);
-    sig_draw->SetLineWidth(3);
+    sig_draw->SetLineWidth(4);
     sig_draw->SetFillColor(0);
+    sig_draw->SetLineStyle(7);
     sig_draw->Draw("hist same");
+    legend.AddEntry(sig_draw, "Signal-only");
   }
 
 
   const double max_sig = h_sig->GetMaximum();
   const double max_bkg = h_bkg->GetMaximum();
-  const double max_val = std::max(max_sig, max_bkg);
+  const double max_val = (stack_sig_) ? ((TH1*) h_stack.GetStack()->Last())->GetMaximum() : std::max(max_sig, max_bkg);
   const double min_max = (max_sig <= 0.) ? max_bkg : (max_bkg <= 0.) ? max_sig : std::min(max_sig, max_bkg);
   haxis->GetYaxis()->SetRangeUser(0., (1. + 0.11*nrows)*max_val);
 

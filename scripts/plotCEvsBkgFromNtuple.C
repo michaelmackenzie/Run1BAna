@@ -89,6 +89,8 @@ void plotCEvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "",
 
   const double emin = 60.;
   const double emax = 100.;
+  stack_sig_ = false;
+  signal_color_ = kBlue;
 
   // Plot by process
   vector<int> proc_sets = {70, 71, 80};

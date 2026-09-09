@@ -452,7 +452,7 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->line_t0               = new TH1F("line_t0"              , "Line t_{0};t_{0} (ns);"                , 200,   0., 2000.);
   H->line_phi0             = new TH1F("line_phi0"            , "Line #phi_{0};#phi_{0} (rad);"         , 100,-3.15,  3.15);
   H->line_avg_edep         = new TH1F("line_avg_edep"        , "Line avg hit E_{dep};E_{dep} (keV);"   , 100,   0.,  0.01);
-  H->line_fit_matched     = new TH1I("line_fit_matched"    , "Line fit matched to cluster;;"         ,   3,  -1,     2);
+  H->line_fit_matched      = new TH1I("line_fit_matched"     , "Line fit matched to cluster;;"         ,   3,  -1,     2);
 
   // Cosmic seed parameters
   H->cosmic_seed_chi2      = new TH1F("cosmic_seed_chi2"     , "Cosmic seed #chi^{2};#chi^{2};"        , 100,   0.,   10.);
@@ -484,11 +484,11 @@ void bookHistograms(const int index, const char* title, TDirectory* outDir) {
   H->crv_dt                    = new TH1F("crv_dt"                   , ";CRV-cluster #Delta t (ns);"  , 200,-200.,  200.);
   H->crv_dt_corrected          = new TH1F("crv_dt_corrected"         , ";CRV-cluster #Delta t (ns), corrected for time-of-flight;"  , 200,-200.,  200.);
   H->crv_cluster_nhits         = new TH1F("crv_cluster_nhits"        , ";CRV cluster N(hits);"                        , 50,   0.,   50.);
-  H->crv_cluster_npe          = new TH1F("crv_cluster_npe"         , ";CRV cluster N(PE);"                          , 50,   0.,   50.);
-  H->crv_cluster_t0           = new TH1F("crv_cluster_t0"          , ";CRV cluster t_{0} (ns);"         , 200,   0., 2000.);
-  H->crv_cluster_x            = new TH1F("crv_cluster_x"           , ";CRV cluster x (mm);"              , 100,-5000.,5000.);
-  H->crv_cluster_y            = new TH1F("crv_cluster_y"           , ";CRV cluster y (mm);"              , 100,-5000.,5000.);
-  H->crv_cluster_z            = new TH1F("crv_cluster_z"           , ";CRV cluster z (mm);"              , 100,-5000.,5000.);
+  H->crv_cluster_npe           = new TH1F("crv_cluster_npe"          , ";CRV cluster N(PE);"                          , 50,   0.,   50.);
+  H->crv_cluster_t0            = new TH1F("crv_cluster_t0"           , ";CRV cluster t_{0} (ns);"         , 200,   0., 2000.);
+  H->crv_cluster_x             = new TH1F("crv_cluster_x"            , ";CRV cluster x (mm);"              , 100,-5000.,5000.);
+  H->crv_cluster_y             = new TH1F("crv_cluster_y"            , ";CRV cluster y (mm);"              , 100,-5000.,5000.);
+  H->crv_cluster_z             = new TH1F("crv_cluster_z"            , ";CRV cluster z (mm);"              , 100,-5000.,5000.);
 
   // MC truth
   H->mc_cluster_energy     = new TH1F("mc_cluster_energy"    , "MC cluster energy;E (MeV);"            , 300,   0.,  300.);
@@ -604,7 +604,7 @@ void fillHistograms(const int index, const TreeBranches& b, double weight = 1.) 
     H->time_cluster_t0err       ->Fill(getColFloat(b.time_cluster_t0err,        b.time_cluster_col_idx, col), w);
     H->time_cluster_z0          ->Fill(getColFloat(b.time_cluster_z0,           b.time_cluster_col_idx, col), w);
     H->time_cluster_phi0        ->Fill(getColFloat(b.time_cluster_phi0,         b.time_cluster_col_idx, col), w);
-    H->time_cluster_avg_edep   ->Fill(getColFloat(b.time_cluster_avg_edep,    b.time_cluster_col_idx, col), w);
+    H->time_cluster_avg_edep    ->Fill(getColFloat(b.time_cluster_avg_edep,    b.time_cluster_col_idx, col), w);
   }
   {
     H->prot_time_cluster_avg_edep   ->Fill(getColFloat(b.time_cluster_avg_edep,    b.time_cluster_col_idx, kProton), w);
@@ -1191,7 +1191,8 @@ void hist_run1bana_tree_v2(const char* inputFiles    = "input.root",  // comma- 
     }
 
     // Neutron selections
-    if(b.cluster_time > 500. && b.cluster_energy > 60.f && b.cluster_energy < 110.f) {
+    if(b.cluster_time > 500. && b.cluster_time < 1650. &&
+       b.cluster_energy > 60.f && b.cluster_energy < 110.f) {
       bool no_line = b.line_nhits->empty();
       if(b.cluster_ncr < 3 && b.cluster_disk == 0) {
         fillHistograms(50 + offset, b, b.event_weight);

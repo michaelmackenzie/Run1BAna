@@ -83,7 +83,8 @@ void plotRMCvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "",
 
   const double emin = 60.;
   const double emax = 100.;
-  signal_color_ = kBlack;
+  stack_sig_ = true;
+  signal_color_ = kGray;
 
   // Plot by process
   // Plot the histograms

@@ -5,7 +5,7 @@
 
 
 //------------------------------------------------------------------------------
-void plotProtonVsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "",
+void plotProtonvsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "",
                                const double pot_scale = 1.) {
 
   auto datasets = getDatasets(tag);
@@ -87,6 +87,8 @@ void plotProtonVsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "",
 
   const double emin = 60.;
   const double emax = 100.;
+  stack_sig_ = true;
+  signal_color_ = kAtlantic;
 
   // Plot by process
   vector<int> proc_sets = {70,40,43,44};
@@ -112,6 +114,7 @@ void plotProtonVsBkgFromNtuple(const char* tag = "v40", TString hist_tag = "",
       plot("sim_1_type"                     , set, normalize, 1,  -1.,   10.);
       plot("sim_1_pdg"                      , set, normalize, 1, -15.,   15.);
       plot("gen_energy"                     , set, normalize, 2, emin,  emax, "MeV", true);
+      plot("gen_ediff"                      , set, normalize, 2, -50.,   10., "MeV", true);
     }
     evaluate_summary(set);
     plotModel(processes_, "cluster_energy", set);
